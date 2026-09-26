@@ -43,6 +43,10 @@ final class PathAnnotation: Annotation {
         }
     }
 
+    func rotateQuarter(clockwise _: Bool, mapping turn: (CGPoint) -> CGPoint) {
+        points = points.map(turn)
+    }
+
     func draw() {
         guard let first = points.first else { return }
 

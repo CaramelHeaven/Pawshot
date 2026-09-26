@@ -15,7 +15,34 @@ struct EditorView: View {
     let scrollView: NSScrollView
 
     var body: some View {
+        // Read live: switching the placement in Settings moves the tools in open windows too.
+        Group {
+            switch Settings.shared.toolsPlacement {
+            case .below:
+                VStack(spacing: 0) {
+                    shot
+                    ToolCapsule(model: model)
+                        .padding(.horizontal, Self.shotPadding)
+                        .padding(.bottom, 12)
+                }
+            case .overlay:
+                shot.overlay(alignment: .bottom) {
+                    ScalableTools(model: model)
+                        .padding(.horizontal, Self.shotPadding + 8)
+                        .padding(.bottom, Self.shotPadding + 10)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.background.secondary)
+        .toolbar { EditorToolbar(model: model) }
+        .sensoryFeedback(.levelChange, trigger: model.style.lineWidth)
+        .sensoryFeedback(.alignment, trigger: model.displayEdgeHits)
+    }
+
+    private var shot: some View {
         CanvasScrollView(scrollView: scrollView)
+            .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { model.reportShotFrame($0) }
             .clipShape(.rect(cornerRadius: Self.shotCornerRadius))
             .overlay {
                 RoundedRectangle(cornerRadius: Self.shotCornerRadius)
@@ -32,10 +59,6 @@ struct EditorView: View {
             .animation(.easeOut(duration: Tokens.Motion.exit), value: model.resizeChip == nil)
             .padding(Self.shotPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.background.secondary)
-            .toolbar { EditorToolbar(model: model) }
-            .sensoryFeedback(.levelChange, trigger: model.style.lineWidth)
-            .sensoryFeedback(.alignment, trigger: model.displayEdgeHits)
     }
 
     /// The chip sits by the edge that is being dragged, so the eye doesn't have to leave it.
@@ -75,49 +98,18 @@ private struct CanvasScrollView: NSViewRepresentable {
 
 // MARK: - Toolbar
 
-/// Tools, then the style — colours always on show, widths as strokes, fill — then history and the
-/// ways out. One primary action, tinted with the paw colour: Copy. Everything else is neutral
-/// glass, so the eye finds ⌘C first.
+/// The turns, history and the ways out. Everything that draws — the tools, the colours and the
+/// style — lives at the bottom (`ToolCapsule`), the owner's pick. One primary action, tinted with
+/// the paw colour: Copy. Everything else is neutral glass, so the eye finds ⌘C first.
 private struct EditorToolbar: ToolbarContent {
     let model: EditorChromeModel
 
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
-            ForEach(AnnotationTool.allCases, id: \.self) { tool in
-                ToolButton(tool: tool, model: model)
-            }
-        }
-
-        ToolbarItemGroup {
-            ForEach(AnnotationStyle.Palette.colors.indices, id: \.self) { index in
-                SwatchButton(index: index, model: model)
-            }
-        }
-
-        ToolbarSpacer(.fixed)
-
-        ToolbarItemGroup {
-            ForEach(AnnotationStyle.LineWidth.steps, id: \.self) { width in
-                WidthButton(width: width, model: model)
-            }
-            if model.tool == .text {
-                Button {
-                    model.cycleTextStyle()
-                } label: {
-                    TextStylePreview(style: model.style)
-                }
-                .help("Text style: plain, outline, plate (F)")
-                .accessibilityLabel("Text style")
-            } else {
-                Button {
-                    model.toggleFill()
-                } label: {
-                    Image(systemName: model.style.isFilled ? "square.fill" : "square")
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .help("Fill (F)")
-                .accessibilityLabel(model.style.isFilled ? "Fill on" : "Fill off")
-            }
+            Button("Rotate Left", systemImage: "rotate.left") { model.rotate(false) }
+                .help("Rotate left — the selected object, or the whole shot (⌘L)")
+            Button("Rotate Right", systemImage: "rotate.right") { model.rotate(true) }
+                .help("Rotate right — the selected object, or the whole shot (⌘R)")
         }
 
         ToolbarSpacer(.flexible)
@@ -127,8 +119,8 @@ private struct EditorToolbar: ToolbarContent {
                 .help("Undo (⌘Z)")
             Button("Redo", systemImage: "arrow.uturn.forward") { model.redo() }
                 .help("Redo (⇧⌘Z)")
-            Button("Clear All", systemImage: "trash") { model.clearAll() }
-                .help("Clear all (C)")
+            Button("Clear All", systemImage: "eraser") { model.clearAll() }
+                .help("Erase all markup (C)")
         }
 
         ToolbarItemGroup {
@@ -148,6 +140,353 @@ private struct EditorToolbar: ToolbarContent {
             .buttonStyle(.glassProminent)
             .tint(Tokens.paw)
             .help("Copy to clipboard (⌘C)")
+        }
+    }
+}
+
+/// The tools over the shot, with a visible grip at each end: drag one out to make them bigger, in to
+/// make them smaller, within `SelectionGeometry.toolsScale`; a double click puts them back at 100%.
+/// The size is remembered in Settings, and a narrower window shrinks them without forgetting it.
+private struct ScalableTools: View {
+    let model: EditorChromeModel
+
+    @State private var panelWidth: CGFloat = 0
+    @State private var availableWidth: CGFloat = 0
+    @State private var dragStartScale: CGFloat?
+
+    private var scale: CGFloat {
+        SelectionGeometry.toolsScale(
+            Settings.shared.overlayToolsScale,
+            panelWidth: panelWidth,
+            availableWidth: availableWidth
+        )
+    }
+
+    var body: some View {
+        ToolCapsule(model: model)
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { panelWidth = $0 }
+            .padding(.horizontal, ToolsGrip.width)
+            .overlay(alignment: .leading) { grip(outward: -1) }
+            .overlay(alignment: .trailing) { grip(outward: 1) }
+            // Measured inside the scale, so the frame is the one on screen. The canvas under it
+            // leaves the cursor alone there.
+            .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { model.reportToolsFrame($0) }
+            .onDisappear { model.reportToolsFrame(nil) }
+            .scaleEffect(scale, anchor: .bottom)
+            .frame(maxWidth: .infinity)
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { availableWidth = $0 }
+    }
+
+    /// The panel is centred, so an end dragged out by `dx` makes it `2 dx` wider.
+    private func grip(outward: CGFloat) -> some View {
+        ToolsGrip(isLeading: outward < 0)
+            .onTapGesture(count: 2) {
+                Settings.shared.overlayToolsScale = 1
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { drag in
+                        let start = dragStartScale ?? scale
+                        dragStartScale = start
+                        guard panelWidth > 0 else { return }
+                        let requested = start + 2 * outward * drag.translation.width / panelWidth
+                        Settings.shared.overlayToolsScale = SelectionGeometry.toolsScale(
+                            requested,
+                            panelWidth: panelWidth,
+                            availableWidth: availableWidth
+                        )
+                    }
+                    .onEnded { _ in dragStartScale = nil }
+            )
+    }
+}
+
+/// A grip at one end of the floating tools: a thin pill that lights up in the paw colour under the
+/// pointer, on a strip wide enough to catch without aiming.
+private struct ToolsGrip: View {
+    static let width: CGFloat = 16
+
+    let isLeading: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        Capsule()
+            .fill(isHovered ? Tokens.paw : Color.secondary.opacity(0.35))
+            .frame(width: 4, height: 20)
+            .frame(width: Self.width)
+            .frame(maxHeight: .infinity)
+            .contentShape(.rect)
+            .onHover { isHovered = $0 }
+            .pointerStyle(.frameResize(position: isLeading ? .leading : .trailing))
+            .animation(.easeOut(duration: 0.12), value: isHovered)
+            .help("Drag to resize the tools; double-click for 100%")
+            .accessibilityLabel("Resize the tools")
+    }
+}
+
+/// Two glass capsules under the shot, or over its bottom edge — where Settings puts them: the
+/// tools, and the style — the colours and whatever the current tool or selected object has. Side
+/// by side when they fit, the style above the tools when they don't; on a very narrow shot the
+/// colours fold into one swatch and the capsules scroll.
+private struct ToolCapsule: View {
+    let model: EditorChromeModel
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                tools
+                StyleCapsule(model: model, foldsColours: false)
+            }
+            VStack(spacing: 6) {
+                StyleCapsule(model: model, foldsColours: false)
+                tools
+            }
+            VStack(spacing: 6) {
+                StyleCapsule(model: model, foldsColours: true)
+                tools
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                VStack(spacing: 6) {
+                    StyleCapsule(model: model, foldsColours: true)
+                    tools
+                }
+            }
+        }
+    }
+
+    private var tools: some View {
+        HStack(spacing: 2) {
+            ForEach(AnnotationTool.allCases, id: \.self) { tool in
+                ToolButton(tool: tool, model: model)
+                    .buttonStyle(.plain)
+                    .frame(width: 28, height: 28)
+            }
+        }
+        .glassCapsule()
+    }
+}
+
+/// The colours, then only what the current kind of object has: widths and the fill with its
+/// opacity for a rectangle, widths and the ends for a line, the look, the weights and the plate's
+/// opacity for a label, widths for the rest. The opacity slider is always out — no chevron.
+private struct StyleCapsule: View {
+    let model: EditorChromeModel
+    let foldsColours: Bool
+
+    var body: some View {
+        HStack(spacing: 2) {
+            if foldsColours {
+                FoldedColours(model: model)
+            } else {
+                ForEach(AnnotationStyle.Palette.colors.indices, id: \.self) { index in
+                    SwatchButton(index: index, model: model)
+                }
+                CustomSwatchButton(model: model)
+            }
+            CapsuleDivider()
+            if model.showsTextControls {
+                Button {
+                    model.cycleTextStyle()
+                } label: {
+                    TextStylePreview(style: model.style)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 26, height: 26)
+                .help("Text style: plain, outline, plate (F)")
+                .accessibilityLabel("Text style")
+                CapsuleDivider()
+                ForEach(model.textWeights, id: \.rawValue) { weight in
+                    WeightButton(weight: weight, model: model)
+                }
+                CapsuleDivider()
+                OpacitySlider(model: model, minimum: 0.1)
+            } else {
+                ForEach(AnnotationStyle.LineWidth.steps, id: \.self) { width in
+                    WidthButton(width: width, model: model)
+                }
+                if model.showsLineEnds {
+                    CapsuleDivider()
+                    LineEndsPicker(model: model)
+                } else if model.showsFill {
+                    CapsuleDivider()
+                    Button {
+                        model.cycleFill()
+                    } label: {
+                        FillPreview(style: model.style)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Fill: none, 30%, 60%, solid (F)")
+                    .accessibilityLabel("Fill")
+                    .accessibilityValue(model.style.isFilled ? "\(Int(model.style.fillOpacity * 100))%" : "off")
+                    OpacitySlider(model: model, minimum: 0)
+                }
+            }
+        }
+        .glassCapsule()
+    }
+}
+
+private struct CapsuleDivider: View {
+    var body: some View {
+        Divider()
+            .frame(height: 18)
+            .padding(.horizontal, 5)
+    }
+}
+
+private extension View {
+    func glassCapsule() -> some View {
+        padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .glassEffect(.regular, in: .capsule)
+            .fixedSize()
+    }
+}
+
+/// "Аа" in one weight of the labels' family: as many buttons as the family has weights.
+private struct WeightButton: View {
+    let weight: NSFont.Weight
+    let model: EditorChromeModel
+
+    private var isSelected: Bool {
+        LabelFont.nearest(model.style.textWeight, in: model.textWeights) == weight
+    }
+
+    var body: some View {
+        Button {
+            model.pickTextWeight(weight)
+        } label: {
+            Text(verbatim: "Аа")
+                .font(Font(LabelFont.font(size: 13, weight: weight)))
+                .frame(width: 26, height: 22)
+                .background {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 6).fill(.primary.opacity(0.14))
+                    }
+                }
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .help(LabelFont.name(of: weight))
+        .accessibilityLabel(LabelFont.name(of: weight))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// The fill's or the plate's opacity, always on show. Applied when the knob is let go — one step
+/// of ⌘Z for the whole drag.
+private struct OpacitySlider: View {
+    let model: EditorChromeModel
+    let minimum: CGFloat
+
+    @State private var value: CGFloat = 0
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Slider(value: $value, in: minimum ... 1, step: 0.05) { editing in
+                if !editing {
+                    model.setFillOpacity(value)
+                }
+            }
+            .controlSize(.small)
+            .frame(width: 90)
+            Text("\(Int((value * 100).rounded()))%")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 34, alignment: .trailing)
+        }
+        .help("Opacity")
+        .onAppear { value = max(model.style.fillOpacity, minimum) }
+        .onChange(of: model.style.fillOpacity) { _, opacity in
+            value = max(opacity, minimum)
+        }
+    }
+}
+
+/// The colours behind one swatch of the current colour, for a capsule that has no room for five.
+private struct FoldedColours: View {
+    let model: EditorChromeModel
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented = true
+        } label: {
+            Circle()
+                .fill(Color(nsColor: model.style.color))
+                .overlay(Circle().strokeBorder(.primary.opacity(0.35), lineWidth: 0.75))
+                .frame(width: 16, height: 16)
+                .frame(width: 24, height: 22)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .help("Colours")
+        .accessibilityLabel("Colours")
+        .popover(isPresented: $isPresented, arrowEdge: .top) {
+            HStack(spacing: 2) {
+                ForEach(AnnotationStyle.Palette.colors.indices, id: \.self) { index in
+                    SwatchButton(index: index, model: model)
+                }
+                CustomSwatchButton(model: model)
+            }
+            .padding(10)
+        }
+    }
+}
+
+/// A square filled as the shape will be: empty, see-through or solid.
+private struct FillPreview: View {
+    let style: AnnotationStyle
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 3)
+            .fill(Color(nsColor: style.color).opacity(style.fillOpacity))
+            .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(.primary, lineWidth: 1.5))
+            .frame(width: 15, height: 15)
+            .frame(width: 22, height: 22)
+    }
+}
+
+/// Plain, arrow, double arrow — the one line tool's three looks, and the ends of a selected line.
+private struct LineEndsPicker: View {
+    let model: EditorChromeModel
+
+    var body: some View {
+        ForEach(AnnotationStyle.LineEnds.allCases, id: \.self) { ends in
+            let isSelected = model.style.lineEnds == ends
+            Button {
+                model.pickLineEnds(ends)
+            } label: {
+                Image(systemName: Self.symbol(for: ends))
+                    .foregroundStyle(isSelected ? Tokens.paw : .primary)
+                    .frame(width: 22, height: 22)
+                    .background {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 6).fill(.primary.opacity(0.14))
+                        }
+                    }
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .help(Self.title(for: ends))
+            .accessibilityLabel(Self.title(for: ends))
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+        }
+    }
+
+    private static func symbol(for ends: AnnotationStyle.LineEnds) -> String {
+        switch ends {
+        case .none: "minus"
+        case .end: "arrow.right"
+        case .both: "arrow.left.and.right"
+        }
+    }
+
+    private static func title(for ends: AnnotationStyle.LineEnds) -> String {
+        switch ends {
+        case .none: String(localized: "Line (A)")
+        case .end: String(localized: "Arrow (A)")
+        case .both: String(localized: "Double arrow (A)")
         }
     }
 }
@@ -211,7 +550,6 @@ private struct ToolButton: View {
 }
 
 /// One palette colour, always visible — picking a colour is one click, not "open, then pick".
-/// The sixth slot is black or white, whichever is on; pressing it again flips it.
 private struct SwatchButton: View {
     let index: Int
     let model: EditorChromeModel
@@ -220,21 +558,14 @@ private struct SwatchButton: View {
         model.colorIndex == index
     }
 
-    private var color: NSColor {
-        let isLast = index == AnnotationStyle.Palette.colors.count - 1
-        if isLast, isSelected {
-            return model.style.color
-        }
-        return AnnotationStyle.Palette.colors[index]
-    }
-
     var body: some View {
         Button {
             model.pickColor(index)
         } label: {
             Circle()
-                .fill(Color(nsColor: color))
-                .overlay(Circle().strokeBorder(.primary.opacity(0.25), lineWidth: 0.5))
+                .fill(Color(nsColor: AnnotationStyle.Palette.colors[index]))
+                // Strong enough to show the white swatch on a light toolbar.
+                .overlay(Circle().strokeBorder(.primary.opacity(0.35), lineWidth: 0.75))
                 .frame(width: isSelected ? 16 : 13, height: isSelected ? 16 : 13)
                 .background {
                     if isSelected {
@@ -251,6 +582,59 @@ private struct SwatchButton: View {
         .help("Colour \(index + 1)")
         .accessibilityLabel("Colour \(index + 1)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// The fifth slot: the colour of one's own inside a rainbow ring. A click picks it; a click when it
+/// is already on opens the picker.
+private struct CustomSwatchButton: View {
+    let model: EditorChromeModel
+    @State private var isPresented = false
+
+    private var isSelected: Bool {
+        model.colorIndex == AnnotationStyle.Palette.customIndex
+    }
+
+    var body: some View {
+        Button {
+            if isSelected {
+                isPresented = true
+            } else {
+                model.pickColor(AnnotationStyle.Palette.customIndex)
+            }
+        } label: {
+            Circle()
+                .fill(Color(nsColor: isSelected ? model.style.color : model.customColor))
+                .padding(3)
+                .background {
+                    Circle().fill(AngularGradient(
+                        colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red],
+                        center: .center
+                    ))
+                }
+                .frame(width: isSelected ? 18 : 15, height: isSelected ? 18 : 15)
+                .background {
+                    if isSelected {
+                        Circle()
+                            .stroke(.primary, lineWidth: 1.5)
+                            .frame(width: 23, height: 23)
+                    }
+                }
+                .frame(width: 24, height: 22)
+                .contentShape(.rect)
+                .animation(.easeOut(duration: Tokens.Motion.enter), value: isSelected)
+        }
+        .buttonStyle(.plain)
+        .help("Your colour (5) — click again to pick")
+        .accessibilityLabel("Your colour")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            ColorPickerPopover(
+                initial: model.style.color,
+                recents: model.recentColors,
+                onPick: { model.pickCustomColor($0) }
+            )
+        }
     }
 }
 

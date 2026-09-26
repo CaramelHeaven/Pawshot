@@ -43,6 +43,11 @@ final class BlurAnnotation: Annotation {
         end.y += delta.dy
     }
 
+    func rotateQuarter(clockwise _: Bool, mapping turn: (CGPoint) -> CGPoint) {
+        start = turn(start)
+        end = turn(end)
+    }
+
     func draw() {
         guard let image = source.image(for: mode), !rect.isEmpty else { return }
 

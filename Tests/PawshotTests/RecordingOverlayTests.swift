@@ -16,6 +16,44 @@ final class RecordingRegionGeometryTests: XCTestCase {
         XCTAssertNil(SelectionGeometry.handle(at: CGPoint(x: 600, y: 250), of: region), "outside starts a new one")
     }
 
+    /// The corner brackets are drawn with 16 pt arms: pressing anywhere on an arm takes the
+    /// corner, not the edge the arm lies on.
+    func testTheWholeBracketArmGrabsTheCorner() {
+        XCTAssertEqual(SelectionGeometry.handle(at: CGPoint(x: 114, y: 97), of: region), .topLeft)
+        XCTAssertEqual(SelectionGeometry.handle(at: CGPoint(x: 503, y: 386), of: region), .bottomRight)
+    }
+
+    /// A press a little outside the line still takes the edge instead of wiping the region.
+    func testAPressJustOutsideTheLineStillGrabsTheEdge() {
+        XCTAssertEqual(SelectionGeometry.handle(at: CGPoint(x: 91, y: 250), of: region), .left)
+        XCTAssertEqual(SelectionGeometry.handle(at: CGPoint(x: 300, y: 409), of: region), .bottom)
+    }
+
+    /// On a small region the zones shrink, so its middle can still be grabbed to move it.
+    func testTheMiddleOfASmallRegionStaysReachable() {
+        let small = CGRect(x: 100, y: 100, width: 12, height: 12)
+        XCTAssertEqual(SelectionGeometry.handle(at: CGPoint(x: 106, y: 106), of: small), .inside)
+    }
+
+    // MARK: - The cursor
+
+    func testTheCursorSaysWhatAPressWouldDo() {
+        func cursor(_ point: CGPoint, grabbed: SelectionGeometry.Handle? = nil, overBar: Bool = false) -> SelectionView.CursorKind {
+            SelectionView.cursorKind(at: point, selection: region, purpose: .recording, mode: .region, overBar: overBar, grabbed: grabbed)
+        }
+        XCTAssertEqual(cursor(CGPoint(x: 100, y: 250)), .resize(.left))
+        XCTAssertEqual(cursor(CGPoint(x: 300, y: 250)), .openHand)
+        XCTAssertEqual(cursor(CGPoint(x: 700, y: 250)), .crosshair)
+        XCTAssertEqual(cursor(CGPoint(x: 300, y: 250), overBar: true), .arrow)
+        XCTAssertEqual(cursor(CGPoint(x: 700, y: 250), grabbed: .right), .resize(.right), "the grabbed edge's cursor, wherever the drag is")
+        XCTAssertEqual(cursor(CGPoint(x: 700, y: 250), grabbed: .inside), .closedHand)
+        XCTAssertEqual(
+            SelectionView.cursorKind(at: CGPoint(x: 100, y: 250), selection: region, purpose: .screenshot, mode: .region, overBar: false, grabbed: nil),
+            .crosshair,
+            "a screenshot region has no handles"
+        )
+    }
+
     func testCornerResizeKeepsTheOppositeCorner() {
         let resized = SelectionGeometry.resized(
             region, dragging: .bottomRight, to: CGPoint(x: 700, y: 500), aspect: nil, within: bounds
@@ -245,6 +283,27 @@ final class RecordingSelectionViewTests: XCTestCase {
         try view.keyDown(with: key("r", keyCode: kVK_ANSI_R))
 
         XCTAssertEqual(spy.selected.first?.0, CGRect(x: 150, y: 120, width: 200, height: 150))
+    }
+
+    /// An edge is dragged through the view, not only through the geometry.
+    func testDraggingTheRightEdgeWidensTheRegion() throws {
+        let (view, spy) = makeView()
+        try drag(view, from: CGPoint(x: 100, y: 100), to: CGPoint(x: 300, y: 250))
+        try drag(view, from: CGPoint(x: 305, y: 175), to: CGPoint(x: 365, y: 175))
+        try view.keyDown(with: key("r", keyCode: kVK_ANSI_R))
+
+        XCTAssertEqual(spy.selected.first?.0, CGRect(x: 100, y: 100, width: 260, height: 150))
+    }
+
+    /// An edge dragged onto its opposite leaves nothing to grab; on release the region comes back
+    /// as it was before the drag.
+    func testAnEdgeDraggedToNothingPutsTheRegionBack() throws {
+        let (view, spy) = makeView()
+        try drag(view, from: CGPoint(x: 100, y: 100), to: CGPoint(x: 300, y: 250))
+        try drag(view, from: CGPoint(x: 300, y: 175), to: CGPoint(x: 100, y: 175))
+        try view.keyDown(with: key("r", keyCode: kVK_ANSI_R))
+
+        XCTAssertEqual(spy.selected.first?.0, CGRect(x: 100, y: 100, width: 200, height: 150))
     }
 
     func testReturnWithoutARegionRecordsTheGhost() throws {

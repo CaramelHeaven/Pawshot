@@ -41,34 +41,56 @@ final class ArrowAnnotation: Annotation {
         end.y += delta.dy
     }
 
+    func rotateQuarter(clockwise _: Bool, mapping turn: (CGPoint) -> CGPoint) {
+        start = turn(start)
+        end = turn(end)
+    }
+
+    /// One object for a plain line, an arrow and a double arrow — only the heads differ, so a
+    /// drawn line can become any of the three later, as one step of undo.
     func draw() {
         style.color.setStroke()
         style.color.setFill()
 
         let angle = atan2(end.y - start.y, end.x - start.x)
-        // The tail stops short of the tip: otherwise the line sticks out from under the head.
-        let shaftEnd = CGPoint(
-            x: end.x - cos(angle) * headLength * 0.75,
-            y: end.y - sin(angle) * headLength * 0.75
-        )
+        let hasEndHead = style.lineEnds != .none
+        let hasStartHead = style.lineEnds == .both
+
+        // The shaft stops short of a tip: otherwise the line sticks out from under the head.
+        let pullBack = headLength * 0.75
+        let shaftStart = hasStartHead
+            ? CGPoint(x: start.x + cos(angle) * pullBack, y: start.y + sin(angle) * pullBack)
+            : start
+        let shaftEnd = hasEndHead
+            ? CGPoint(x: end.x - cos(angle) * pullBack, y: end.y - sin(angle) * pullBack)
+            : end
 
         let shaft = NSBezierPath()
-        shaft.move(to: start)
+        shaft.move(to: shaftStart)
         shaft.line(to: shaftEnd)
         shaft.lineWidth = style.lineWidth
         shaft.lineCapStyle = .round
         shaft.stroke()
 
+        if hasEndHead {
+            drawHead(at: end, pointing: angle)
+        }
+        if hasStartHead {
+            drawHead(at: start, pointing: angle + .pi)
+        }
+    }
+
+    private func drawHead(at tip: CGPoint, pointing angle: CGFloat) {
         let spread = CGFloat.pi / 7
         let head = NSBezierPath()
-        head.move(to: end)
+        head.move(to: tip)
         head.line(to: CGPoint(
-            x: end.x - cos(angle - spread) * headLength,
-            y: end.y - sin(angle - spread) * headLength
+            x: tip.x - cos(angle - spread) * headLength,
+            y: tip.y - sin(angle - spread) * headLength
         ))
         head.line(to: CGPoint(
-            x: end.x - cos(angle + spread) * headLength,
-            y: end.y - sin(angle + spread) * headLength
+            x: tip.x - cos(angle + spread) * headLength,
+            y: tip.y - sin(angle + spread) * headLength
         ))
         head.close()
         head.fill()

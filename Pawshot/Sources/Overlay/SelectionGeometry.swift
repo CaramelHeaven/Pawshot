@@ -17,6 +17,98 @@ enum SelectionGeometry {
         )
     }
 
+    /// A point of a frame `size` after the frame is turned a quarter, in a system with its origin at
+    /// the top left and Y going down — the captured frame's. Clockwise, the top left corner lands
+    /// top right: `(x, y)` → `(H − y, x)`. The frame is `H × W` afterwards.
+    static func rotatedQuarter(_ point: CGPoint, in size: CGSize, clockwise: Bool) -> CGPoint {
+        clockwise
+            ? CGPoint(x: size.height - point.y, y: point.x)
+            : CGPoint(x: point.y, y: size.width - point.x)
+    }
+
+    /// A quarter turn about a point, in the same Y-down system: clockwise, what was to the right of
+    /// `centre` ends up below it.
+    static func rotatedQuarter(_ point: CGPoint, around centre: CGPoint, clockwise: Bool) -> CGPoint {
+        let dx = point.x - centre.x
+        let dy = point.y - centre.y
+        return clockwise
+            ? CGPoint(x: centre.x - dy, y: centre.y + dx)
+            : CGPoint(x: centre.x + dy, y: centre.y - dx)
+    }
+
+    /// A SwiftUI `.global` frame → the window's own coordinates, through a reference both sides
+    /// know: the shot, measured by SwiftUI (`shotInSwiftUI`, Y down) and by AppKit (`shotInWindow`,
+    /// Y up). Where SwiftUI's global space starts — under the title bar, under the toolbar — is not
+    /// something to assume: converting through the content view came out a title bar off,
+    /// measured in `AnnotationCanvasViewTests`.
+    static func windowRect(fromSwiftUI rect: CGRect, shotInSwiftUI: CGRect, shotInWindow: CGRect) -> CGRect {
+        CGRect(
+            x: shotInWindow.minX + (rect.minX - shotInSwiftUI.minX),
+            y: shotInWindow.maxY - (rect.maxY - shotInSwiftUI.minY),
+            width: rect.width,
+            height: rect.height
+        )
+    }
+
+    /// How big the editor's tools are drawn over the shot. Under 75% the cells are too small to hit
+    /// and their letters too small to read; over 150% they cover too much of the shot; and never
+    /// wider than the window — `panelWidth` is their width at 100%.
+    static func toolsScale(_ requested: CGFloat, panelWidth: CGFloat, availableWidth: CGFloat) -> CGFloat {
+        let minimum: CGFloat = 0.75
+        var maximum: CGFloat = 1.5
+        if panelWidth > 0 {
+            maximum = min(maximum, availableWidth / panelWidth)
+        }
+        return max(minimum, min(requested, maximum))
+    }
+
+    /// A corner of a rectangle in the Y-down system: `top` is the smaller Y.
+    enum Corner: CaseIterable {
+        case topLeft, topRight, bottomLeft, bottomRight
+
+        var opposite: Corner {
+            switch self {
+            case .topLeft: .bottomRight
+            case .topRight: .bottomLeft
+            case .bottomLeft: .topRight
+            case .bottomRight: .topLeft
+            }
+        }
+
+        func point(of rect: CGRect) -> CGPoint {
+            switch self {
+            case .topLeft: CGPoint(x: rect.minX, y: rect.minY)
+            case .topRight: CGPoint(x: rect.maxX, y: rect.minY)
+            case .bottomLeft: CGPoint(x: rect.minX, y: rect.maxY)
+            case .bottomRight: CGPoint(x: rect.maxX, y: rect.maxY)
+            }
+        }
+    }
+
+    /// The corner of `rect` within `radius` of `point`, if any — the handles on a selected label.
+    static func corner(of rect: CGRect, near point: CGPoint, radius: CGFloat) -> Corner? {
+        Corner.allCases.first { corner in
+            let handle = corner.point(of: rect)
+            return abs(handle.x - point.x) <= radius && abs(handle.y - point.y) <= radius
+        }
+    }
+
+    /// Dragging a corner away from the fixed opposite one: how much bigger the thing gets. The
+    /// distance ratio, so the drag works along the diagonal whichever corner is held.
+    static func cornerScale(anchor: CGPoint, start: CGPoint, current: CGPoint) -> CGFloat {
+        let before = hypot(start.x - anchor.x, start.y - anchor.y)
+        guard before > 0 else { return 1 }
+        return hypot(current.x - anchor.x, current.y - anchor.y) / before
+    }
+
+    /// The same for a rectangle: its corners turn, and it comes back normalised.
+    static func rotatedQuarter(_ rect: CGRect, in size: CGSize, clockwise: Bool) -> CGRect {
+        self.rect(
+            from: rotatedQuarter(CGPoint(x: rect.minX, y: rect.minY), in: size, clockwise: clockwise),
+            to: rotatedQuarter(CGPoint(x: rect.maxX, y: rect.maxY), in: size, clockwise: clockwise)
+        )
+    }
+
     /// A miss instead of a selection: a single click or a shaky hand.
     static func isTooSmall(_ rect: CGRect, minimumSide: CGFloat = 4) -> Bool {
         rect.width < minimumSide || rect.height < minimumSide
@@ -363,25 +455,58 @@ enum SelectionGeometry {
     /// Which handle `point` grabs, if any. Corners win over edges and edges over the inside, so a
     /// press a few points off a corner resizes rather than moves. `nil` outside the grab zone: the
     /// press starts a new selection.
-    static func handle(at point: CGPoint, of rect: CGRect, tolerance: CGFloat = 8) -> Handle? {
-        guard rect.insetBy(dx: -tolerance, dy: -tolerance).contains(point) else { return nil }
-
-        let left = abs(point.x - rect.minX) <= tolerance
-        let right = abs(point.x - rect.maxX) <= tolerance
-        let top = abs(point.y - rect.minY) <= tolerance
-        let bottom = abs(point.y - rect.maxY) <= tolerance
-
-        switch (left, right, top, bottom) {
-        case (true, _, true, _): return .topLeft
-        case (_, true, true, _): return .topRight
-        case (true, _, _, true): return .bottomLeft
-        case (_, true, _, true): return .bottomRight
-        case (true, _, _, _): return .left
-        case (_, true, _, _): return .right
-        case (_, _, true, _): return .top
-        case (_, _, _, true): return .bottom
-        default: return rect.contains(point) ? .inside : nil
+    /// Where a grabbed edge or corner goes: it follows the mouse by the distance the mouse moved,
+    /// not to the mouse itself. With grab zones 10–16 pt wide, snapping the edge to the pointer made
+    /// it jump on the first pixel of the drag.
+    static func handleTarget(_ handle: Handle, of rect: CGRect, grabbedAt grab: CGPoint, mouse: CGPoint) -> CGPoint {
+        let x: CGFloat = switch handle {
+        case .left, .topLeft, .bottomLeft: rect.minX
+        case .right, .topRight, .bottomRight: rect.maxX
+        case .top, .bottom, .inside: grab.x
         }
+        let y: CGFloat = switch handle {
+        case .top, .topLeft, .topRight: rect.minY
+        case .bottom, .bottomLeft, .bottomRight: rect.maxY
+        case .left, .right, .inside: grab.y
+        }
+        return CGPoint(x: mouse.x + (x - grab.x), y: mouse.y + (y - grab.y))
+    }
+
+    /// The corners reach 16 pt each way — the length of the drawn bracket's arms, so a press
+    /// anywhere on an arm takes the corner. The edges reach 10 pt either side of the line, so a
+    /// press just outside still takes the edge instead of wiping the region. On a small region
+    /// both shrink to a quarter of the side, so its middle can still be grabbed.
+    static func handle(at point: CGPoint, of rect: CGRect, edgeReach: CGFloat = 10, cornerReach: CGFloat = 16) -> Handle? {
+        let edgeX = min(edgeReach, rect.width / 4)
+        let edgeY = min(edgeReach, rect.height / 4)
+        let cornerX = max(min(cornerReach, rect.width / 4), edgeX)
+        let cornerY = max(min(cornerReach, rect.height / 4), edgeY)
+
+        let corners: [(Handle, CGPoint)] = [
+            (.topLeft, CGPoint(x: rect.minX, y: rect.minY)),
+            (.topRight, CGPoint(x: rect.maxX, y: rect.minY)),
+            (.bottomLeft, CGPoint(x: rect.minX, y: rect.maxY)),
+            (.bottomRight, CGPoint(x: rect.maxX, y: rect.maxY)),
+        ]
+        for (handle, corner) in corners where abs(point.x - corner.x) <= cornerX && abs(point.y - corner.y) <= cornerY {
+            return handle
+        }
+
+        let withinX = point.x >= rect.minX && point.x <= rect.maxX
+        let withinY = point.y >= rect.minY && point.y <= rect.maxY
+        if withinY, abs(point.x - rect.minX) <= edgeX {
+            return .left
+        }
+        if withinY, abs(point.x - rect.maxX) <= edgeX {
+            return .right
+        }
+        if withinX, abs(point.y - rect.minY) <= edgeY {
+            return .top
+        }
+        if withinX, abs(point.y - rect.maxY) <= edgeY {
+            return .bottom
+        }
+        return rect.contains(point) ? .inside : nil
     }
 
     /// A drag from `anchor` to `point`, held to `aspect` (width / height) when there is one. The

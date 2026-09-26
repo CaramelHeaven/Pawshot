@@ -146,6 +146,9 @@
         }
       }
     },
+    "%lld%%" : {
+      "shouldTranslate" : false
+    },
     "1x / 2x" : {
       "shouldTranslate" : false
     },
@@ -232,12 +235,12 @@
         }
       }
     },
-    "Arrow" : {
+    "Arrow (A)" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Стрелка"
+            "value" : "Стрелка (A)"
           }
         }
       }
@@ -372,16 +375,6 @@
         }
       }
     },
-    "Clear all (C)" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Очистить всё (C)"
-          }
-        }
-      }
-    },
     "Click a window" : {
       "localizations" : {
         "ru" : {
@@ -418,6 +411,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Цвет %lld"
+          }
+        }
+      }
+    },
+    "Colours" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Цвета"
           }
         }
       }
@@ -622,12 +625,32 @@
         }
       }
     },
+    "Double arrow (A)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Двойная стрелка (A)"
+          }
+        }
+      }
+    },
     "Drag Pawshot into the list" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Перетащите Pawshot в список"
+          }
+        }
+      }
+    },
+    "Drag to resize the tools; double-click for 100%" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Потяните, чтобы изменить размер панели; двойной клик — 100%"
           }
         }
       }
@@ -642,35 +665,65 @@
         }
       }
     },
+    "Editor" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Редактор"
+          }
+        }
+      }
+    },
+    "Erase all markup (C)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стереть всю разметку (C)"
+          }
+        }
+      }
+    },
     "Esc" : {
       "shouldTranslate" : false
     },
-    "Fill (F)" : {
+    "Every shortcut goes back to the one Pawshot came with." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Заливка (F)"
+            "value" : "Все сочетания вернутся к тем, что были в Pawshot изначально."
           }
         }
       }
     },
-    "Fill off" : {
+    "Eyedropper" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Заливка выключена"
+            "value" : "Пипетка"
           }
         }
       }
     },
-    "Fill on" : {
+    "Fill" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Заливка включена"
+            "value" : "Заливка"
+          }
+        }
+      }
+    },
+    "Fill: none, 30%, 60%, solid (F)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заливка: нет, 30%, 60%, сплошная (F)"
           }
         }
       }
@@ -694,6 +747,19 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Основные"
+          }
+        }
+      }
+    },
+    "HEX" : {
+      "shouldTranslate" : false
+    },
+    "Hue" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оттенок"
           }
         }
       }
@@ -774,6 +840,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Разрешите Pawshot видеть экран"
+          }
+        }
+      }
+    },
+    "Line" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Линия"
+          }
+        }
+      }
+    },
+    "Line (A)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Линия (A)"
           }
         }
       }
@@ -891,6 +977,16 @@
         }
       }
     },
+    "Opacity" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Непрозрачность"
+          }
+        }
+      }
+    },
     "Open Keyboard Shortcuts" : {
       "localizations" : {
         "ru" : {
@@ -927,6 +1023,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Оригинал · HEVC"
+          }
+        }
+      }
+    },
+    "Over the shot" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поверх снимка"
           }
         }
       }
@@ -1043,6 +1149,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Карандаш"
+          }
+        }
+      }
+    },
+    "Pick a colour from the screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Взять цвет с экрана"
           }
         }
       }
@@ -1277,6 +1393,16 @@
         }
       }
     },
+    "Resize the tools" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размер панели"
+          }
+        }
+      }
+    },
     "Resolution" : {
       "localizations" : {
         "ru" : {
@@ -1327,6 +1453,36 @@
         }
       }
     },
+    "Restore Defaults" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вернуть стандартные"
+          }
+        }
+      }
+    },
+    "Restore Defaults…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вернуть стандартные…"
+          }
+        }
+      }
+    },
+    "Restore the default shortcuts?" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вернуть стандартные сочетания клавиш?"
+          }
+        }
+      }
+    },
     "Resume" : {
       "localizations" : {
         "ru" : {
@@ -1353,6 +1509,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Retina, 2x"
+          }
+        }
+      }
+    },
+    "Rotate Left" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повернуть влево"
+          }
+        }
+      }
+    },
+    "Rotate Right" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повернуть вправо"
+          }
+        }
+      }
+    },
+    "Rotate left — the selected object, or the whole shot (⌘L)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повернуть влево — выделенное или весь снимок (⌘L)"
+          }
+        }
+      }
+    },
+    "Rotate right — the selected object, or the whole shot (⌘R)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повернуть вправо — выделенное или весь снимок (⌘R)"
+          }
+        }
+      }
+    },
+    "Saturation and brightness" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Насыщенность и яркость"
           }
         }
       }
@@ -1493,6 +1699,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Скриншоты без подписки."
+          }
+        }
+      }
+    },
+    "Search fonts" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск шрифта"
           }
         }
       }
@@ -1677,6 +1893,16 @@
         }
       }
     },
+    "The font and the panel change at once, in open editors too. Over the shot, drag the panel's edge to resize it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Шрифт и панель меняются сразу, в том числе в открытых окнах редактора. Поверх снимка панель можно растянуть за край."
+          }
+        }
+      }
+    },
     "The recording couldn't be written. %@" : {
       "localizations" : {
         "ru" : {
@@ -1747,6 +1973,26 @@
         }
       }
     },
+    "Tools and colours" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Инструменты и цвета"
+          }
+        }
+      }
+    },
+    "Under the shot" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Под снимком"
+          }
+        }
+      }
+    },
     "Undo" : {
       "localizations" : {
         "ru" : {
@@ -1787,8 +2033,38 @@
         }
       }
     },
+    "Wrong total — $42!" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тут ошибка — 4 200 ₽!"
+          }
+        }
+      }
+    },
     "X" : {
       "shouldTranslate" : false
+    },
+    "Your colour" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свой цвет"
+          }
+        }
+      }
+    },
+    "Your colour (5) — click again to pick" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свой цвет (5) — нажмите ещё раз, чтобы выбрать"
+          }
+        }
+      }
     },
     "Zoom in here" : {
       "localizations" : {

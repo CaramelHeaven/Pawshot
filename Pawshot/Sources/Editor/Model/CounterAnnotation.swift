@@ -11,6 +11,9 @@ final class CounterAnnotation: Annotation {
 
     private var center: CGPoint
 
+    /// Quarter turns clockwise the shot made after the circle was placed: its digit turns with it.
+    private(set) var quarterTurns = 0
+
     init(center: CGPoint, number: Int, style: AnnotationStyle) {
         self.center = center
         self.number = number
@@ -44,6 +47,11 @@ final class CounterAnnotation: Annotation {
         center.y += delta.dy
     }
 
+    func rotateQuarter(clockwise: Bool, mapping turn: (CGPoint) -> CGPoint) {
+        center = turn(center)
+        quarterTurns = (quarterTurns + (clockwise ? 1 : 3)) % 4
+    }
+
     func draw() {
         let circle = NSBezierPath(ovalIn: boundingBox)
         style.color.setFill()
@@ -59,10 +67,13 @@ final class CounterAnnotation: Annotation {
             .foregroundColor: NSColor.white,
         ]
         let size = text.size(withAttributes: attributes)
+        NSGraphicsContext.saveGraphicsState()
+        QuarterTurn.transform(quarterTurns, around: center).concat()
         text.draw(
             at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2),
             withAttributes: attributes
         )
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     func hitTest(_ point: CGPoint, tolerance: CGFloat) -> Bool {

@@ -6,6 +6,8 @@ protocol AnnotationCanvasDelegate: AnyObject {
     func canvasDidChangeTool(_ canvas: AnnotationCanvasView)
     func canvasDidChangeStyle(_ canvas: AnnotationCanvasView)
     func canvasDidRequestClose(_ canvas: AnnotationCanvasView)
+    /// Key 5: the colour of one's own lives with the toolbar, not with the canvas.
+    func canvasDidRequestCustomColor(_ canvas: AnnotationCanvasView)
 }
 
 /// The shot and the annotations on top of it. The view is exactly the size of the crop, so a
@@ -29,6 +31,12 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     private var draftAnnotation: Annotation?
     private var lastDragPoint: CGPoint?
     private var isMovingSelection = false
+
+    /// A corner of a selected label being dragged: the size it started at, and the corner that
+    /// stays put.
+    private var labelResize: (label: TextAnnotation, start: TextAnnotation.Geometry, pinned: SelectionGeometry.Corner, from: CGPoint)?
+
+    private static let handleSize: CGFloat = 8
     /// A move made by holding ⌘ under a drawing tool. The selection it makes is only for the
     /// duration of the drag: once it ends, the tool draws again and nothing stays selected.
     private var isTemporaryMove = false
@@ -47,7 +55,10 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         super.init(frame: CGRect(origin: .zero, size: document.imageSize))
 
         document.onChange = { [weak self] in
-            self?.needsDisplay = true
+            guard let self else { return }
+            needsDisplay = true
+            // The toolbar mirrors the selection: its colour, its fill, a line's ends.
+            delegate?.canvasDidChangeStyle(self)
         }
     }
 
@@ -152,11 +163,28 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         updateCursor(at: imagePoint(from: event))
     }
 
+    /// Where the tools float over the shot, in window coordinates; `nil` when they sit under it.
+    var cursorExclusion: CGRect?
+
+    /// Whether the canvas owns the cursor at this point of the window. The tracking area fires by
+    /// geometry, under anything drawn on top too, and setting the tool's cursor under the floating
+    /// tools took the resize cursor away from their grips. `hitTest` can't tell: SwiftUI content
+    /// over a representable view is not a view of its own, and the canvas answers there too —
+    /// measured in `AnnotationCanvasViewTests`. So the panel reports its frame instead.
+    func ownsCursor(atWindowPoint point: CGPoint) -> Bool {
+        !(cursorExclusion?.contains(point) ?? false)
+    }
+
     private func updateCursor(at point: CGPoint) {
         guard !isEditingText else { return }
+        if let window, !ownsCursor(atWindowPoint: window.mouseLocationOutsideOfEventStream) {
+            return
+        }
 
         let moves = tool == .select || isCommandHeld
-        if isMovingSelection {
+        if let (_, corner) = sizeHandle(at: point) {
+            NSCursor.frameResize(position: Self.resizePosition(corner), directions: .all).set()
+        } else if isMovingSelection {
             NSCursor.closedHand.set()
         } else if moves, isOverSelection(point) || (isCommandHeld && isOverAnnotation(point)) {
             NSCursor.openHand.set()
@@ -212,7 +240,58 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
 
         if let selection = document.selection {
             selection.drawSelectionIndicator()
+            if tool == .select, let label = selection as? TextAnnotation {
+                drawSizeHandles(around: label)
+            }
         }
+    }
+
+    /// Four squares on a selected label's corners: drag one and the text grows or shrinks. While
+    /// it is being dragged, a chip says the size in points.
+    private func drawSizeHandles(around label: TextAnnotation) {
+        let frame = label.selectionFrame
+        for corner in SelectionGeometry.Corner.allCases {
+            let point = corner.point(of: frame)
+            let size = Self.handleSize
+            let handle = NSBezierPath(
+                roundedRect: CGRect(x: point.x - size / 2, y: point.y - size / 2, width: size, height: size),
+                xRadius: 2,
+                yRadius: 2
+            )
+            NSColor.white.setFill()
+            handle.fill()
+            Tokens.pawNSColor.setStroke()
+            handle.lineWidth = 1.5
+            handle.stroke()
+        }
+
+        guard labelResize != nil else { return }
+        let text = "\(Int(label.style.textSize.rounded())) pt" as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: NSColor.white,
+        ]
+        let textSize = text.size(withAttributes: attributes)
+        let chip = CGRect(x: frame.maxX + 8, y: frame.minY - textSize.height - 8, width: textSize.width + 12, height: textSize.height + 4)
+        NSColor.black.withAlphaComponent(0.75).setFill()
+        NSBezierPath(roundedRect: chip, xRadius: chip.height / 2, yRadius: chip.height / 2).fill()
+        text.draw(at: CGPoint(x: chip.minX + 6, y: chip.minY + 2), withAttributes: attributes)
+    }
+
+    private static func resizePosition(_ corner: SelectionGeometry.Corner) -> NSCursor.FrameResizePosition {
+        switch corner {
+        case .topLeft: .topLeft
+        case .topRight: .topRight
+        case .bottomLeft: .bottomLeft
+        case .bottomRight: .bottomRight
+        }
+    }
+
+    /// The handle under the point, on a label selected under V.
+    private func sizeHandle(at point: CGPoint) -> (TextAnnotation, SelectionGeometry.Corner)? {
+        guard tool == .select, let label = document.selection as? TextAnnotation else { return nil }
+        let corner = SelectionGeometry.corner(of: label.selectionFrame, near: point, radius: Self.handleSize / 2 + 3)
+        return corner.map { (label, $0) }
     }
 
     /// A thin dashed frame around the label being typed: where it is, and how far it reaches.
@@ -251,7 +330,7 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         // A click outside the label being typed only finishes it — it doesn't also start the next
         // label or a stroke, which would be a surprise on top of a surprise.
         if isEditingText {
-            finishTextEditing()
+            finishTypingAndSelect()
             return
         }
 
@@ -261,6 +340,11 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         if event.clickCount == 2, let text = textAnnotation(at: point) {
             draftAnnotation = nil
             startTextEditing(text)
+            return
+        }
+
+        if let (label, corner) = sizeHandle(at: point) {
+            labelResize = (label, label.geometry, corner.opposite, corner.point(of: label.selectionFrame))
             return
         }
 
@@ -322,6 +406,16 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
 
     override func mouseDragged(with event: NSEvent) {
         let point = imagePoint(from: event)
+
+        if let resize = labelResize {
+            let anchor = resize.pinned.point(of: resize.label.selectionFrame)
+            let scale = SelectionGeometry.cornerScale(anchor: anchor, start: resize.from, current: point)
+            let size = min(max(resize.start.textSize * scale, 8), 400)
+            resize.label.resize(from: resize.start, to: size, pinning: resize.pinned)
+            needsDisplay = true
+            return
+        }
+
         defer { lastDragPoint = point }
 
         guard let lastDragPoint else { return }
@@ -352,6 +446,14 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if let resize = labelResize {
+            labelResize = nil
+            document.finishResizing(resize.label, from: resize.start)
+            delegate?.canvasDidChangeStyle(self)
+            needsDisplay = true
+            return
+        }
+
         defer {
             lastDragPoint = nil
             isMovingSelection = false
@@ -384,10 +486,15 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         guard let draftAnnotation else { return }
         self.draftAnnotation = nil
 
-        // Not selected: the tool stays, and the next stroke starts a new object — even on top
-        // of this one.
+        // A line or a rectangle comes out selected, in V, ready to be moved or restyled. Anything
+        // else is not selected: the tool stays, and the next stroke starts a new object — even on
+        // top of this one.
         if draftAnnotation.isMeaningful {
             document.add(draftAnnotation)
+            if tool.selectsWhatItDraws {
+                tool = .select
+                document.selection = draftAnnotation
+            }
         }
         needsDisplay = true
     }
@@ -455,7 +562,7 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
             document.selection = nil
         }
 
-        let editor = NSTextView(frame: textEditorFrame(for: annotation))
+        let editor = NSTextView(frame: .zero)
         editor.isRichText = false
         editor.allowsUndo = true
         editor.drawsBackground = false
@@ -483,6 +590,7 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
             )
         }
         editor.string = annotation.text
+        place(editor, over: annotation)
         editor.setSelectedRange(NSRange(location: (annotation.text as NSString).length, length: 0))
         editor.delegate = self
 
@@ -504,6 +612,45 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
             width: annotation.fixedWidth ?? frame.width + 4,
             height: frame.height
         )
+    }
+
+    /// Lays the field over the label. A label on a shot that was turned since is turned too: the
+    /// field gets the level frame centred where the turned label is, and the same turn about its
+    /// centre, so the caret walks along the letters on screen.
+    func place(_ editor: NSTextView, over annotation: TextAnnotation) {
+        let level = textEditorFrame(for: annotation)
+        editor.frameCenterRotation = 0
+        guard annotation.quarterTurns != 0 else {
+            editor.frame = level
+            return
+        }
+
+        let center = CGPoint(x: level.midX, y: level.midY)
+            .applying(QuarterTurn.affine(annotation.quarterTurns, around: level.origin))
+        editor.frame = CGRect(
+            x: center.x - level.width / 2,
+            y: center.y - level.height / 2,
+            width: level.width,
+            height: level.height
+        )
+        // AppKit turns a positive angle counterclockwise; in this flipped view that is clockwise
+        // on screen already. `AnnotationCanvasViewTests` pins which way it goes.
+        editor.frameCenterRotation = CGFloat(annotation.quarterTurns) * 90
+    }
+
+    /// The user finished typing — Esc, ⌘↩ or a click elsewhere: the label comes out selected, in V,
+    /// like a line or a rectangle does. Only these three: `finishTextEditing()` also runs when a
+    /// tool is picked in the toolbar, and switching to V there would override that pick.
+    func finishTypingAndSelect() {
+        guard let label = editingText else { return }
+        finishTextEditing()
+
+        guard
+            tool.selectsWhatItDraws || tool == .select,
+            document.annotations.contains(where: { $0 === label })
+        else { return }
+        tool = .select
+        document.selection = label
     }
 
     /// Finishes the input. A new label goes into the document if it has words; an edited one
@@ -565,8 +712,20 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         // The Latin letter on the key, not the letter the layout printed: on ЙЦУКЕН `V` prints `м`
         // and `B` prints `и`, and reading the character meant no tool key worked there at all.
         let characters = KeyboardLayout.latinCharacter(for: event) ?? ""
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
-        if event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty {
+        // ⇧[ and ⇧] step a label's weight. Matched by the key itself: with Shift the US layout
+        // prints { and }, and other layouts print something else again.
+        if modifiers == .shift, isTextContext,
+           [kVK_ANSI_LeftBracket, kVK_ANSI_RightBracket].contains(Int(event.keyCode))
+        {
+            let step = Int(event.keyCode) == kVK_ANSI_RightBracket ? 1 : -1
+            document.updateStyle { $0.textWeight = LabelFont.weight(after: $0.textWeight, by: step) }
+            delegate?.canvasDidChangeStyle(self)
+            return
+        }
+
+        if modifiers.isEmpty {
             if handleToolOrStyleKey(characters) {
                 return
             }
@@ -589,36 +748,62 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         super.keyDown(with: event)
     }
 
+    /// The keys that differ for text — F, [ ] and ⇧[ ⇧] — go to the label when T is on or a label
+    /// is selected.
+    private var isTextContext: Bool {
+        tool == .text || document.selection is TextAnnotation
+    }
+
     private func handleToolOrStyleKey(_ characters: String) -> Bool {
         if let tool = AnnotationTool.tool(forHotKey: characters) {
-            select(tool: tool)
+            // A again, with the line already on, walks its ends: arrow → double → plain.
+            if tool == .arrow, self.tool == .arrow {
+                document.updateStyle { $0.lineEnds = $0.lineEnds.next }
+                delegate?.canvasDidChangeStyle(self)
+            } else {
+                select(tool: tool)
+            }
             return true
         }
 
-        // Digits 1…6 are the palette.
-        if let digit = Int(characters), (1 ... AnnotationStyle.Palette.colors.count).contains(digit) {
-            document.updateStyle { style in
-                style.color = AnnotationStyle.Palette.color(forKeyIndex: digit - 1, current: style.color)
+        // Digits 1…4 are the palette, 5 is the colour of one's own.
+        if let digit = Int(characters) {
+            let palette = AnnotationStyle.Palette.self
+            if palette.colors.indices.contains(digit - 1) {
+                document.updateStyle { $0.color = palette.colors[digit - 1] }
+                delegate?.canvasDidChangeStyle(self)
+                return true
             }
-            delegate?.canvasDidChangeStyle(self)
-            return true
+            if digit - 1 == palette.customIndex {
+                delegate?.canvasDidRequestCustomColor(self)
+                return true
+            }
         }
 
         switch characters {
         case "]":
-            document.updateStyle { $0.lineWidth = AnnotationStyle.LineWidth.next(after: $0.lineWidth) }
+            // A label's size; everything else's width.
+            if isTextContext {
+                document.updateStyle { $0.textSize = AnnotationStyle.TextSize.next(after: $0.textSize) }
+            } else {
+                document.updateStyle { $0.lineWidth = AnnotationStyle.LineWidth.next(after: $0.lineWidth) }
+            }
             delegate?.canvasDidChangeStyle(self)
             return true
         case "[":
-            document.updateStyle { $0.lineWidth = AnnotationStyle.LineWidth.previous(before: $0.lineWidth) }
+            if isTextContext {
+                document.updateStyle { $0.textSize = AnnotationStyle.TextSize.previous(before: $0.textSize) }
+            } else {
+                document.updateStyle { $0.lineWidth = AnnotationStyle.LineWidth.previous(before: $0.lineWidth) }
+            }
             delegate?.canvasDidChangeStyle(self)
             return true
         case "f":
-            // For text, F walks the label styles; for shapes it is still fill on/off.
-            if tool == .text || document.selection is TextAnnotation {
-                document.updateStyle { $0.textStyle = $0.textStyle.next }
+            // For text, F walks the label styles; for shapes, the steps of the fill.
+            if isTextContext {
+                document.updateStyle(AnnotationStyle.nextTextStyle)
             } else {
-                document.updateStyle { $0.isFilled.toggle() }
+                document.updateStyle { $0.fillOpacity = AnnotationStyle.FillOpacity.next(after: $0.fillOpacity) }
             }
             delegate?.canvasDidChangeStyle(self)
             return true
@@ -668,7 +853,7 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     /// the work.
     override func cancelOperation(_: Any?) {
         if isEditingText {
-            finishTextEditing()
+            finishTypingAndSelect()
             return
         }
         if tool != .select {
@@ -692,7 +877,7 @@ extension AnnotationCanvasView: NSTextViewDelegate {
     func textDidChange(_ notification: Notification) {
         guard let editor = notification.object as? NSTextView, let editingText else { return }
         editingText.text = editor.string
-        editor.frame = textEditorFrame(for: editingText)
+        place(editor, over: editingText)
         needsDisplay = true
     }
 
@@ -710,7 +895,7 @@ extension AnnotationCanvasView: NSTextViewDelegate {
             || commandReturn
         else { return false }
 
-        finishTextEditing()
+        finishTypingAndSelect()
         return true
     }
 }

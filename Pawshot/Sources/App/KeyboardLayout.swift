@@ -11,8 +11,12 @@ enum KeyboardLayout {
     /// A character that is already ASCII is handed back untouched rather than re-derived from the
     /// key code. That is deliberate: on Dvorak the letter printed on the key is the whole point,
     /// and the key code would name the ANSI position instead — turning `c` into `j`.
+    ///
+    /// The key is read bare, with no modifiers at all: `charactersIgnoringModifiers` still applies
+    /// Shift, so ⇧⌘4 used to be recorded as ⇧⌘; on ЙЦУКЕН (Shift+4 prints `;` there) and as ⇧⌘$ on
+    /// a US layout.
     static func latinCharacter(for event: NSEvent) -> String? {
-        let typed = event.charactersIgnoringModifiers ?? ""
+        let typed = event.characters(byApplyingModifiers: []) ?? event.charactersIgnoringModifiers ?? ""
         if !typed.isEmpty, typed.allSatisfy(\.isASCII) {
             return typed
         }

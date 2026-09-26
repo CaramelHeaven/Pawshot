@@ -10,8 +10,9 @@ import AppKit
 /// then, so menus and popovers are already gone).
 @MainActor
 final class EditorDocument {
-    /// The frozen frame of the whole display the shot was taken from.
-    let frame: CapturedFrame
+    /// The frozen frame of the whole display the shot was taken from. Turned with the shot, so
+    /// growing the shot by the window's edge keeps working after a turn.
+    private(set) var frame: CapturedFrame
 
     /// The visible region, in **points of the captured frame** — the coordinate system every
     /// annotation lives in. Changing it doesn't move a single annotation.
@@ -33,7 +34,16 @@ final class EditorDocument {
     let blurSource: BlurSource
 
     private(set) var annotations: [Annotation] = []
-    var selection: Annotation?
+    /// Told on change too: the toolbar shows the selected object's style, and the ends of a
+    /// selected line.
+    var selection: Annotation? {
+        didSet {
+            if selection !== oldValue {
+                onChange?()
+            }
+        }
+    }
+
     var style: AnnotationStyle = .default
 
     /// Lets the canvas know it's time to redraw.
@@ -101,6 +111,80 @@ final class EditorDocument {
         else { return nil }
 
         return frame.image.cropping(to: pixels)
+    }
+
+    // MARK: - Turning
+
+    /// Turns the shot a quarter, with everything drawn on it — as if it had all been drawn
+    /// afterwards. The whole captured frame turns rather than just the crop: every coordinate in
+    /// the document stays "a point of the frame", so the canvas, the export and growing the shot
+    /// by the window's edge need to know nothing about turns. One step of ⌘Z, which turns back.
+    func rotate(clockwise: Bool) {
+        let size = frameSize
+        let turnedCrop = SelectionGeometry.rotatedQuarter(cropRect, in: size, clockwise: clockwise)
+        guard
+            let turnedFrame = frame.rotatedQuarter(clockwise: clockwise),
+            let cutout = Self.cutout(of: turnedFrame, cropRect: turnedCrop)
+        else { return }
+
+        frame = turnedFrame
+        cropRect = turnedCrop
+        image = cutout
+        for annotation in annotations {
+            annotation.rotate(clockwise: clockwise, in: size)
+        }
+        blurSource.update(image: cutout, frame: turnedCrop)
+
+        registerUndo { document in
+            document.rotate(clockwise: !clockwise)
+        }
+        onCropChange?()
+        onChange?()
+    }
+
+    /// ⌘L / ⌘R with something selected: only that object turns a quarter, about its own centre.
+    /// One step of ⌘Z.
+    func rotateSelection(clockwise: Bool) {
+        guard let selection else { return }
+        rotateAnnotation(selection, clockwise: clockwise)
+    }
+
+    private func rotateAnnotation(_ annotation: Annotation, clockwise: Bool) {
+        annotation.rotateAroundItsCentre(clockwise: clockwise)
+        registerUndo { document in
+            document.rotateAnnotation(annotation, clockwise: !clockwise)
+        }
+        onChange?()
+    }
+
+    /// The end of a corner drag: the label is already at `geometry` from the live drag, and this
+    /// records the whole gesture as one step of ⌘Z. New labels take the size too.
+    func finishResizing(_ label: TextAnnotation, from previous: TextAnnotation.Geometry) {
+        let current = label.geometry
+        guard current != previous else { return }
+        style.textSize = current.textSize
+        registerUndo { document in
+            document.setGeometry(previous, of: label)
+        }
+        onChange?()
+    }
+
+    private func setGeometry(_ geometry: TextAnnotation.Geometry, of label: TextAnnotation) {
+        let previous = label.geometry
+        label.geometry = geometry
+        registerUndo { document in
+            document.setGeometry(previous, of: label)
+        }
+        onChange?()
+    }
+
+    /// The family is shared by every label, so only their measured sizes go stale. Not a step of
+    /// ⌘Z: it is a setting, not an edit.
+    func labelFontDidChange() {
+        for case let label as TextAnnotation in annotations {
+            label.invalidateLayout()
+        }
+        onChange?()
     }
 
     // MARK: - Changes
@@ -184,13 +268,18 @@ final class EditorDocument {
         onChange?()
     }
 
-    /// Changes the current style and, when something is selected, applies it to the selection —
-    /// that's how every editor behaves: press "2" and the selected arrow turns green.
+    /// Changes the current style and, when something is selected, makes the same change to the
+    /// selection — that's how every editor behaves: press "2" and the selected arrow turns green.
+    ///
+    /// The same change, not the whole current style: turning a blue double arrow into a single one
+    /// must not also paint it in whatever colour was picked since.
     func updateStyle(_ transform: (inout AnnotationStyle) -> Void) {
         transform(&style)
 
         if let selection {
-            apply(style: style, to: selection)
+            var changed = selection.style
+            transform(&changed)
+            apply(style: changed, to: selection)
         } else {
             onChange?()
         }
@@ -230,5 +319,49 @@ final class EditorDocument {
                 action(document)
             }
         }
+    }
+}
+
+extension CapturedFrame {
+    /// The same display turned a quarter: the pixels redrawn into a bitmap of swapped size, and the
+    /// bounds with their width and height swapped. The origin is kept — it only says which screen
+    /// the shot came from.
+    func rotatedQuarter(clockwise: Bool) -> CapturedFrame? {
+        let width = image.height
+        let height = image.width
+        guard
+            let space = image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB),
+            let context = CGContext(
+                data: nil,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: space,
+                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+            )
+        else { return nil }
+
+        // The context has Y going up. Clockwise on screen is a negative angle there; the
+        // translation brings the turned picture back into the bitmap.
+        if clockwise {
+            context.translateBy(x: 0, y: CGFloat(height))
+            context.rotate(by: -.pi / 2)
+        } else {
+            context.translateBy(x: CGFloat(width), y: 0)
+            context.rotate(by: .pi / 2)
+        }
+        context.interpolationQuality = .none
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+
+        guard let turned = context.makeImage() else { return nil }
+        return CapturedFrame(
+            image: turned,
+            displayFrame: CGRect(
+                origin: displayFrame.origin,
+                size: CGSize(width: displayFrame.height, height: displayFrame.width)
+            ),
+            scale: scale
+        )
     }
 }

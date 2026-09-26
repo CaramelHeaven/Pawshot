@@ -66,6 +66,25 @@ final class EditorWindowControllerTests: XCTestCase {
         XCTAssertEqual(hosting.sizingOptions, [], "the window's size follows the shot, not SwiftUI")
     }
 
+    /// ⌘R turns the selected object when there is one, and the whole shot when there isn't.
+    func testRotateRightTurnsTheSelectionOrTheShot() throws {
+        let screen = try XCTUnwrap(NSScreen.main)
+        let document = try makeDocument(pointSize: CGSize(width: 300, height: 200), scale: 1)
+        let controller = EditorWindowController(document: document, on: screen)
+        let box = RectangleAnnotation(start: CGPoint(x: 10, y: 10), style: .default)
+        box.update(to: CGPoint(x: 50, y: 30))
+        document.add(box)
+
+        document.selection = box
+        controller.rotateRight(nil)
+        XCTAssertEqual(document.frameSize, CGSize(width: 300, height: 200), "only the object turned")
+        XCTAssertEqual(box.rect.size, CGSize(width: 20, height: 40))
+
+        document.selection = nil
+        controller.rotateRight(nil)
+        XCTAssertEqual(document.frameSize, CGSize(width: 200, height: 300), "nothing selected: the shot turned")
+    }
+
     /// The window opens the size of the shot plus its margin, so the shot is whole at once and the
     /// edges can be dragged straight away.
     func testWindowStartsTheSizeOfTheShotPlusTheMargin() throws {
@@ -102,7 +121,8 @@ final class EditorWindowControllerTests: XCTestCase {
         }
 
         let toolbar = try XCTUnwrap(window.toolbar, "no toolbar reached the window")
-        XCTAssertGreaterThan(toolbar.items.count, 10, "tools, colours, widths, history, export")
+        // The tools, colours and style live in the capsules at the bottom now.
+        XCTAssertGreaterThan(toolbar.items.count, 6, "turns, history, export")
     }
 
     /// The toolbar arrives after the window is shown. Measured: AppKit grows the frame for it, and

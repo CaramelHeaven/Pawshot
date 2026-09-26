@@ -74,6 +74,16 @@ final class HotKeyBindingTests: XCTestCase {
         XCTAssertEqual(HotKeyBinding.from(event: event)?.displayString, "⇧⌘A")
     }
 
+    /// Shift must not reach the label: ⇧⌘4 on ЙЦУКЕН came out as ⇧⌘; (Shift+4 prints «;» there),
+    /// and on a US layout it would read ⇧⌘$. The label is the key, pressed bare.
+    func testShiftDoesNotTurnTheDigitIntoAnotherCharacter() throws {
+        let russian = try keyEvent(keyCode: kVK_ANSI_4, flags: [.command, .shift], characters: ";")
+        let english = try keyEvent(keyCode: kVK_ANSI_4, flags: [.command, .shift], characters: "$")
+
+        XCTAssertEqual(HotKeyBinding.from(event: russian)?.displayString, "⇧⌘4")
+        XCTAssertEqual(HotKeyBinding.from(event: english)?.displayString, "⇧⌘4")
+    }
+
     /// The recorder and the welcome window draw one cap per key; the order has to be the one macOS
     /// prints, the same as the joined string.
     func testKeyCapsSplitTheCombinationInMacOrder() {
@@ -125,6 +135,24 @@ final class SettingsTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
         super.tearDown()
+    }
+
+    /// Moving the tools tells the app at once, so open editors switch without a relaunch.
+    func testMovingTheToolsIsAnnouncedAtOnce() {
+        let settings = Settings(defaults: defaults)
+        var announced = 0
+        settings.onToolsPlacementChange = { announced += 1 }
+
+        settings.toolsPlacement = .overlay
+
+        XCTAssertEqual(announced, 1)
+        XCTAssertEqual(Settings(defaults: defaults).toolsPlacement, .overlay)
+    }
+
+    func testTheOverlayToolsScaleStartsAtOneAndIsRemembered() {
+        XCTAssertEqual(Settings(defaults: defaults).overlayToolsScale, 1)
+        Settings(defaults: defaults).overlayToolsScale = 1.25
+        XCTAssertEqual(Settings(defaults: defaults).overlayToolsScale, 1.25)
     }
 
     func testFreshInstallGetsTheDefaults() {

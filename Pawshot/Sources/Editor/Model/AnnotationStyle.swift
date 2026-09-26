@@ -1,15 +1,31 @@
 import AppKit
 
-/// How an annotation looks: colour, width, whether the inside is filled.
+/// How an annotation looks: colour, width, how opaque the inside is.
 struct AnnotationStyle: Equatable {
     var color: NSColor
     var lineWidth: CGFloat
-    var isFilled: Bool
+    /// 0 is no fill at all, 1 is a solid one that hides what is under it. A text plate takes it
+    /// too.
+    var fillOpacity: CGFloat
 
-    /// How text looks. Shapes ignore it, just as text ignores `isFilled`.
+    /// How text looks. Shapes ignore it.
     var textStyle: TextStyle = .plain
 
-    static let `default` = AnnotationStyle(color: Palette.colors[0], lineWidth: 3, isFilled: false)
+    /// Which ends of a line carry a head. Everything but the line ignores it.
+    var lineEnds: LineEnds = .end
+
+    /// A label's size in points, apart from the line width since the widths gave way to weights
+    /// for text. 18 is what width 3 used to give.
+    var textSize: CGFloat = 18
+
+    /// A label's weight; the family is one for all labels (`LabelFont.family`).
+    var textWeight: NSFont.Weight = .semibold
+
+    var isFilled: Bool {
+        fillOpacity > 0
+    }
+
+    static let `default` = AnnotationStyle(color: Palette.colors[0], lineWidth: 3, fillOpacity: 0)
 
     /// The three looks of a text label, cycled with F. Screenshot tools sell label styles rather
     /// than typography: plain letters with a soft shadow, letters with a contrasting outline that
@@ -23,6 +39,61 @@ struct AnnotationStyle: Equatable {
             let all = Self.allCases
             let index = all.firstIndex(of: self) ?? 0
             return all[(index + 1) % all.count]
+        }
+    }
+
+    /// F on text: the next label style. A plate arrives solid when there was no fill to take its
+    /// opacity from — an invisible plate is never what was meant.
+    static func nextTextStyle(_ style: inout AnnotationStyle) {
+        style.textStyle = style.textStyle.next
+        if style.textStyle == .plate, style.fillOpacity == 0 {
+            style.fillOpacity = 1
+        }
+    }
+
+    /// The opacity slider. On a label only a plate has anything to fill, so moving the slider on a
+    /// plain or outlined label makes it a plate — otherwise the slider would do nothing at all.
+    static func setFillOpacity(_ opacity: CGFloat, onText: Bool, of style: inout AnnotationStyle) {
+        style.fillOpacity = opacity
+        if onText, style.textStyle != .plate {
+            style.textStyle = .plate
+        }
+    }
+
+    /// One line tool, three looks: a plain stroke, an arrow, and an arrow with a head at each end.
+    /// Ordered the way A walks them once the line tool is already on.
+    enum LineEnds: CaseIterable, Equatable {
+        case end
+        case both
+        case none
+
+        var next: LineEnds {
+            let all = Self.allCases
+            let index = all.firstIndex(of: self) ?? 0
+            return all[(index + 1) % all.count]
+        }
+    }
+
+    /// `[` and `]` on a label.
+    enum TextSize {
+        static let steps: [CGFloat] = [12, 14, 18, 24, 32, 48, 72]
+
+        static func next(after size: CGFloat) -> CGFloat {
+            steps.first(where: { $0 > size + 0.5 }) ?? max(size, steps[steps.count - 1])
+        }
+
+        static func previous(before size: CGFloat) -> CGFloat {
+            steps.last(where: { $0 < size - 0.5 }) ?? min(size, steps[0])
+        }
+    }
+
+    /// F walks these; the slider in the toolbar sets anything in between.
+    enum FillOpacity {
+        static let steps: [CGFloat] = [0, 0.3, 0.6, 1]
+
+        /// The next step up from wherever the slider left it, and back to none after solid.
+        static func next(after opacity: CGFloat) -> CGFloat {
+            steps.first(where: { $0 > opacity + 0.001 }) ?? steps[0]
         }
     }
 
@@ -42,26 +113,21 @@ struct AnnotationStyle: Equatable {
         return luminance > 0.4 ? .black : .white
     }
 
-    /// The palette on keys 1…6. Red comes first and is also the default — that's how every
-    /// screenshot tool does it.
+    /// The palette on keys 1…4, the owner's choice: red for "wrong", green for "right", white and
+    /// black for anything on a dark or a light background. Key 5 is a colour of one's own, picked
+    /// in the toolbar. Red comes first and is also the default — that's how every screenshot tool
+    /// does it.
     enum Palette {
         static let colors: [NSColor] = [
             .systemRed,
-            .systemOrange,
-            .systemYellow,
             .systemGreen,
-            .systemBlue,
+            .white,
             .black,
         ]
 
-        /// The sixth key toggles black and white: a black stroke is invisible on a dark background.
-        static func color(forKeyIndex index: Int, current: NSColor) -> NSColor {
-            guard colors.indices.contains(index) else { return current }
-
-            if index == colors.count - 1 {
-                return current == NSColor.black ? .white : .black
-            }
-            return colors[index]
+        /// The slot after the fixed colours: the key and the swatch of the custom colour.
+        static var customIndex: Int {
+            colors.count
         }
     }
 

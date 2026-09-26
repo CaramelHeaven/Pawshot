@@ -25,6 +25,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         replaceOlderInstances()
 
         settings.onHotKeysChange = { [weak self] in self?.registerHotKeys() }
+        LabelFont.family = settings.labelFontFamily
+        settings.onLabelFontChange = { [settings] in
+            LabelFont.family = settings.labelFontFamily
+            EditorWindowController.labelFontDidChange()
+        }
+        settings.onToolsPlacementChange = {
+            EditorWindowController.toolsPlacementDidChange()
+        }
         settings.onHotKeyRecordingChange = { [weak self] isRecording in
             // Carbon hands a registered hotkey to us before any view sees the key press, so while
             // the user is typing a new combination the old ones must not exist.

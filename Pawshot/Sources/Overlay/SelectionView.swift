@@ -190,8 +190,97 @@ final class SelectionView: NSView {
 
     // MARK: - Cursor and tracking
 
+    /// The whole view is one cursor rect — but with the cursor for where the mouse is now, not
+    /// always the crosshair. The HUD's subviews move on every redraw and AppKit rebuilds the rects
+    /// each time; a crosshair rect put the crosshair back over the resize arrow, which is why an
+    /// edge was so hard to catch. Every path asks `cursorKind` now, so they can't disagree.
     override func resetCursorRects() {
-        addCursorRect(bounds, cursor: mode == .window ? Self.cameraCursor : Self.crosshairCursor)
+        addCursorRect(bounds, cursor: Self.cursor(for: cursorKind(at: currentMousePoint)))
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        updateCursor(at: convert(event.locationInWindow, from: nil))
+    }
+
+    /// What the cursor says about a press here.
+    enum CursorKind: Equatable {
+        case crosshair
+        case camera
+        case arrow
+        case resize(SelectionGeometry.Handle)
+        case openHand
+        case closedHand
+    }
+
+    /// Over a recording region: a resize arrow on an edge or a corner, an open hand inside; while
+    /// something is grabbed, that grab's cursor wherever the drag goes; the arrow over the sound
+    /// bar; the crosshair — or the camera in window mode — everywhere else.
+    nonisolated static func cursorKind(
+        at point: CGPoint,
+        selection: CGRect?,
+        purpose: OverlayPurpose,
+        mode: Mode,
+        overBar: Bool,
+        grabbed: SelectionGeometry.Handle?
+    ) -> CursorKind {
+        if let grabbed {
+            return grabbed == .inside ? .closedHand : .resize(grabbed)
+        }
+        if overBar {
+            return .arrow
+        }
+        guard mode == .region else { return .camera }
+        guard purpose == .recording, let selection, !selection.isEmpty,
+              let handle = SelectionGeometry.handle(at: point, of: selection)
+        else { return .crosshair }
+        return handle == .inside ? .openHand : .resize(handle)
+    }
+
+    private func cursorKind(at point: CGPoint?) -> CursorKind {
+        guard let point else { return mode == .window ? .camera : .crosshair }
+        return Self.cursorKind(
+            at: point,
+            selection: selection,
+            purpose: purpose,
+            mode: mode,
+            overBar: OverlayHUD.barContains(point, in: self),
+            grabbed: grabbedHandle
+        )
+    }
+
+    private var currentMousePoint: CGPoint? {
+        guard let window else { return nil }
+        let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        return bounds.contains(point) ? point : nil
+    }
+
+    private func updateCursor(at point: CGPoint) {
+        Self.cursor(for: cursorKind(at: point)).set()
+    }
+
+    private static func cursor(for kind: CursorKind) -> NSCursor {
+        switch kind {
+        case .crosshair: crosshairCursor
+        case .camera: cameraCursor
+        case .arrow: .arrow
+        case .openHand: .openHand
+        case .closedHand: .closedHand
+        case let .resize(handle):
+            NSCursor.frameResize(position: resizePosition(handle), directions: .all)
+        }
+    }
+
+    private static func resizePosition(_ handle: SelectionGeometry.Handle) -> NSCursor.FrameResizePosition {
+        switch handle {
+        case .topLeft: .topLeft
+        case .top: .top
+        case .topRight: .topRight
+        case .right: .right
+        case .bottomRight: .bottomRight
+        case .bottom: .bottom
+        case .bottomLeft: .bottomLeft
+        case .left, .inside: .left
+        }
     }
 
     /// Renders the camera cursor ahead of time.
@@ -259,7 +348,7 @@ final class SelectionView: NSView {
 
         let area = NSTrackingArea(
             rect: bounds,
-            options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
+            options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .cursorUpdate, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -270,42 +359,12 @@ final class SelectionView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
+        // The key overlay hears the mouse on other screens too; the cursor there is not its call.
+        guard bounds.contains(point) else { return }
         cursorPoint = point
         updateHighlight()
-        if OverlayHUD.barContains(point, in: self) {
-            // Over the sound bar the hand is heading for a button, not drawing.
-            NSCursor.arrow.set()
-        } else {
-            updateAdjustCursor(at: point)
-        }
+        updateCursor(at: point)
         needsDisplay = true
-    }
-
-    /// Over a recording region the cursor says what a press would do: a resize arrow on an edge
-    /// or a corner, an open hand inside, the crosshair everywhere else.
-    private func updateAdjustCursor(at point: CGPoint) {
-        guard purpose == .recording, mode == .region, let selection, !selection.isEmpty else { return }
-
-        let handle = SelectionGeometry.handle(at: point, of: selection)
-        let position: NSCursor.FrameResizePosition? = switch handle {
-        case .topLeft: .topLeft
-        case .top: .top
-        case .topRight: .topRight
-        case .right: .right
-        case .bottomRight: .bottomRight
-        case .bottom: .bottom
-        case .bottomLeft: .bottomLeft
-        case .left: .left
-        case .inside, nil: nil
-        }
-
-        if let position {
-            NSCursor.frameResize(position: position, directions: .all).set()
-        } else if handle == .inside {
-            NSCursor.openHand.set()
-        } else {
-            applyCursor()
-        }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -335,9 +394,7 @@ final class SelectionView: NSView {
             grabbedHandle = handle
             grabbedSelection = selection
             grabPoint = point
-            if handle == .inside {
-                NSCursor.closedHand.set()
-            }
+            updateCursor(at: point)
             return
         }
 
@@ -361,10 +418,16 @@ final class SelectionView: NSView {
                 : SelectionGeometry.resized(
                     grabbedSelection,
                     dragging: grabbedHandle,
-                    to: point,
+                    to: SelectionGeometry.handleTarget(
+                        grabbedHandle,
+                        of: grabbedSelection,
+                        grabbedAt: grabPoint,
+                        mouse: point
+                    ),
                     aspect: aspect.ratio,
                     within: bounds
                 )
+            updateCursor(at: point)
             needsDisplay = true
             return
         }
@@ -409,17 +472,24 @@ final class SelectionView: NSView {
 
     /// Mouse up on the recording overlay leaves the region alive. A click that drew nothing drops
     /// it, which brings the ghost of the last one back.
+    ///
+    /// An edge dragged onto its opposite leaves a region too small to grab again; it goes back to
+    /// what it was before that drag.
     private func finishAdjusting() {
-        if grabbedHandle == nil, let selection, SelectionGeometry.isTooSmall(selection) {
-            self.selection = nil
-        }
-        if grabbedHandle == .inside {
-            NSCursor.openHand.set()
+        if let selection, SelectionGeometry.isTooSmall(selection) {
+            if let grabbedHandle, grabbedHandle != .inside {
+                self.selection = grabbedSelection
+            } else if grabbedHandle == nil {
+                self.selection = nil
+            }
         }
         dragStart = nil
         grabbedHandle = nil
         grabbedSelection = nil
         grabPoint = nil
+        if let cursorPoint {
+            updateCursor(at: cursorPoint)
+        }
         needsDisplay = true
     }
 

@@ -13,8 +13,10 @@ want a subscription for drawing an arrow. Five, ten, twenty bucks — for *this*
 So I built my own. Native, free, a few megabytes, no account, no nagging. Grab it. Let's go.
 
 - **⇧⌘2** a region, **⇧⌘1** the whole screen, **Space** a single window.
-- Annotate with one key per tool — arrow, box, pen, text, blur, step counter — all undoable objects,
-  on any keyboard layout.
+- Annotate with one key per tool — line or (double) arrow, box, pen, text, blur, step counter — all
+  undoable objects, on any keyboard layout. Four colours plus one of your own with an eyedropper,
+  fills of any opacity, labels in any installed font with every weight it has, and **⌘L / ⌘R** to turn the
+  selection — or the whole shot with everything on it.
 - **⌘C** copies the image, **⌘S** saves a PNG, **⌘D** copies the *text* read off the shot.
 - Missed by a few pixels? Drag the editor window's edge — the shot grows into the screen around it.
 - **⇧⌘3** records a region, **⇧⌘4** the whole screen — with mic, system sound, click rings, shortcut

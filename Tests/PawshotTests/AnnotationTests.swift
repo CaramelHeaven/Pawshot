@@ -17,7 +17,7 @@ final class AnnotationTests: XCTestCase {
     func testFilledRectangleIsHitInside() {
         let rectangle = RectangleAnnotation(
             start: CGPoint(x: 0, y: 0),
-            style: AnnotationStyle(color: .red, lineWidth: 3, isFilled: true)
+            style: AnnotationStyle(color: .red, lineWidth: 3, fillOpacity: 0.25)
         )
         rectangle.update(to: CGPoint(x: 100, y: 100))
 
@@ -86,14 +86,98 @@ final class AnnotationTests: XCTestCase {
 
     // MARK: - Style
 
-    func testPaletteLastKeyTogglesBlackAndWhite() {
-        let lastIndex = AnnotationStyle.Palette.colors.count - 1
+    func testPaletteIsRedGreenWhiteBlackThenYourOwn() {
+        XCTAssertEqual(AnnotationStyle.Palette.colors, [.systemRed, .systemGreen, .white, .black])
+        XCTAssertEqual(AnnotationStyle.Palette.customIndex, 4)
+    }
 
-        let toWhite = AnnotationStyle.Palette.color(forKeyIndex: lastIndex, current: .black)
-        XCTAssertEqual(toWhite, .white)
+    func testFillStepsWalkUpAndBackToNone() {
+        let next = AnnotationStyle.FillOpacity.next(after:)
+        XCTAssertEqual(next(0), 0.3)
+        XCTAssertEqual(next(0.3), 0.6)
+        XCTAssertEqual(next(0.6), 1)
+        XCTAssertEqual(next(1), 0)
+        XCTAssertEqual(next(0.45), 0.6, "from wherever the slider left it, the next step up")
+    }
 
-        let backToBlack = AnnotationStyle.Palette.color(forKeyIndex: lastIndex, current: toWhite)
-        XCTAssertEqual(backToBlack, .black)
+    func testLineEndsWalkArrowDoublePlain() {
+        XCTAssertEqual(AnnotationStyle.LineEnds.end.next, .both)
+        XCTAssertEqual(AnnotationStyle.LineEnds.both.next, .none)
+        XCTAssertEqual(AnnotationStyle.LineEnds.none.next, .end)
+    }
+
+    func testTheSystemFontHasNineWeights() {
+        XCTAssertEqual(LabelFont.weights(of: nil).count, 9)
+    }
+
+    /// Any installed family lists its upright weights once each, lightest first.
+    func testAFamilyListsItsUprightWeightsLightestFirst() {
+        let weights = LabelFont.weights(of: "Helvetica Neue")
+        XCTAssertGreaterThan(weights.count, 2)
+        XCTAssertEqual(weights.map(\.rawValue), weights.map(\.rawValue).sorted())
+        XCTAssertEqual(Set(weights.map(\.rawValue)).count, weights.count, "no two faces of one weight")
+        for weight in weights {
+            let font = LabelFont.font(size: 12, weight: weight, family: "Helvetica Neue")
+            XCTAssertFalse(font.fontDescriptor.symbolicTraits.contains(.italic), font.fontName)
+        }
+    }
+
+    func testAnUnknownFamilyFallsBackToTheSystemFont() {
+        XCTAssertEqual(
+            LabelFont.font(size: 18, weight: .bold, family: "No Such Family Anywhere"),
+            NSFont.systemFont(ofSize: 18, weight: .bold)
+        )
+    }
+
+    /// A label's size is its own now: the width steps belong to shapes.
+    func testALabelsSizeNoLongerFollowsTheLineWidth() {
+        var style = AnnotationStyle.default
+        style.lineWidth = 12
+        let label = TextAnnotation(origin: .zero, style: style, text: "Hi")
+        XCTAssertEqual(label.fontSize, 18)
+    }
+
+    /// Dragging a corner resizes the text about the opposite corner, which stays put.
+    func testResizingALabelKeepsThePinnedCorner() {
+        let label = TextAnnotation(origin: CGPoint(x: 40, y: 40), style: .default, text: "Hello")
+        let pinned = SelectionGeometry.Corner.topLeft.point(of: label.boundingBox)
+
+        label.resize(from: label.geometry, to: 36, pinning: .topLeft)
+
+        XCTAssertEqual(label.style.textSize, 36)
+        XCTAssertEqual(SelectionGeometry.Corner.topLeft.point(of: label.boundingBox).x, pinned.x, accuracy: 0.5)
+        XCTAssertEqual(SelectionGeometry.Corner.topLeft.point(of: label.boundingBox).y, pinned.y, accuracy: 0.5)
+    }
+
+    func testTextControlsShowForASelectedLabelUnderV() {
+        let chrome = EditorChromeModel()
+        chrome.tool = .select
+        XCTAssertFalse(chrome.showsTextControls)
+        chrome.selectedKind = .text
+        XCTAssertTrue(chrome.showsTextControls, "a label selected under V gets its own controls, not the shapes' fill")
+    }
+
+    func testHexGoesThereAndBack() throws {
+        let color = try XCTUnwrap(ColorHex.color("#AF52DE"))
+        XCTAssertEqual(ColorHex.string(color), "#AF52DE")
+        XCTAssertEqual(try ColorHex.string(XCTUnwrap(ColorHex.color(" af52de "))), "#AF52DE")
+        XCTAssertNil(ColorHex.color("#AF52D"))
+        XCTAssertNil(ColorHex.color("+AF52D"))
+        XCTAssertNil(ColorHex.color("#GG52DE"))
+    }
+
+    /// A label turned with the shot turns about its own corner: the line of text runs down from
+    /// it, and its height goes to the left.
+    func testATurnedLabelKeepsItsCornerAndLiesDown() {
+        let label = TextAnnotation(origin: CGPoint(x: 50, y: 20), style: .default, text: "A long label")
+        let level = label.boundingBox
+        label.rotate(clockwise: true, in: CGSize(width: 400, height: 300))
+
+        XCTAssertEqual(label.origin, CGPoint(x: 280, y: 50), "the corner moved with the shot")
+        let turned = label.boundingBox
+        XCTAssertEqual(turned.width, level.height, accuracy: 0.5)
+        XCTAssertEqual(turned.height, level.width, accuracy: 0.5)
+        XCTAssertLessThan(turned.minX, label.origin.x, "its height lies to the left of the corner")
     }
 
     func testLineWidthStepsClampAtEdges() {

@@ -11,6 +11,77 @@ final class SelectionGeometryTests: XCTestCase {
         XCTAssertEqual(upLeft, downRight)
     }
 
+    /// Clockwise on screen, with Y going down: the top left corner lands top right.
+    func testQuarterTurnClockwiseTakesTopLeftToTopRight() {
+        let size = CGSize(width: 400, height: 300)
+        XCTAssertEqual(SelectionGeometry.rotatedQuarter(.zero, in: size, clockwise: true), CGPoint(x: 300, y: 0))
+        XCTAssertEqual(
+            SelectionGeometry.rotatedQuarter(CGPoint(x: 400, y: 300), in: size, clockwise: true),
+            CGPoint(x: 0, y: 400)
+        )
+        XCTAssertEqual(SelectionGeometry.rotatedQuarter(.zero, in: size, clockwise: false), CGPoint(x: 0, y: 400))
+    }
+
+    func testQuarterTurnThereAndBackIsTheSamePoint() {
+        let size = CGSize(width: 400, height: 300)
+        let point = CGPoint(x: 37, y: 12)
+        let turned = SelectionGeometry.rotatedQuarter(point, in: size, clockwise: true)
+        let back = SelectionGeometry.rotatedQuarter(
+            turned,
+            in: CGSize(width: size.height, height: size.width),
+            clockwise: false
+        )
+        XCTAssertEqual(back, point)
+    }
+
+    /// Turning about a point, Y down: what was to the right of the centre ends up below it.
+    func testQuarterTurnAroundAPoint() {
+        let centre = CGPoint(x: 10, y: 10)
+        let right = CGPoint(x: 12, y: 10)
+        XCTAssertEqual(SelectionGeometry.rotatedQuarter(right, around: centre, clockwise: true), CGPoint(x: 10, y: 12))
+        XCTAssertEqual(SelectionGeometry.rotatedQuarter(right, around: centre, clockwise: false), CGPoint(x: 10, y: 8))
+    }
+
+    /// The shot is where both sides meet: SwiftUI has it at y 50…250 (down), AppKit at y 20…220 (up).
+    /// A panel at SwiftUI y 200…240, near the shot's bottom, is at AppKit y 30…70.
+    func testSwiftUIFrameMapsOntoTheWindowThroughTheShot() {
+        let mapped = SelectionGeometry.windowRect(
+            fromSwiftUI: CGRect(x: 60, y: 200, width: 100, height: 40),
+            shotInSwiftUI: CGRect(x: 10, y: 50, width: 300, height: 200),
+            shotInWindow: CGRect(x: 10, y: 20, width: 300, height: 200)
+        )
+        XCTAssertEqual(mapped, CGRect(x: 60, y: 30, width: 100, height: 40))
+    }
+
+    /// The tools over the shot: 75%…150%, and never wider than the window.
+    func testToolsScaleStaysWithinItsLimits() {
+        XCTAssertEqual(SelectionGeometry.toolsScale(2, panelWidth: 400, availableWidth: 1000), 1.5)
+        XCTAssertEqual(SelectionGeometry.toolsScale(0.5, panelWidth: 400, availableWidth: 1000), 0.75)
+        XCTAssertEqual(SelectionGeometry.toolsScale(1.4, panelWidth: 400, availableWidth: 480), 1.2, accuracy: 0.0001)
+        XCTAssertEqual(SelectionGeometry.toolsScale(1, panelWidth: 400, availableWidth: 200), 0.75, "a tiny window scrolls")
+    }
+
+    func testCornerNearAPointAndItsOpposite() {
+        let rect = CGRect(x: 10, y: 10, width: 100, height: 50)
+        XCTAssertEqual(SelectionGeometry.corner(of: rect, near: CGPoint(x: 108, y: 62), radius: 4), .bottomRight)
+        XCTAssertNil(SelectionGeometry.corner(of: rect, near: CGPoint(x: 60, y: 30), radius: 4))
+        XCTAssertEqual(SelectionGeometry.Corner.bottomRight.opposite, .topLeft)
+    }
+
+    func testCornerScaleIsTheDistanceRatioFromTheAnchor() {
+        let scale = SelectionGeometry.cornerScale(anchor: .zero, start: CGPoint(x: 30, y: 40), current: CGPoint(x: 60, y: 80))
+        XCTAssertEqual(scale, 2, accuracy: 0.0001)
+    }
+
+    func testQuarterTurnOfARectComesBackNormalised() {
+        let turned = SelectionGeometry.rotatedQuarter(
+            CGRect(x: 10, y: 20, width: 50, height: 30),
+            in: CGSize(width: 400, height: 300),
+            clockwise: true
+        )
+        XCTAssertEqual(turned, CGRect(x: 250, y: 10, width: 30, height: 50))
+    }
+
     func testTooSmallCatchesClickAndShakyHand() {
         XCTAssertTrue(SelectionGeometry.isTooSmall(CGRect(x: 0, y: 0, width: 0, height: 0)))
         XCTAssertTrue(SelectionGeometry.isTooSmall(CGRect(x: 0, y: 0, width: 3, height: 100)))

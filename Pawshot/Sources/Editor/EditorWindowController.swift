@@ -158,25 +158,61 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             self?.returnFocusToCanvas()
         }
         chrome.pickColor = { [weak self] index in
-            self?.editorDocument.updateStyle { style in
-                style.color = AnnotationStyle.Palette.color(forKeyIndex: index, current: style.color)
-            }
+            guard let self else { return }
+            let palette = AnnotationStyle.Palette.self
+            let color = palette.colors.indices.contains(index) ? palette.colors[index] : Settings.shared.customColor
+            editorDocument.updateStyle { $0.color = color }
+            syncChrome()
+            returnFocusToCanvas()
+        }
+        chrome.pickCustomColor = { [weak self] color in
+            Settings.shared.pickCustomColor(color)
+            self?.editorDocument.updateStyle { $0.color = color }
             self?.syncChrome()
-            self?.returnFocusToCanvas()
         }
         chrome.pickLineWidth = { [weak self] width in
             self?.editorDocument.updateStyle { $0.lineWidth = width }
             self?.syncChrome()
             self?.returnFocusToCanvas()
         }
-        chrome.toggleFill = { [weak self] in
-            self?.editorDocument.updateStyle { $0.isFilled.toggle() }
+        chrome.cycleFill = { [weak self] in
+            self?.editorDocument.updateStyle {
+                $0.fillOpacity = AnnotationStyle.FillOpacity.next(after: $0.fillOpacity)
+            }
             self?.syncChrome()
             self?.returnFocusToCanvas()
         }
+        chrome.setFillOpacity = { [weak self] opacity in
+            guard let self else { return }
+            let isText = chrome.showsTextControls
+            editorDocument.updateStyle { AnnotationStyle.setFillOpacity(opacity, onText: isText, of: &$0) }
+            syncChrome()
+        }
         chrome.cycleTextStyle = { [weak self] in
-            self?.editorDocument.updateStyle { $0.textStyle = $0.textStyle.next }
+            self?.editorDocument.updateStyle(AnnotationStyle.nextTextStyle)
             self?.syncChrome()
+            self?.returnFocusToCanvas()
+        }
+        chrome.pickLineEnds = { [weak self] ends in
+            self?.editorDocument.updateStyle { $0.lineEnds = ends }
+            self?.syncChrome()
+            self?.returnFocusToCanvas()
+        }
+        chrome.pickTextWeight = { [weak self] weight in
+            self?.editorDocument.updateStyle { $0.textWeight = weight }
+            self?.syncChrome()
+            self?.returnFocusToCanvas()
+        }
+        chrome.reportShotFrame = { [weak self] frame in
+            self?.shotInSwiftUI = frame
+            self?.updateCursorExclusion()
+        }
+        chrome.reportToolsFrame = { [weak self] frame in
+            self?.toolsInSwiftUI = frame
+            self?.updateCursorExclusion()
+        }
+        chrome.rotate = { [weak self] clockwise in
+            clockwise ? self?.rotateRight(nil) : self?.rotateLeft(nil)
             self?.returnFocusToCanvas()
         }
         chrome.undo = { [weak self] in self?.editorUndoManager.undo() }
@@ -187,15 +223,67 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         chrome.copyText = { [weak self] in self?.copyText(nil) }
     }
 
+    private var shotInSwiftUI: CGRect?
+    private var toolsInSwiftUI: CGRect?
+
+    /// The floating tools' frame on the window, for the canvas to leave the cursor to them.
+    private func updateCursorExclusion() {
+        guard let tools = toolsInSwiftUI, let shot = shotInSwiftUI else {
+            canvas.cursorExclusion = nil
+            return
+        }
+        canvas.cursorExclusion = SelectionGeometry.windowRect(
+            fromSwiftUI: tools,
+            shotInSwiftUI: shot,
+            shotInWindow: scrollView.convert(scrollView.bounds, to: nil)
+        )
+    }
+
     /// The keys — tool letters, 1…6, [ ], Esc — are read by the canvas, so a click in the toolbar
     /// must not leave the focus anywhere else.
     private func returnFocusToCanvas() {
         window?.makeFirstResponder(canvas)
     }
 
+    private static func kind(of annotation: Annotation) -> AnnotationTool {
+        switch annotation {
+        case is TextAnnotation: .text
+        case is ArrowAnnotation: .arrow
+        case is RectangleAnnotation: .rectangle
+        case is PathAnnotation: .pencil
+        case is BlurAnnotation: .blur
+        case is CounterAnnotation: .counter
+        default: .select
+        }
+    }
+
+    /// Assigns only what changed: this runs on every document change, a drag included, and each
+    /// assignment redraws the toolbar.
     private func syncChrome() {
-        chrome.style = editorDocument.style
-        chrome.tool = canvas.tool
+        let selection = editorDocument.selection
+        let style = selection?.style ?? editorDocument.style
+        if chrome.style != style {
+            chrome.style = style
+        }
+        let kind = selection.map(Self.kind(of:))
+        if chrome.selectedKind != kind {
+            chrome.selectedKind = kind
+        }
+        let weights = LabelFont.weights(of: LabelFont.family)
+        if chrome.textWeights != weights {
+            chrome.textWeights = weights
+        }
+        if chrome.tool != canvas.tool {
+            chrome.tool = canvas.tool
+        }
+        let settings = Settings.shared
+        if chrome.customColor != settings.customColor {
+            chrome.customColor = settings.customColor
+        }
+        let recent = settings.recentColors
+        if chrome.recentColors != recent {
+            chrome.recentColors = recent
+        }
     }
 
     // MARK: - Actions
@@ -204,6 +292,26 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// everything back.
     @objc func clearAll(_: Any? = nil) {
         editorDocument.removeAll()
+    }
+
+    /// ⌘L and ⌘R, as in Preview: with something selected, that object turns a quarter about its
+    /// own centre; with nothing selected, the shot turns with everything drawn on it. A label
+    /// being typed is finished first — it turns as a finished label.
+    @objc func rotateLeft(_: Any?) {
+        rotate(clockwise: false)
+    }
+
+    @objc func rotateRight(_: Any?) {
+        rotate(clockwise: true)
+    }
+
+    private func rotate(clockwise: Bool) {
+        canvas.finishTextEditing()
+        if editorDocument.selection != nil {
+            editorDocument.rotateSelection(clockwise: clockwise)
+        } else {
+            editorDocument.rotate(clockwise: clockwise)
+        }
     }
 
     // MARK: - Export
@@ -407,6 +515,31 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         close()
     }
 
+    /// The labels' family changed in Settings: every open editor re-sets its labels right away.
+    static func labelFontDidChange() {
+        for controller in openControllers {
+            controller.canvas.finishTextEditing()
+            controller.editorDocument.labelFontDidChange()
+            controller.syncChrome()
+        }
+    }
+
+    /// The tools moved between under the shot and over it: SwiftUI redraws the content by itself,
+    /// and once it has laid out, every open window refits, so the shot is whole again with or
+    /// without the strip.
+    static func toolsPlacementDidChange() {
+        DispatchQueue.main.async {
+            for controller in openControllers {
+                controller.window?.contentView?.layoutSubtreeIfNeeded()
+                controller.fitWindowToShot()
+            }
+        }
+    }
+
+    func canvasDidRequestCustomColor(_: AnnotationCanvasView) {
+        chrome.pickColor(AnnotationStyle.Palette.customIndex)
+    }
+
     // MARK: - NSWindowDelegate
 
     /// Without this ⌘Z from the Edit menu won't find our undo manager.
@@ -601,8 +734,16 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         frame.origin.y += frame.height - content.height
         frame.size = content
 
-        if onlyIfItFits, let visible = window.screen?.visibleFrame, !visible.contains(frame) {
-            return
+        if let visible = window.screen?.visibleFrame, !visible.contains(frame) {
+            if onlyIfItFits {
+                return
+            }
+            // A turned full-screen shot is taller than the screen: the window stops at the screen
+            // and the shot scrolls inside it, as a big shot does when it opens.
+            frame.size.width = min(frame.width, visible.width)
+            frame.size.height = min(frame.height, visible.height)
+            frame.origin.x = min(max(frame.minX, visible.minX), visible.maxX - frame.width)
+            frame.origin.y = min(max(frame.minY, visible.minY), visible.maxY - frame.height)
         }
         window.setFrame(frame, display: true)
     }

@@ -39,6 +39,11 @@ final class RectangleAnnotation: Annotation {
         end.y += delta.dy
     }
 
+    func rotateQuarter(clockwise _: Bool, mapping turn: (CGPoint) -> CGPoint) {
+        start = turn(start)
+        end = turn(end)
+    }
+
     func draw() {
         // Softly rounded corners, scaled with the stroke so a thick frame doesn't look pinched.
         let radius = min(max(3, style.lineWidth), min(rect.width, rect.height) / 2)
@@ -46,7 +51,7 @@ final class RectangleAnnotation: Annotation {
         path.lineWidth = style.lineWidth
 
         if style.isFilled {
-            style.color.withAlphaComponent(0.25).setFill()
+            style.color.withAlphaComponent(style.fillOpacity).setFill()
             path.fill()
         }
 

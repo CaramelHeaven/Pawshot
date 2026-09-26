@@ -16,11 +16,25 @@ final class TextAnnotation: Annotation {
         didSet { cachedSize = nil }
     }
 
-    /// `nil` — as wide as the text. A number — the width of the box the text wraps inside.
-    let fixedWidth: CGFloat?
+    /// `nil` — as wide as the text. A number — the width of the box the text wraps inside. Scales
+    /// with the text when a corner is dragged.
+    var fixedWidth: CGFloat? {
+        didSet { cachedSize = nil }
+    }
 
     /// The top left corner of the text in image coordinates.
     private(set) var origin: CGPoint
+
+    /// Quarter turns clockwise the shot made after the label was placed. The label is laid out
+    /// level at `origin` and then turned about that corner as a whole, so it stays where it was
+    /// drawn on the picture.
+    private(set) var quarterTurns = 0
+
+    /// Level layout → where it is on the shot.
+    var turn: CGAffineTransform {
+        QuarterTurn.affine(quarterTurns, around: origin)
+    }
+
     private var cachedSize: CGSize?
 
     init(origin: CGPoint, style: AnnotationStyle, text: String = "", fixedWidth: CGFloat? = nil) {
@@ -30,18 +44,60 @@ final class TextAnnotation: Annotation {
         self.fixedWidth = fixedWidth
     }
 
-    /// Font size is tied to the line width: `[` and `]` work for text as well.
     var fontSize: CGFloat {
-        max(12, style.lineWidth * 6)
+        style.textSize
     }
 
     var font: NSFont {
-        .systemFont(ofSize: fontSize, weight: .semibold)
+        LabelFont.font(size: fontSize, weight: style.textWeight)
     }
 
-    /// The colour of the letters: the style's colour, or black/white on a plate of that colour.
+    /// What a corner drag changes, taken and put back as one for undo.
+    struct Geometry: Equatable {
+        var textSize: CGFloat
+        var fixedWidth: CGFloat?
+        var origin: CGPoint
+    }
+
+    var geometry: Geometry {
+        get { Geometry(textSize: style.textSize, fixedWidth: fixedWidth, origin: origin) }
+        set {
+            style.textSize = newValue.textSize
+            fixedWidth = newValue.fixedWidth
+            origin = newValue.origin
+        }
+    }
+
+    /// A new size from a corner drag. A wrapping box widens with its letters, so the lines break
+    /// where they did; and the label moves so the `pinned` corner of its frame stays put — the one
+    /// opposite the handle. Works for a turned label too, its frame being turned already.
+    func resize(from start: Geometry, to size: CGFloat, pinning pinned: SelectionGeometry.Corner) {
+        geometry = start
+        let before = pinned.point(of: boundingBox)
+        style.textSize = size
+        fixedWidth = start.fixedWidth.map { $0 * size / start.textSize }
+        let after = pinned.point(of: boundingBox)
+        origin.x += before.x - after.x
+        origin.y += before.y - after.y
+    }
+
+    /// The family changed in Settings: the measured size no longer holds.
+    func invalidateLayout() {
+        cachedSize = nil
+    }
+
+    /// The colour of the letters: the style's colour, or black/white on a plate of that colour
+    /// that is solid enough to be read against rather than through.
     var textColor: NSColor {
-        style.textStyle == .plate ? AnnotationStyle.contrastingTextColor(on: style.color) : style.color
+        style.textStyle == .plate && plateOpacity >= 0.5
+            ? AnnotationStyle.contrastingTextColor(on: style.color)
+            : style.color
+    }
+
+    /// The plate takes the fill's opacity. Zero would be an invisible plate, which is never what
+    /// was meant: F sets it to solid on the way in, and this covers any other way of getting there.
+    var plateOpacity: CGFloat {
+        style.fillOpacity > 0 ? style.fillOpacity : 1
     }
 
     var attributes: [NSAttributedString.Key: Any] {
@@ -63,11 +119,12 @@ final class TextAnnotation: Annotation {
     }
 
     var boundingBox: CGRect {
-        switch style.textStyle {
+        let level = switch style.textStyle {
         case .plain: textFrame.insetBy(dx: -2, dy: -2)
         case .outline: textFrame.insetBy(dx: -outlineWidth - 2, dy: -outlineWidth - 2)
         case .plate: plateRect.insetBy(dx: -2, dy: -2)
         }
+        return level.applying(turn)
     }
 
     var isMeaningful: Bool {
@@ -82,8 +139,17 @@ final class TextAnnotation: Annotation {
         origin.y += delta.dy
     }
 
+    func rotateQuarter(clockwise: Bool, mapping turn: (CGPoint) -> CGPoint) {
+        origin = turn(origin)
+        quarterTurns = (quarterTurns + (clockwise ? 1 : 3)) % 4
+    }
+
     func draw() {
         guard !text.isEmpty else { return }
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        QuarterTurn.transform(quarterTurns, around: origin).concat()
+
         let string = text as NSString
         let frame = textFrame
 
@@ -111,7 +177,7 @@ final class TextAnnotation: Annotation {
         case .plate:
             let plate = plateRect
             let radius = min(plate.height / 2, fontSize * 0.45)
-            style.color.setFill()
+            style.color.withAlphaComponent(plateOpacity).setFill()
             NSBezierPath(roundedRect: plate, xRadius: radius, yRadius: radius).fill()
             string.draw(with: frame, options: Self.drawingOptions, attributes: attributes)
         }

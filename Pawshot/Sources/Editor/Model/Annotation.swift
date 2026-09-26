@@ -19,6 +19,11 @@ protocol Annotation: AnyObject {
 
     func move(by delta: CGVector)
 
+    /// A quarter turn: every point of the object goes through `turn`, and whatever carries
+    /// letters turns them too. Who turns it decides about what — the whole shot, or the object's
+    /// own centre.
+    func rotateQuarter(clockwise: Bool, mapping turn: (CGPoint) -> CGPoint)
+
     /// Whether the object is dragged by its "other end" right after being created.
     func update(to point: CGPoint)
 
@@ -30,6 +35,23 @@ extension Annotation {
     /// The gap between the object and its dashed selection frame.
     static var selectionInset: CGFloat {
         4
+    }
+
+    /// The shot was turned a quarter: the object turns with it, as if it had been drawn before.
+    /// `frameSize` is the captured frame's size before the turn.
+    func rotate(clockwise: Bool, in frameSize: CGSize) {
+        rotateQuarter(clockwise: clockwise) {
+            SelectionGeometry.rotatedQuarter($0, in: frameSize, clockwise: clockwise)
+        }
+    }
+
+    /// ⌘L / ⌘R with the object selected: a quarter turn about the centre of its own frame, so it
+    /// stays where it was.
+    func rotateAroundItsCentre(clockwise: Bool) {
+        let centre = CGPoint(x: boundingBox.midX, y: boundingBox.midY)
+        rotateQuarter(clockwise: clockwise) {
+            SelectionGeometry.rotatedQuarter($0, around: centre, clockwise: clockwise)
+        }
     }
 
     /// The selection frame. It doubles as the grab area: a selected object is dragged by any point
@@ -46,6 +68,25 @@ extension Annotation {
         let path = NSBezierPath(roundedRect: selectionFrame, xRadius: 3, yRadius: 3)
         path.lineWidth = 1.5
         path.stroke()
+    }
+}
+
+/// Turning something drawn by whole quarters, for the two objects that carry letters.
+enum QuarterTurn {
+    /// Clockwise on screen: the canvas and the export both draw with Y going down, where a
+    /// positive angle turns clockwise.
+    static func transform(_ quarterTurns: Int, around point: CGPoint) -> NSAffineTransform {
+        let transform = NSAffineTransform()
+        transform.translateX(by: point.x, yBy: point.y)
+        transform.rotate(byDegrees: CGFloat(quarterTurns) * 90)
+        transform.translateX(by: -point.x, yBy: -point.y)
+        return transform
+    }
+
+    static func affine(_ quarterTurns: Int, around point: CGPoint) -> CGAffineTransform {
+        CGAffineTransform(translationX: point.x, y: point.y)
+            .rotated(by: CGFloat(quarterTurns) * .pi / 2)
+            .translatedBy(x: -point.x, y: -point.y)
     }
 }
 

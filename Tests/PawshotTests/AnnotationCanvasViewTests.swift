@@ -1,6 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 @testable import Pawshot
+import SwiftUI
 import XCTest
 
 @MainActor
@@ -84,7 +85,7 @@ final class AnnotationCanvasViewTests: XCTestCase {
 
         let marker = RectangleAnnotation(
             start: CGPoint(x: 110, y: 110),
-            style: AnnotationStyle(color: .green, lineWidth: 2, isFilled: true)
+            style: AnnotationStyle(color: .green, lineWidth: 2, fillOpacity: 0.25)
         )
         marker.update(to: CGPoint(x: 140, y: 140))
         document.add(marker)
@@ -214,10 +215,42 @@ final class AnnotationCanvasViewTests: XCTestCase {
         XCTAssertEqual(canvas.tool, .pencil)
     }
 
+    // MARK: - A line and a rectangle hand over to V
+
+    /// Released after A or R, the new object is selected and the editor is in V: it can be moved or
+    /// given other ends at once. The pencil keeps drawing — see the test above.
+    func testALineOrARectangleComesOutSelectedInV() throws {
+        for (letter, keyCode) in [("a", kVK_ANSI_A), ("r", kVK_ANSI_R)] {
+            let (canvas, document, _) = try makeCanvas()
+            try press(canvas, letter, keyCode: keyCode)
+
+            try drag(canvas, [CGPoint(x: 20, y: 20), CGPoint(x: 60, y: 50), CGPoint(x: 100, y: 90)])
+
+            let drawn = try XCTUnwrap(document.annotations.first, letter)
+            XCTAssertTrue(document.selection === drawn, "\(letter): what was drawn is selected")
+            XCTAssertEqual(canvas.tool, .select, letter)
+        }
+    }
+
+    /// A toolbar pick while a label is being typed finishes the label but keeps the pick: only the
+    /// user's own ways of finishing a label switch to V.
+    func testPickingAToolWhileTypingKeepsThatTool() throws {
+        let (canvas, document, _) = try makeCanvas()
+        try press(canvas, "t", keyCode: kVK_ANSI_T)
+        try drag(canvas, [CGPoint(x: 30, y: 40)])
+        canvas.typeIntoTextEditor("Hello")
+
+        canvas.select(tool: .rectangle)
+
+        XCTAssertEqual(document.annotations.count, 1)
+        XCTAssertEqual(canvas.tool, .rectangle)
+        XCTAssertNil(document.selection)
+    }
+
     // MARK: - Text
 
     /// A click with T opens a label right there; it reaches the document only when the typing is
-    /// done, and the tool stays T for the next one.
+    /// done, and then comes out selected with the editor in V.
     func testClickWithTheTextToolTypesALabelInPlace() throws {
         let (canvas, document, _) = try makeCanvas()
         try press(canvas, "t", keyCode: kVK_ANSI_T)
@@ -232,8 +265,8 @@ final class AnnotationCanvasViewTests: XCTestCase {
         let label = try XCTUnwrap(document.annotations.first as? TextAnnotation)
         XCTAssertEqual(label.text, "Hello")
         XCTAssertNil(label.fixedWidth, "a click gives text as wide as what is typed")
-        XCTAssertNil(document.selection)
-        XCTAssertEqual(canvas.tool, .text)
+        XCTAssertTrue(document.selection === label, "the finished label is selected")
+        XCTAssertEqual(canvas.tool, .select)
         XCTAssertFalse(canvas.isEditingText)
     }
 
@@ -247,6 +280,7 @@ final class AnnotationCanvasViewTests: XCTestCase {
 
         XCTAssertTrue(document.annotations.isEmpty)
         XCTAssertFalse(undoManager.canUndo)
+        XCTAssertEqual(canvas.tool, .text, "nothing to select, so the tool stays")
     }
 
     /// Dragging the text tool sets the width of a box the text wraps inside.
@@ -297,8 +331,213 @@ final class AnnotationCanvasViewTests: XCTestCase {
         XCTAssertEqual(document.style.textStyle, .outline)
         try press(canvas, "f", keyCode: kVK_ANSI_F)
         XCTAssertEqual(document.style.textStyle, .plate)
+        XCTAssertEqual(document.style.fillOpacity, 1, "a plate with no fill to take its opacity from arrives solid")
         try press(canvas, "f", keyCode: kVK_ANSI_F)
         XCTAssertEqual(document.style.textStyle, .plain)
-        XCTAssertFalse(document.style.isFilled, "fill of shapes is untouched")
     }
+
+    // MARK: - Palette, fill, line ends
+
+    func testDigitsPickTheFourColoursAndFiveAsksForTheOwnOne() throws {
+        let (canvas, document, _) = try makeCanvas()
+        let delegate = CanvasDelegateSpy()
+        canvas.delegate = delegate
+
+        try press(canvas, "2", keyCode: kVK_ANSI_2)
+        XCTAssertEqual(document.style.color, .systemGreen)
+        try press(canvas, "3", keyCode: kVK_ANSI_3)
+        XCTAssertEqual(document.style.color, .white)
+        try press(canvas, "4", keyCode: kVK_ANSI_4)
+        XCTAssertEqual(document.style.color, .black)
+        try press(canvas, "4", keyCode: kVK_ANSI_4)
+        XCTAssertEqual(document.style.color, .black, "4 no longer flips to white")
+
+        try press(canvas, "5", keyCode: kVK_ANSI_5)
+        XCTAssertEqual(delegate.customColorRequests, 1)
+    }
+
+    func testFWalksTheFillSteps() throws {
+        let (canvas, document, _) = try makeCanvas()
+        try press(canvas, "r", keyCode: kVK_ANSI_R)
+
+        var seen: [CGFloat] = []
+        for _ in 0 ..< 4 {
+            try press(canvas, "f", keyCode: kVK_ANSI_F)
+            seen.append(document.style.fillOpacity)
+        }
+        XCTAssertEqual(seen, [0.3, 0.6, 1, 0])
+    }
+
+    /// A again with the line already on walks its ends instead of picking the tool once more.
+    func testAWalksTheLineEnds() throws {
+        let (canvas, document, _) = try makeCanvas()
+
+        try press(canvas, "a", keyCode: kVK_ANSI_A)
+        XCTAssertEqual(canvas.tool, .arrow)
+        XCTAssertEqual(document.style.lineEnds, .end, "the first A only picks the tool")
+
+        try press(canvas, "a", keyCode: kVK_ANSI_A)
+        XCTAssertEqual(document.style.lineEnds, .both)
+        try press(canvas, "a", keyCode: kVK_ANSI_A)
+        XCTAssertEqual(document.style.lineEnds, .none)
+        try press(canvas, "a", keyCode: kVK_ANSI_A)
+        XCTAssertEqual(document.style.lineEnds, .end)
+    }
+
+    // MARK: - The cursor under something drawn on top
+
+    /// SwiftUI drawn over a representable view is invisible to `hitTest`: AppKit finds the canvas
+    /// under the panel as well. Measured here, which is why the panel reports its frame instead.
+    func testHitTestSeesTheCanvasUnderASwiftUIPanel() throws {
+        let document = try makeDocument(crop: CGRect(x: 0, y: 0, width: 200, height: 200))
+        let canvas = AnnotationCanvasView(document: document)
+        let content = NSHostingView(rootView: CanvasOnly(canvas: canvas)
+            .frame(width: 200, height: 200)
+            .overlay(alignment: .bottom) {
+                Color.gray.frame(width: 120, height: 40).contentShape(.rect).onTapGesture {}
+            })
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 200, height: 200), styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = content
+        content.layoutSubtreeIfNeeded()
+
+        // Window coordinates count from the bottom left: the panel is at y 0…40.
+        let hit = content.hitTest(content.convert(CGPoint(x: 100, y: 20), from: nil))
+        XCTAssertTrue(hit === canvas, "if this changes, hitTest could replace the reported frame")
+    }
+
+    /// What the floating tools report is their frame as drawn — with the scale in it. Measured, since
+    /// the canvas's exclusion depends on it.
+    func testAFrameMeasuredInsideAScaleIsTheScaledOne() {
+        final class Box { var frame: CGRect = .zero }
+        let box = Box()
+        let content = NSHostingView(rootView: Color.gray
+            .frame(width: 100, height: 40)
+            .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { box.frame = $0 }
+            .scaleEffect(1.5, anchor: .bottom)
+            .frame(width: 200, height: 200, alignment: .bottom))
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 200, height: 200), styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = content
+        content.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(box.frame.width, 150, accuracy: 1)
+    }
+
+    /// The canvas leaves the cursor alone inside the frame the floating tools report.
+    func testTheCanvasLeavesTheCursorToTheFloatingTools() throws {
+        let document = try makeDocument(crop: CGRect(x: 0, y: 0, width: 200, height: 200))
+        let canvas = AnnotationCanvasView(document: document)
+        XCTAssertTrue(canvas.ownsCursor(atWindowPoint: CGPoint(x: 100, y: 20)))
+
+        canvas.cursorExclusion = CGRect(x: 40, y: 0, width: 120, height: 40)
+
+        XCTAssertFalse(canvas.ownsCursor(atWindowPoint: CGPoint(x: 100, y: 20)), "over the tools")
+        XCTAssertTrue(canvas.ownsCursor(atWindowPoint: CGPoint(x: 100, y: 150)), "over the open shot")
+    }
+
+    // MARK: - Text size and weight
+
+    private func pressShifted(_ canvas: AnnotationCanvasView, _ letter: String, keyCode: Int) throws {
+        try canvas.keyDown(with: XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.shift],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: letter,
+            charactersIgnoringModifiers: letter,
+            isARepeat: false,
+            keyCode: UInt16(keyCode)
+        )))
+    }
+
+    /// With text, [ ] are the size and ⇧[ ⇧] the weight; with shapes, [ ] stay the width.
+    func testBracketsAreSizeAndShiftedBracketsWeightForText() throws {
+        // The test host is the app, and it picks up the family chosen in its real settings.
+        let family = LabelFont.family
+        LabelFont.family = nil
+        defer { LabelFont.family = family }
+        let (canvas, document, _) = try makeCanvas()
+        try press(canvas, "t", keyCode: kVK_ANSI_T)
+        let width = document.style.lineWidth
+
+        try press(canvas, "]", keyCode: kVK_ANSI_RightBracket)
+        XCTAssertEqual(document.style.textSize, 24)
+        XCTAssertEqual(document.style.lineWidth, width, "the width is left alone")
+
+        try pressShifted(canvas, "}", keyCode: kVK_ANSI_RightBracket)
+        XCTAssertEqual(document.style.textWeight, .bold, "semibold → bold")
+
+        try press(canvas, "r", keyCode: kVK_ANSI_R)
+        try press(canvas, "]", keyCode: kVK_ANSI_RightBracket)
+        XCTAssertEqual(document.style.lineWidth, AnnotationStyle.LineWidth.next(after: width))
+    }
+
+    /// A drag from a selected label's corner handle makes the text bigger, as one step of ⌘Z.
+    func testDraggingALabelsCornerResizesIt() throws {
+        let (canvas, document, undoManager) = try makeCanvas()
+        let label = TextAnnotation(origin: CGPoint(x: 30, y: 30), style: .default, text: "Hi")
+        undoManager.beginUndoGrouping()
+        document.add(label)
+        undoManager.endUndoGrouping()
+        canvas.select(tool: .select)
+        document.selection = label
+        let corner = SelectionGeometry.Corner.bottomRight.point(of: label.selectionFrame)
+
+        undoManager.beginUndoGrouping()
+        try drag(canvas, [corner, CGPoint(x: corner.x + 20, y: corner.y + 10), CGPoint(x: corner.x + 40, y: corner.y + 20)])
+        undoManager.endUndoGrouping()
+
+        XCTAssertGreaterThan(label.style.textSize, 18)
+        XCTAssertEqual(document.annotations.count, 1, "resized, not drawn")
+        undoManager.undo()
+        XCTAssertEqual(label.style.textSize, 18)
+    }
+
+    // MARK: - A turned label
+
+    /// The field that edits a label on a turned shot must turn the same way, or the caret runs
+    /// across the letters instead of along them. Converting the field's own points into the canvas
+    /// shows which way AppKit actually turned it — nothing else here can see the screen.
+    func testTheTextFieldTurnsWithATurnedLabel() throws {
+        let document = try makeDocument(crop: CGRect(x: 0, y: 0, width: 200, height: 200))
+        let canvas = AnnotationCanvasView(document: document)
+        let label = TextAnnotation(origin: CGPoint(x: 60, y: 30), style: .default, text: "Hello")
+        label.rotate(clockwise: true, in: CGSize(width: 200, height: 200))
+
+        let editor = NSTextView(frame: .zero)
+        canvas.addSubview(editor)
+        canvas.place(editor, over: label)
+
+        let start = editor.convert(CGPoint.zero, to: canvas)
+        let along = editor.convert(CGPoint(x: 20, y: 0), to: canvas)
+
+        XCTAssertEqual(start.x, label.origin.x, accuracy: 0.5, "the text starts at the label's corner")
+        XCTAssertEqual(start.y, label.origin.y, accuracy: 0.5)
+        XCTAssertEqual(along.x, start.x, accuracy: 0.5, "turned clockwise, the line of text runs down")
+        XCTAssertEqual(along.y, start.y + 20, accuracy: 0.5)
+    }
+}
+
+@MainActor
+private final class CanvasDelegateSpy: AnnotationCanvasDelegate {
+    var customColorRequests = 0
+
+    func canvasDidChangeTool(_: AnnotationCanvasView) {}
+    func canvasDidChangeStyle(_: AnnotationCanvasView) {}
+    func canvasDidRequestClose(_: AnnotationCanvasView) {}
+    func canvasDidRequestCustomColor(_: AnnotationCanvasView) {
+        customColorRequests += 1
+    }
+}
+
+private struct CanvasOnly: NSViewRepresentable {
+    let canvas: AnnotationCanvasView
+
+    func makeNSView(context _: Context) -> AnnotationCanvasView {
+        canvas
+    }
+
+    func updateNSView(_: AnnotationCanvasView, context _: Context) {}
 }

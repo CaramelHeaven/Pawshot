@@ -48,10 +48,110 @@ private struct GeneralSettings: View {
                     .font(.footnote)
                 }
             }
+            Section {
+                LabelFontPicker(selection: $settings.labelFontFamily)
+                Picker("Tools and colours", selection: $settings.toolsPlacement) {
+                    Text("Under the shot").tag(ToolsPlacement.below)
+                    Text("Over the shot").tag(ToolsPlacement.overlay)
+                }
+                .pickerStyle(.segmented)
+            } header: {
+                Text("Editor")
+            } footer: {
+                Text("The font and the panel change at once, in open editors too. Over the shot, drag the panel's edge to resize it.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
-        .frame(height: 220)
+        .frame(height: 620)
+    }
+}
+
+/// The labels' family: any font installed on the Mac, each name set in its own face, with the
+/// system font first and a search field over the few hundred there are. Under the list, a label
+/// the way it lands on a shot — plain and on a plate — in the chosen family.
+private struct LabelFontPicker: View {
+    @Binding var selection: String?
+    @State private var query = ""
+
+    private let families = NSFontManager.shared.availableFontFamilies
+
+    private var matches: [String] {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return families }
+        return families.filter { $0.localizedCaseInsensitiveContains(trimmed) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextField("Search fonts", text: $query)
+                .textFieldStyle(.roundedBorder)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if query.isEmpty {
+                        row(nil)
+                    }
+                    ForEach(matches, id: \.self) { family in
+                        row(family)
+                    }
+                }
+            }
+            .frame(height: 180)
+            .background(RoundedRectangle(cornerRadius: 8).fill(.background))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(0.12), lineWidth: 1))
+            preview
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func row(_ family: String?) -> some View {
+        let isOn = selection == family
+        return Button {
+            selection = family
+        } label: {
+            HStack {
+                Text(family ?? String(localized: "System"))
+                    .font(Font(LabelFont.font(size: 15, weight: .regular, family: family)))
+                    .lineLimit(1)
+                Spacer()
+                if isOn {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Tokens.paw)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(isOn ? Tokens.paw.opacity(0.12) : .clear)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
+    /// A strip of a light screenshot with a label on it, in the chosen family at the default size
+    /// and weight.
+    private var preview: some View {
+        let font = Font(LabelFont.font(size: 17, weight: .semibold, family: selection))
+        let sample = String(localized: "Wrong total — $42!")
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(sample)
+                .font(font)
+                .foregroundStyle(Color(nsColor: .systemRed))
+                .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
+            Text(sample)
+                .font(font)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Color(nsColor: .systemRed)))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color(white: 0.97)))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(0.1), lineWidth: 1))
+        .environment(\.colorScheme, .light)
+        .accessibilityHidden(true)
     }
 }
 
@@ -230,6 +330,7 @@ private struct RecordingSettings: View {
 
 private struct ShortcutSettings: View {
     private let settings = Settings.shared
+    @State private var isConfirmingReset = false
 
     private static let keyboardSettingsURL = URL(
         string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension"
@@ -286,10 +387,25 @@ private struct ShortcutSettings: View {
                         systemShortcutWarning(conflicts)
                     }
                 }
+                Section {
+                    HStack {
+                        Spacer()
+                        Button("Restore Defaults…") {
+                            isConfirmingReset = true
+                        }
+                    }
+                }
             }
             .formStyle(.grouped)
         }
         .frame(height: 580)
+        .confirmationDialog("Restore the default shortcuts?", isPresented: $isConfirmingReset) {
+            Button("Restore Defaults", role: .destructive) {
+                settings.resetHotKeysToDefaults()
+            }
+        } message: {
+            Text("Every shortcut goes back to the one Pawshot came with.")
+        }
     }
 
     private func recorderRows(

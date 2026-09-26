@@ -103,6 +103,17 @@ private struct EditorCommands: Commands {
             Button("Clear All") {
                 send(#selector(EditorWindowController.clearAll(_:)))
             }
+
+            // The keys Preview turns a picture with.
+            Divider()
+            Button("Rotate Left") {
+                send(#selector(EditorWindowController.rotateLeft(_:)))
+            }
+            .keyboardShortcut("l")
+            Button("Rotate Right") {
+                send(#selector(EditorWindowController.rotateRight(_:)))
+            }
+            .keyboardShortcut("r")
         }
     }
 

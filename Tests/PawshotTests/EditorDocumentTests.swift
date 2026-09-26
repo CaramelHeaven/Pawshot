@@ -108,7 +108,7 @@ final class EditorDocumentTests: XCTestCase {
     func testHitTestPrefersTopmostAnnotation() {
         let document = makeDocument()
 
-        let filled = AnnotationStyle(color: .red, lineWidth: 3, isFilled: true)
+        let filled = AnnotationStyle(color: .red, lineWidth: 3, fillOpacity: 0.25)
         let bottom = RectangleAnnotation(start: CGPoint(x: 0, y: 0), style: filled)
         bottom.update(to: CGPoint(x: 100, y: 100))
         let top = RectangleAnnotation(start: CGPoint(x: 20, y: 20), style: filled)
@@ -147,6 +147,173 @@ final class EditorDocumentTests: XCTestCase {
 
         undoManager.undo()
         XCTAssertEqual(arrow.style.color, AnnotationStyle.default.color)
+    }
+
+    /// Turning the blue double arrow into a single one must leave it blue, whatever colour is
+    /// current: the change goes to the selection, not the whole current style.
+    func testChangingTheEndsOfASelectedLineKeepsItsColour() {
+        let document = makeDocument()
+        var blue = AnnotationStyle.default
+        blue.color = .systemBlue
+        blue.lineEnds = .both
+        let line = ArrowAnnotation(start: .zero, style: blue)
+        document.add(line)
+        document.selection = line
+
+        document.updateStyle { $0.lineEnds = .end }
+
+        XCTAssertEqual(line.style.lineEnds, .end)
+        XCTAssertEqual(line.style.color, .systemBlue)
+        XCTAssertEqual(document.style.color, AnnotationStyle.default.color)
+    }
+
+    // MARK: - Turning
+
+    /// The whole frame turns, the crop and every object with it, and ⌘Z turns it all back.
+    func testRotatingTurnsTheFrameCropAndDrawingsAndUndoTurnsBack() {
+        let crop = CGRect(x: 100, y: 50, width: 200, height: 100)
+        let document = makeDocument(crop: crop)
+        let undoManager = makeUndoManager(for: document)
+        let box = RectangleAnnotation(start: CGPoint(x: 110, y: 60), style: .default)
+        box.update(to: CGPoint(x: 150, y: 80))
+        step(undoManager) { document.add(box) }
+
+        step(undoManager) { document.rotate(clockwise: true) }
+
+        XCTAssertEqual(document.frameSize, CGSize(width: 300, height: 400))
+        XCTAssertEqual(document.cropRect, CGRect(x: 150, y: 100, width: 100, height: 200))
+        XCTAssertEqual(document.image.width, 100)
+        XCTAssertEqual(document.image.height, 200)
+        XCTAssertEqual(box.rect, CGRect(x: 220, y: 110, width: 20, height: 40))
+
+        undoManager.undo()
+
+        XCTAssertEqual(document.frameSize, CGSize(width: 400, height: 300))
+        XCTAssertEqual(document.cropRect, crop)
+        XCTAssertEqual(box.rect, CGRect(x: 110, y: 60, width: 40, height: 20))
+    }
+
+    /// The pixels turn the same way as the drawings: a red corner at the top left of the frame is
+    /// at the top right after a clockwise turn. A plain white frame can't tell the two apart.
+    func testTheShotItselfTurnsClockwise() throws {
+        let context = try XCTUnwrap(CGContext(
+            data: nil,
+            width: 40,
+            height: 20,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(NSColor.white.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: 40, height: 20))
+        // CGContext counts from the bottom: y 10…20 is the top half.
+        context.setFillColor(NSColor.red.cgColor)
+        context.fill(CGRect(x: 0, y: 10, width: 10, height: 10))
+        let frame = try CapturedFrame(
+            image: XCTUnwrap(context.makeImage()),
+            displayFrame: CGRect(x: 0, y: 0, width: 40, height: 20),
+            scale: 1
+        )
+        let document = try XCTUnwrap(EditorDocument(frame: frame, cropRect: CGRect(x: 0, y: 0, width: 40, height: 20)))
+
+        document.rotate(clockwise: true)
+
+        let pixels = NSBitmapImageRep(cgImage: document.image)
+        XCTAssertEqual(pixels.pixelsWide, 20)
+        XCTAssertEqual(pixels.pixelsHigh, 40)
+        let topRight = try XCTUnwrap(pixels.colorAt(x: 15, y: 5)?.usingColorSpace(.deviceRGB))
+        let bottomLeft = try XCTUnwrap(pixels.colorAt(x: 5, y: 35)?.usingColorSpace(.deviceRGB))
+        XCTAssertGreaterThan(topRight.redComponent, topRight.blueComponent + 0.5, "the red corner is top right now")
+        XCTAssertEqual(bottomLeft.redComponent, bottomLeft.blueComponent, accuracy: 0.05)
+    }
+
+    /// With something selected, only that object turns — about its own centre — and the shot
+    /// stays as it is. ⌘Z turns it back.
+    func testRotatingTheSelectionTurnsOnlyItAboutItsCentre() {
+        let document = makeDocument()
+        let undoManager = makeUndoManager(for: document)
+        let box = RectangleAnnotation(start: CGPoint(x: 10, y: 10), style: .default)
+        box.update(to: CGPoint(x: 50, y: 30))
+        let other = RectangleAnnotation(start: CGPoint(x: 100, y: 100), style: .default)
+        other.update(to: CGPoint(x: 140, y: 120))
+        step(undoManager) { document.add(box) }
+        step(undoManager) { document.add(other) }
+        document.selection = box
+        let crop = document.cropRect
+
+        step(undoManager) { document.rotateSelection(clockwise: true) }
+
+        XCTAssertEqual(box.rect, CGRect(x: 20, y: 0, width: 20, height: 40), "same centre, sides swapped")
+        XCTAssertEqual(other.rect, CGRect(x: 100, y: 100, width: 40, height: 20), "the rest stays")
+        XCTAssertEqual(document.cropRect, crop, "the shot doesn't turn")
+
+        undoManager.undo()
+        XCTAssertEqual(box.rect, CGRect(x: 10, y: 10, width: 40, height: 20))
+    }
+
+    /// The opacity slider on a plain label makes it a plate: a plain label has nothing to fill,
+    /// and the slider used to do nothing there.
+    func testTheOpacitySliderOnAPlainLabelMakesItAPlate() {
+        let document = makeDocument()
+        let label = TextAnnotation(origin: CGPoint(x: 20, y: 20), style: .default, text: "Hi")
+        document.add(label)
+        document.selection = label
+
+        document.updateStyle { AnnotationStyle.setFillOpacity(0.6, onText: true, of: &$0) }
+
+        XCTAssertEqual(label.style.textStyle, .plate)
+        XCTAssertEqual(label.style.fillOpacity, 0.6)
+    }
+
+    /// A new family in Settings re-sets labels already drawn: their size is measured again.
+    func testChangingTheFamilyReMeasuresLabelsAlreadyDrawn() {
+        let document = makeDocument()
+        let label = TextAnnotation(origin: CGPoint(x: 20, y: 20), style: .default, text: "Hello, World")
+        document.add(label)
+        let before = label.boundingBox.width
+        let family = LabelFont.family
+        defer { LabelFont.family = family }
+
+        LabelFont.family = "Courier New"
+        document.labelFontDidChange()
+
+        XCTAssertNotEqual(label.boundingBox.width, before, accuracy: 0.5)
+        XCTAssertEqual(label.font.familyName, "Courier New")
+    }
+
+    /// A corner drag is one step of ⌘Z, whatever it passed through.
+    func testFinishingAResizeIsOneUndoStep() {
+        let document = makeDocument()
+        let undoManager = makeUndoManager(for: document)
+        let label = TextAnnotation(origin: CGPoint(x: 20, y: 20), style: .default, text: "Hi")
+        step(undoManager) { document.add(label) }
+        let start = label.geometry
+
+        label.resize(from: start, to: 24, pinning: .topLeft)
+        label.resize(from: start, to: 40, pinning: .topLeft)
+        step(undoManager) { document.finishResizing(label, from: start) }
+        XCTAssertEqual(label.style.textSize, 40)
+        XCTAssertEqual(document.style.textSize, 40, "the next label takes the size")
+
+        undoManager.undo()
+        XCTAssertEqual(label.geometry, start)
+    }
+
+    func testFourTurnsComeBackToTheStart() {
+        let crop = CGRect(x: 100, y: 50, width: 200, height: 100)
+        let document = makeDocument(crop: crop)
+        let line = ArrowAnnotation(start: CGPoint(x: 120, y: 70), style: .default)
+        line.update(to: CGPoint(x: 180, y: 90))
+        document.add(line)
+        let before = line.boundingBox
+
+        for _ in 0 ..< 4 {
+            document.rotate(clockwise: false)
+        }
+
+        XCTAssertEqual(document.cropRect, crop)
+        XCTAssertEqual(line.boundingBox, before)
     }
 
     func testRemoveAllClearsCanvasAndSelection() {

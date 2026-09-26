@@ -19,6 +19,10 @@ enum CanvasInteraction {
     /// selected — so a second pencil stroke started inside the first one's frame moved the first
     /// instead of drawing. No app surveyed combines "the tool stays" with "the new object is
     /// selected and a drag moves it"; the ones that keep the tool don't select what was drawn.
+    ///
+    /// The line, the rectangle and the label don't keep the tool: once drawn they come out
+    /// selected with the editor in V (`AnnotationTool.selectsWhatItDraws`), so the question of a
+    /// drag inside a fresh frame never comes up for them.
     static func decide(tool: AnnotationTool, isOverSelection: Bool, commandHeld: Bool) -> Kind {
         guard tool == .select || commandHeld else { return .draw }
         return isOverSelection ? .moveSelection : .selectUnderCursor

@@ -88,6 +88,50 @@ final class AnnotationRendererTests: XCTestCase {
         return (bytes[offset], bytes[offset + 1], bytes[offset + 2])
     }
 
+    /// A turned shot exports turned, marks included: a mark in the top left corner ends up top
+    /// right after a clockwise turn, and the file is taller than it is wide.
+    func testATurnedShotExportsTurnedWithItsMarks() throws {
+        let document = makeDocument(pointSize: CGSize(width: 200, height: 100), scale: 2)
+        var solid = AnnotationStyle.default
+        solid.fillOpacity = 1
+        let mark = RectangleAnnotation(start: CGPoint(x: 10, y: 10), style: solid)
+        mark.update(to: CGPoint(x: 60, y: 40))
+        document.add(mark)
+
+        document.rotate(clockwise: true)
+        let rendered = try XCTUnwrap(AnnotationRenderer.render(document))
+
+        XCTAssertEqual(rendered.width, 200)
+        XCTAssertEqual(rendered.height, 400)
+        let onMark = try XCTUnwrap(color(of: rendered, atX: 150, y: 70))
+        let farAway = try XCTUnwrap(color(of: rendered, atX: 20, y: 300))
+        XCTAssertGreaterThan(onMark.r, onMark.b, "the mark is in the top right now")
+        XCTAssertEqual(farAway.r, farAway.b, "the bottom left stays white")
+    }
+
+    /// A label set in a family picked in Settings reaches the file: letters are drawn, not blanks.
+    func testALabelInAnInstalledFamilyIsDrawnIntoTheExport() throws {
+        let family = LabelFont.family
+        defer { LabelFont.family = family }
+        LabelFont.family = "Helvetica Neue"
+        let document = makeDocument(pointSize: CGSize(width: 200, height: 100), scale: 1)
+        var style = AnnotationStyle.default
+        style.textSize = 30
+        document.add(TextAnnotation(origin: CGPoint(x: 10, y: 10), style: style, text: "Ёж — 4 200 ₽!"))
+
+        let rendered = try XCTUnwrap(AnnotationRenderer.render(document))
+
+        var marked = 0
+        for x in stride(from: 10, to: 190, by: 2) {
+            for y in stride(from: 10, to: 60, by: 2) {
+                if let pixel = color(of: rendered, atX: x, y: y), Int(pixel.r) > Int(pixel.b) + 60 {
+                    marked += 1
+                }
+            }
+        }
+        XCTAssertGreaterThan(marked, 50, "red letters on the white shot")
+    }
+
     func testRenderKeepsFullPixelResolution() {
         let document = makeDocument(pointSize: CGSize(width: 200, height: 100), scale: 2)
 
@@ -105,7 +149,7 @@ final class AnnotationRendererTests: XCTestCase {
 
         let marker = RectangleAnnotation(
             start: CGPoint(x: 20, y: 20),
-            style: AnnotationStyle(color: .red, lineWidth: 3, isFilled: true)
+            style: AnnotationStyle(color: .red, lineWidth: 3, fillOpacity: 0.25)
         )
         marker.update(to: CGPoint(x: 180, y: 80))
         document.add(marker)
@@ -131,7 +175,7 @@ final class AnnotationRendererTests: XCTestCase {
 
         let marker = RectangleAnnotation(
             start: CGPoint(x: 120, y: 20),
-            style: AnnotationStyle(color: .red, lineWidth: 3, isFilled: true)
+            style: AnnotationStyle(color: .red, lineWidth: 3, fillOpacity: 0.25)
         )
         marker.update(to: CGPoint(x: 160, y: 60))
         document.add(marker)
@@ -158,7 +202,7 @@ final class AnnotationRendererTests: XCTestCase {
 
         let marker = RectangleAnnotation(
             start: CGPoint(x: 150, y: 20),
-            style: AnnotationStyle(color: .red, lineWidth: 3, isFilled: true)
+            style: AnnotationStyle(color: .red, lineWidth: 3, fillOpacity: 0.25)
         )
         marker.update(to: CGPoint(x: 190, y: 60))
         document.add(marker)

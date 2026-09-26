@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import Observation
@@ -35,10 +36,21 @@ final class Settings {
         case videoEditorOpenCount = "stats.videoEditorOpenCount"
         case captureCount = "stats.captureCount"
         case language = "app.language"
+        case customColor = "editor.customColor"
+        case recentColors = "editor.recentColors"
+        case labelFont = "editor.labelFont"
+        case toolsPlacement = "editor.toolsPlacement"
+        case overlayToolsScale = "editor.overlayToolsScale"
     }
 
     /// Told when a hotkey changed, so `AppDelegate` can re-register it.
     @ObservationIgnored var onHotKeysChange: (() -> Void)?
+
+    /// Told when the labels' family changed, so open editors re-set their labels at once.
+    @ObservationIgnored var onLabelFontChange: (() -> Void)?
+
+    /// Told when the tools move between under the shot and over it, so open editors refit.
+    @ObservationIgnored var onToolsPlacementChange: (() -> Void)?
 
     /// Told while the settings window is recording a new combination.
     ///
@@ -206,6 +218,83 @@ final class Settings {
         }
     }
 
+    /// The editor's fifth colour, the one of one's own. Kept between launches, so key 5 means the
+    /// same colour tomorrow.
+    var customColor: NSColor {
+        get {
+            _ = revision
+            return defaults.string(forKey: Key.customColor.rawValue).flatMap(ColorHex.color) ?? .systemPurple
+        }
+        set {
+            defaults.set(ColorHex.string(newValue), forKey: Key.customColor.rawValue)
+            revision += 1
+        }
+    }
+
+    /// The family labels are set in; `nil` is the system font. Applies at once: `AppDelegate`
+    /// hands it to `LabelFont` and to every open editor through `onLabelFontChange`. The words
+    /// "system" and "formular" are what earlier builds stored, and both mean the system font now.
+    var labelFontFamily: String? {
+        get {
+            _ = revision
+            guard let stored = defaults.string(forKey: Key.labelFont.rawValue),
+                  stored != "system", stored != "formular"
+            else { return nil }
+            return stored
+        }
+        set {
+            if let newValue {
+                defaults.set(newValue, forKey: Key.labelFont.rawValue)
+            } else {
+                defaults.removeObject(forKey: Key.labelFont.rawValue)
+            }
+            revision += 1
+            onLabelFontChange?()
+        }
+    }
+
+    /// Where the editor's tools and colours sit: in a strip under the shot, or floating over its
+    /// bottom edge.
+    var toolsPlacement: ToolsPlacement {
+        get {
+            _ = revision
+            return defaults.string(forKey: Key.toolsPlacement.rawValue).flatMap(ToolsPlacement.init(rawValue:)) ?? .below
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: Key.toolsPlacement.rawValue)
+            revision += 1
+            onToolsPlacementChange?()
+        }
+    }
+
+    /// How big the tools are drawn over the shot, dragged by their edge; 1 is their own size. The
+    /// editor keeps it within `SelectionGeometry.toolsScale`.
+    var overlayToolsScale: CGFloat {
+        get {
+            _ = revision
+            return defaults.object(forKey: Key.overlayToolsScale.rawValue) as? CGFloat ?? 1
+        }
+        set {
+            defaults.set(newValue, forKey: Key.overlayToolsScale.rawValue)
+            revision += 1
+        }
+    }
+
+    /// The last colours picked in the colour picker, newest first.
+    var recentColors: [NSColor] {
+        _ = revision
+        return (defaults.stringArray(forKey: Key.recentColors.rawValue) ?? []).compactMap(ColorHex.color)
+    }
+
+    /// Picks a colour of one's own: it becomes key 5 and goes to the front of the recent ones.
+    func pickCustomColor(_ color: NSColor) {
+        let hex = ColorHex.string(color)
+        let recent = [hex] + (defaults.stringArray(forKey: Key.recentColors.rawValue) ?? []).filter { $0 != hex }
+        defaults.set(Array(recent.prefix(8)), forKey: Key.recentColors.rawValue)
+        defaults.set(hex, forKey: Key.customColor.rawValue)
+        revision += 1
+    }
+
     /// How many shots reached the editor. Drives the key hints on the first captures and the line
     /// in the About window.
     var captureCount: Int {
@@ -266,4 +355,12 @@ enum AppLanguage: String, CaseIterable {
     case russian = "ru"
 
     static let appleLanguagesKey = "AppleLanguages"
+}
+
+/// Where the editor's capsule of tools and colours sits.
+enum ToolsPlacement: String, CaseIterable {
+    /// A strip of its own under the shot: nothing of the shot is covered.
+    case below
+    /// Floating over the shot's bottom edge, the way markup looks on an iPhone.
+    case overlay
 }

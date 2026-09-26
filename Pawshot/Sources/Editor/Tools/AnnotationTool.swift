@@ -27,12 +27,23 @@ enum AnnotationTool: String, CaseIterable {
     var title: String {
         switch self {
         case .select: String(localized: "Select")
-        case .arrow: String(localized: "Arrow")
+        case .arrow: String(localized: "Line")
         case .rectangle: String(localized: "Rectangle")
         case .pencil: String(localized: "Pencil")
         case .text: String(localized: "Text")
         case .blur: String(localized: "Blur")
         case .counter: String(localized: "Counter")
+        }
+    }
+
+    /// Whether what was just drawn comes out selected, with the editor in V: a line, a rectangle or
+    /// a label is usually nudged, recoloured or given other ends right after — the owner's call.
+    /// The pencil, the blur and the step numbers keep their tool: strokes and numbers come in
+    /// runs, and a selected stroke used to swallow the next one.
+    var selectsWhatItDraws: Bool {
+        switch self {
+        case .arrow, .rectangle, .text: true
+        case .select, .pencil, .blur, .counter: false
         }
     }
 

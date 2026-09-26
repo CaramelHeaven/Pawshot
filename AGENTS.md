@@ -92,11 +92,58 @@ interface language and the recording sound. macOS takes a screenshot combination
 ever hands it to us, so the settings window reads the real state of the system shortcuts (`SystemScreenshotShortcuts`) and
 warns while one of ours is still taken, instead of silently doing nothing.
 
-The editor has one SwiftUI toolbar on Liquid Glass — tools with their letters, the six colours
-always on show, widths drawn as strokes, fill, history, and Copy as the one orange primary action —
-and the shot below it as a sheet of paper. Annotations are
+Everything that draws lives in **two glass capsules at the bottom**, the owner's pick: one with
+the tools and their letters, one with the style — four colours always on show (red, green,
+white, black), a fifth of one's own with a picker behind it, and then only what the current tool
+or selected object has: widths, the fill and its **always visible opacity slider** for a
+rectangle, widths and the ends for a line, the look, one "Аа" button per weight of the family
+and the plate's slider for a label. Side by side when they fit, the style above the tools when
+they don't; narrower still, the colours fold into one swatch and the capsules scroll. Settings →
+General → Editor puts them in a strip of their own under the shot (the default; the window's
+chrome is measured, so growing the shot by its edge accounts for the strip) or floating over the
+shot's bottom edge; the switch applies at once, and open windows refit. Over the shot, the panel
+has a visible grip at each end — a pill that lights up in the paw colour on a 16 pt strip: drag it
+out or in to scale the panel between 75% (smaller cells can't be hit) and 150% (bigger covers too
+much of the shot), never wider than the window (`SelectionGeometry.toolsScale`); a double click
+puts it back at 100%, and the size is remembered.
+
+**SwiftUI drawn over the canvas is invisible to AppKit.** The canvas sets the cursor itself from
+its tracking area, which fires by geometry — under the floating panel too — so the grips' resize
+cursor never showed. `hitTest` can't tell the panel is there: over a representable view SwiftUI
+content is not a view, and the canvas answers (`testHitTestSeesTheCanvasUnderASwiftUIPanel`). So
+the panel reports its frame, and the shot's, in SwiftUI's global space; the controller maps it onto
+the window through the shot (`SelectionGeometry.windowRect`, since where SwiftUI's global space
+starts under the title bar and toolbar is not to be assumed), and the canvas leaves the cursor
+alone inside it (`cursorExclusion`). The SwiftUI toolbar on top holds only the two turns, history, and Copy as the
+one orange primary action. The shot sits between them as a sheet of paper. Annotations are
 **objects**: they can be moved, recoloured and deleted one by one, and all of it is undoable with
-`⌘Z`.
+`⌘Z`. The toolbar shows the selected object's style, and a change to it — a colour, the fill, a
+line's ends — goes to that object alone: a blue double arrow made single stays blue.
+
+**The line is one tool with three looks** — a plain stroke, an arrow, a double arrow — picked by
+three buttons in the toolbar, or by pressing `A` again with the line already on. A drawn line can
+become any of them later. **The fill has an opacity**: `F` walks none → 30% → 60% → solid, the
+slider next to it gives anything in between, and a text plate takes the same value. **The fifth
+colour** is picked in a popover — saturation and brightness, hue, the hex, the last eight colours,
+and an eyedropper (`NSColorSampler`) that takes a colour straight off the shot; it is remembered
+between launches.
+
+**Labels are set in any font family installed on the Mac**, the system font by default, picked
+in Settings → General → Editor from a searchable list where each family is written in itself,
+with a live label on a strip of shot under it. The family is one for all labels
+(`LabelFont.family`) and applies at once: every open editor re-measures the labels already drawn
+(`EditorDocument.labelFontDidChange`) — the owner's call, and not a step of ⌘Z, since it is a
+setting. A family no longer installed falls back to the system font. Each label keeps its own
+**size** and **weight**: the weight buttons are the family's upright faces, as many as it has
+(SF: nine), `⇧[` / `⇧]` step through them, `[` / `]` step the size, and a selected label has
+**handles on its four corners** — drag one and the text grows about the opposite corner, one
+step of ⌘Z. A bundled Formular was tried and removed.
+
+**`⌘L` / `⌘R` turn the selected object a quarter about its own centre; with nothing selected,
+they turn the shot**, as in Preview, with everything drawn on it — labels and
+step numbers included, as if they had been drawn before the turn. The whole captured frame turns,
+not just the crop, so every coordinate stays "a point of the frame": the canvas, the export and
+growing the shot by the window's edge needed no change, and the latter keeps working after a turn.
 
 **Missed the region by a few pixels? Drag the window by its edge.** Resizing the editor window
 resizes the shot itself: pulling an edge outwards makes neighbouring pixels of the screen stick to
@@ -125,10 +172,10 @@ a single existing gesture.
 | Key | Tool | Key | Action |
 |---|---|---|---|
 | `V` | select and move | `⌘Z` / `⌘⇧Z` | undo / redo |
-| `A` | arrow | `⌫` | delete the selection |
-| `R` | rectangle | `[` / `]` | width − / + |
-| `D` | pencil | `1`…`6` | colour (the sixth toggles black ↔ white) |
-| `T` | text | `F` | fill on/off; with `T` or a label: plain → outline → plate |
+| `A` | line; again: arrow → double → plain | `⌫` | delete the selection |
+| `R` | rectangle | `[` / `]` | width − / +; on a label: size − / + (`⇧` — weight) |
+| `D` | pencil | `1`…`4` / `5` | red, green, white, black / your own colour |
+| `T` | text | `F` | fill none → 30% → 60% → solid; with `T` or a label: plain → outline → plate |
 | `B` | blur | `C` | clear all (no confirmation, `⌘Z` brings it back) |
 | `N` | step counter | drag a window edge | grow or crop the shot |
 | | | `⌘C` | copy the result to the clipboard, the window closes |
@@ -136,6 +183,7 @@ a single existing gesture.
 | | | `⌘S` | save a PNG to the Desktop, the window closes |
 | | | hold `⌘` | move whatever is under the cursor, without leaving the tool |
 | | | double click / `↩` | edit a label (`↩` on a selected one) |
+| | | `⌘L` / `⌘R` | turn the selection, or the whole shot, a quarter left / right |
 | | | `⌘W` | close the window |
 | | | `Esc` | typing → tool → selection → close the window |
 
@@ -162,6 +210,15 @@ with "the new object is selected and a drag moves it"; the rule lives in
 `Editor/CanvasInteraction.swift` and is covered by tests. The owner's system "Three Finger Drag"
 arrives as ordinary mouse events: under `V` it moves, under a drawing tool it draws. Don't try to
 catch touches through `NSTouch`.
+
+**Except the line, the rectangle and the label: those hand what they drew over to `V`.** Released
+after `A` or `R`, or finished typing after `T` (Esc, ⌘↩, a click elsewhere), the editor switches to
+`V` with the new object selected — the owner's call on 2026-09-26, since a line or a box is nearly
+always nudged or restyled right after, and the line's ends are picked on a selected line. Two
+arrows in a row therefore take `A` twice. The pencil, the blur and the step numbers keep the rule
+above: strokes and numbers come in runs. Which tool does what is `AnnotationTool.selectsWhatItDraws`.
+Only the user's own ways of finishing a label switch to `V`; `finishTextEditing()` also runs when a
+tool is picked in the toolbar, and must not override that pick.
 
 **With `V`, a selected object is dragged by any point inside its frame** — the cursor over it turns
 into a hand. The grab area comes from `Annotation.selectionFrame` and not from `hitTest`: for an
@@ -390,7 +447,11 @@ Paths are given relative to `Pawshot/Sources/`.
 | The clipboard and writing to the Desktop              | `Editor/Export/ExportService.swift`     |
 | Drawing, mouse, hotkeys, text input                   | `Editor/AnnotationCanvasView.swift`     |
 | The "drag an object or draw a new one" rule           | `Editor/CanvasInteraction.swift`        |
-| The annotation list, selection, undo                  | `Editor/EditorDocument.swift`           |
+| The annotation list, selection, undo, turning the shot | `Editor/EditorDocument.swift`          |
+| The colour picker behind the fifth swatch, hex        | `Editor/ColorPickerPopover.swift`       |
+| The bottom capsule, the top toolbar                   | `Editor/EditorView.swift`               |
+| The labels' family, its weights, the nearest face     | `Editor/Model/LabelFont.swift`          |
+| A label's corner handles, the size drag               | `Editor/AnnotationCanvasView.swift`, `TextAnnotation.resize` |
 | A new tool: letter, icon, object creation             | `Editor/Tools/AnnotationTool.swift`     |
 | How a specific annotation looks and is hit by a mouse | `Editor/Model/*Annotation.swift`        |
 | **Line breaks, blank lines, indent in the read text** | `Editor/TextRecognition/TextLayout.swift` |
@@ -696,6 +757,22 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
 - **The names of System Settings are Apple's own**, copied out of the system's tables
   (`KeyboardSettings.appex/…/DefaultShortcutsTable.loctable` and friends), so "untick «Сохранить
   изображение экрана как файл»" matches what is on the screen word for word.
+
+### The recording region's handles
+
+- **One answer for the cursor.** The overlay used to hang a crosshair cursor rect over the whole
+  view and set the resize arrows by hand; the HUD's subviews move on every redraw, AppKit
+  rebuilds cursor rects each time, and the crosshair kept coming back over the arrow — an edge
+  was a lottery to catch. Now `SelectionView.cursorKind` decides for every path: the cursor
+  rect (built with the cursor for where the mouse is), `mouseMoved`, `cursorUpdate`, the press,
+  each drag step and the release. The key overlay also hears the mouse on other screens and
+  leaves the cursor alone there.
+- **Zones match the drawing.** Corners reach 16 pt each way — the brackets' arms — and edges
+  10 pt either side of the line; on a small region both shrink to a quarter of the side so the
+  middle stays grabbable. A grabbed edge follows the mouse by how far it moved
+  (`SelectionGeometry.handleTarget`) instead of snapping to the pointer.
+- **No region of nothing.** An edge dragged onto its opposite would leave a region too small to
+  grab; on release it goes back to what it was before that drag.
 
 ### SwiftUI and Liquid Glass, and the four places that stay AppKit
 
