@@ -27,23 +27,23 @@ struct SystemScreenshotShortcuts: Equatable {
     /// preferences, which is what an untouched Mac looks like.
     static let factoryDefaults: [Shortcut] = [
         Shortcut(id: 28, keyCode: UInt32(kVK_ANSI_3), modifiers: [.shift, .command], isEnabled: true,
-                 name: "Save picture of screen as a file"),
+                 name: String(localized: "Save picture of screen as a file")),
         Shortcut(id: 29, keyCode: UInt32(kVK_ANSI_3), modifiers: [.control, .shift, .command], isEnabled: true,
-                 name: "Copy picture of screen to the clipboard"),
+                 name: String(localized: "Copy picture of screen to the clipboard")),
         Shortcut(id: 30, keyCode: UInt32(kVK_ANSI_4), modifiers: [.shift, .command], isEnabled: true,
-                 name: "Save picture of selected area as a file"),
+                 name: String(localized: "Save picture of selected area as a file")),
         Shortcut(id: 31, keyCode: UInt32(kVK_ANSI_4), modifiers: [.control, .shift, .command], isEnabled: true,
-                 name: "Copy picture of selected area to the clipboard"),
+                 name: String(localized: "Copy picture of selected area to the clipboard")),
         Shortcut(id: 184, keyCode: UInt32(kVK_ANSI_5), modifiers: [.shift, .command], isEnabled: true,
-                 name: "Screenshot and recording options"),
+                 name: String(localized: "Screenshot and recording options")),
         // The Touch Bar's own: the system takes ⇧⌘6 only on a Mac that has one, and there is no
         // public way to tell. So these count as off unless the preferences say otherwise — a
         // false warning about a key that works is worse than none. The ids are Apple's usual
         // ones, not checked on a Touch Bar Mac: the owner's has none.
         Shortcut(id: 181, keyCode: UInt32(kVK_ANSI_6), modifiers: [.shift, .command], isEnabled: false,
-                 name: "Save picture of the Touch Bar as a file"),
+                 name: String(localized: "Save picture of the Touch Bar as a file")),
         Shortcut(id: 182, keyCode: UInt32(kVK_ANSI_6), modifiers: [.control, .shift, .command], isEnabled: false,
-                 name: "Copy picture of the Touch Bar to the clipboard"),
+                 name: String(localized: "Copy picture of the Touch Bar to the clipboard")),
     ]
 
     /// Parses the `AppleSymbolicHotKeys` dictionary. Anything unreadable falls back to the

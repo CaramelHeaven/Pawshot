@@ -91,7 +91,7 @@ final class HotKeyRecorderView: NSView {
         }
 
         guard let recorded = HotKeyBinding.from(event: event) else {
-            hint = "Add ⌘, ⌥ or ⌃"
+            hint = String(localized: "Add ⌘, ⌥ or ⌃")
             needsDisplay = true
             return
         }
@@ -100,7 +100,7 @@ final class HotKeyRecorderView: NSView {
             binding = recorded
             hint = nil
         } else {
-            hint = "Already taken"
+            hint = String(localized: "Already taken")
         }
         stopRecording()
     }
@@ -183,7 +183,7 @@ final class HotKeyRecorderView: NSView {
             return hint
         }
         if isRecording, pendingFlags.isEmpty {
-            return "Press keys…"
+            return String(localized: "Press keys…")
         }
         return nil
     }

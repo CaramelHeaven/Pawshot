@@ -30,7 +30,7 @@ struct WelcomeView: View {
                         HStack(spacing: 6) {
                             Text("then")
                                 .foregroundStyle(.secondary)
-                            KeyCaps(caps: ["Space"])
+                            KeyCaps(caps: [String(localized: "Space")])
                         }
                     }
                     LabeledContent("Capture the full screen") {
@@ -48,7 +48,7 @@ struct WelcomeView: View {
                         HStack(spacing: 6) {
                             Text("then")
                                 .foregroundStyle(.secondary)
-                            KeyCaps(caps: ["Space"])
+                            KeyCaps(caps: [String(localized: "Space")])
                         }
                     }
                     LabeledContent("Record the full screen") {

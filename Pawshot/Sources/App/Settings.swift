@@ -34,6 +34,7 @@ final class Settings {
         case showsZooms = "video.zooms"
         case videoEditorOpenCount = "stats.videoEditorOpenCount"
         case captureCount = "stats.captureCount"
+        case language = "app.language"
     }
 
     /// Told when a hotkey changed, so `AppDelegate` can re-register it.
@@ -49,8 +50,12 @@ final class Settings {
     @ObservationIgnored private let defaults: UserDefaults
     private var revision = 0
 
+    /// The language the running process picked its strings in — they are read once, at launch.
+    @ObservationIgnored let launchLanguage: AppLanguage
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        launchLanguage = defaults.string(forKey: Key.language.rawValue).flatMap(AppLanguage.init(rawValue:)) ?? .system
     }
 
     var regionHotKey: HotKeyBinding {
@@ -181,6 +186,26 @@ final class Settings {
         }
     }
 
+    /// The interface language. Kept under a key of our own and mirrored into `AppleLanguages`,
+    /// which is what the bundle actually reads — but only at launch, hence `launchLanguage`.
+    /// `AppleLanguages` can't be read back for this: through `UserDefaults` it falls through to
+    /// the system's own list whenever the app has none.
+    var language: AppLanguage {
+        get {
+            _ = revision
+            return defaults.string(forKey: Key.language.rawValue).flatMap(AppLanguage.init(rawValue:)) ?? .system
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: Key.language.rawValue)
+            if newValue == .system {
+                defaults.removeObject(forKey: AppLanguage.appleLanguagesKey)
+            } else {
+                defaults.set([newValue.rawValue], forKey: AppLanguage.appleLanguagesKey)
+            }
+            revision += 1
+        }
+    }
+
     /// How many shots reached the editor. Drives the key hints on the first captures and the line
     /// in the About window.
     var captureCount: Int {
@@ -232,4 +257,13 @@ final class Settings {
         defaults.set(value, forKey: key.rawValue)
         revision += 1
     }
+}
+
+/// The languages Pawshot speaks; `system` follows macOS.
+enum AppLanguage: String, CaseIterable {
+    case system
+    case english = "en"
+    case russian = "ru"
+
+    static let appleLanguagesKey = "AppleLanguages"
 }

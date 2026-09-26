@@ -20,6 +20,8 @@ struct SettingsView: View {
 }
 
 private struct GeneralSettings: View {
+    @Bindable private var settings = Settings.shared
+
     var body: some View {
         Form {
             Section {
@@ -31,10 +33,25 @@ private struct GeneralSettings: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            Section {
+                Picker("Language", selection: $settings.language) {
+                    Text("System").tag(AppLanguage.system)
+                    // Each language is named in itself, so it can be found from the other one.
+                    Text(verbatim: "English").tag(AppLanguage.english)
+                    Text(verbatim: "Русский").tag(AppLanguage.russian)
+                }
+                // Menus, alerts and the system's own items read the language only at launch.
+                if settings.language != settings.launchLanguage {
+                    LabeledContent("Takes effect after a relaunch.") {
+                        Button("Relaunch", action: PermissionView.relaunch)
+                    }
+                    .font(.footnote)
+                }
+            }
         }
         .formStyle(.grouped)
         .scrollDisabled(true)
-        .frame(height: 140)
+        .frame(height: 220)
     }
 }
 
@@ -147,7 +164,7 @@ private struct RecordingSettings: View {
         }
     }
 
-    private func explanation(_ text: String) -> some View {
+    private func explanation(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -155,7 +172,7 @@ private struct RecordingSettings: View {
     }
 
     /// "Microphone access — Allowed", or a button to get there.
-    private func accessRow(_ title: String, granted: Bool, action: @escaping () -> Void) -> some View {
+    private func accessRow(_ title: LocalizedStringKey, granted: Bool, action: @escaping () -> Void) -> some View {
         LabeledContent {
             if granted {
                 Label("Allowed", systemImage: "checkmark.circle.fill")
@@ -218,7 +235,7 @@ private struct ShortcutSettings: View {
         string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension"
     )
 
-    private typealias Row = (title: String, keyPath: ReferenceWritableKeyPath<Settings, HotKeyBinding>)
+    private typealias Row = (title: LocalizedStringKey, keyPath: ReferenceWritableKeyPath<Settings, HotKeyBinding>)
 
     private static let screenshotRows: [Row] = [
         ("Capture region", \.regionHotKey),
@@ -279,7 +296,7 @@ private struct ShortcutSettings: View {
         _ rows: [Row],
         conflicts: [(binding: HotKeyBinding, system: SystemScreenshotShortcuts.Shortcut)]
     ) -> some View {
-        ForEach(rows, id: \.title) { row in
+        ForEach(rows, id: \.keyPath) { row in
             let binding = settings[keyPath: row.keyPath]
             LabeledContent(row.title) {
                 RecorderField(
@@ -303,9 +320,9 @@ private struct ShortcutSettings: View {
         _ conflicts: [(binding: HotKeyBinding, system: SystemScreenshotShortcuts.Shortcut)]
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            let taken = conflicts.map(\.binding.displayString).joined(separator: ", ")
             Label {
-                Text("macOS takes \(conflicts.map(\.binding.displayString).joined(separator: ", ")) "
-                    + "for its own screenshots, so Pawshot never sees the key.")
+                Text("macOS takes \(taken) for its own screenshots, so Pawshot never sees the key.")
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)

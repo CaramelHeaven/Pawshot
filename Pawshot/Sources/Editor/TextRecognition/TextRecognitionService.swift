@@ -9,9 +9,9 @@ enum TextRecognitionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .renderFailed:
-            "Couldn't build a picture of the shot to read."
+            String(localized: "Couldn't build a picture of the shot to read.")
         case let .recognitionFailed(underlying):
-            "Couldn't read the text: \(underlying.localizedDescription)"
+            String(localized: "Couldn't read the text: \(underlying.localizedDescription)")
         }
     }
 }

@@ -39,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             VideoEditorWindowController(movieURL: movie, videoSize: size, on: screen).show()
         }
         recordingController.onFailure = { [weak self] error in
-            self?.presentFailure(error, title: "The recording ran into a problem")
+            self?.presentFailure(error, title: String(localized: "The recording ran into a problem"))
         }
 
         // The first capture of a session is the slow one; pay for it now, while nobody waits.
@@ -337,13 +337,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try await recordingController.start(target)
             } catch {
                 Self.logger.error("recording not started: \(error.localizedDescription, privacy: .public)")
-                presentFailure(error, title: "Couldn't start recording")
+                presentFailure(error, title: String(localized: "Couldn't start recording"))
             }
         }
     }
 
     private func presentCaptureFailure(_ error: Error) {
-        presentFailure(error, title: "Couldn't capture the region")
+        presentFailure(error, title: String(localized: "Couldn't capture the region"))
     }
 
     private func presentFailure(_ error: Error, title: String) {

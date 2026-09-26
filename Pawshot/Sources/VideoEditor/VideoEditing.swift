@@ -184,7 +184,7 @@ enum VideoPreset: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .original: "Original · HEVC"
+        case .original: String(localized: "Original · HEVC")
         case .fullHD: "1080p · H.264"
         case .gif: "GIF · 720p"
         }

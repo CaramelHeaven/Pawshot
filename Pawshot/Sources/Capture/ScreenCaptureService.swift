@@ -9,9 +9,9 @@ enum ScreenCaptureError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .displayNotFound(id):
-            "ScreenCaptureKit didn't return display \(id) — screen recording access is probably missing."
+            String(localized: "ScreenCaptureKit didn't return display \(id) — screen recording access is probably missing.")
         case .cropFailed:
-            "The selected region didn't land inside the captured frame."
+            String(localized: "The selected region didn't land inside the captured frame.")
         }
     }
 }

@@ -11,10 +11,10 @@ enum RecordingError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case let .writerFailed(error): "The recording couldn't be written. \(error?.localizedDescription ?? "")"
-        case .noFrames: "Nothing was recorded — the stream stopped before the first frame."
-        case .displayNotFound: "The display to record is no longer connected."
-        case .windowNotFound: "The window to record has closed."
+        case let .writerFailed(error): String(localized: "The recording couldn't be written. \(error?.localizedDescription ?? "")")
+        case .noFrames: String(localized: "Nothing was recorded — the stream stopped before the first frame.")
+        case .displayNotFound: String(localized: "The display to record is no longer connected.")
+        case .windowNotFound: String(localized: "The window to record has closed.")
         }
     }
 }

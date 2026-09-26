@@ -87,9 +87,9 @@ glass bar shows the microphone with its live level and the system sound.
 | `Space` | window mode |
 | `Esc` | a half-typed size first, then cancel |
 
-All four shortcuts are editable in **Settings** (`⌘,`), which also carries launch at login and the
-recording sound. macOS takes a screenshot combination before Carbon ever hands it to us, so the
-settings window reads the real state of the system shortcuts (`SystemScreenshotShortcuts`) and
+All four shortcuts are editable in **Settings** (`⌘,`), which also carries launch at login, the
+interface language and the recording sound. macOS takes a screenshot combination before Carbon
+ever hands it to us, so the settings window reads the real state of the system shortcuts (`SystemScreenshotShortcuts`) and
 warns while one of ours is still taken, instead of silently doing nothing.
 
 The editor has one SwiftUI toolbar on Liquid Glass — tools with their letters, the six colours
@@ -219,7 +219,8 @@ Config/Signing.xcconfig      signing, ad hoc by default; your identity goes into
 .swiftformat                 formatter config (default rules, swiftversion set)
 Tuist.swift                  Tuist config
 Project.swift                the Pawshot (.app) and PawshotTests (.unitTests) targets, Swift 6
-Pawshot/Resources/           Assets.xcassets (MenuBarIcon), AppIcon.icon and AppIcon-Debug.icon
+Pawshot/Resources/           Assets.xcassets (MenuBarIcon), AppIcon.icon and AppIcon-Debug.icon,
+                             Localizable.xcstrings and InfoPlist.xcstrings (English and Russian)
 Tests/PawshotTests/          unit tests
 
 Pawshot/Sources/
@@ -295,7 +296,14 @@ Pawshot/Sources/
   worth testing.
 - **Keys are read off the physical key, never off the character.** Anything matching a letter goes
   through `KeyboardLayout`; `event.charactersIgnoringModifiers` on its own is how every tool
-  shortcut came to be dead on a Russian layout.
+  shortcut came to be dead on a Russian layout. A window with a first responder of its own
+  overrides `performKeyEquivalent` with `KeyboardLayout.performMenuEquivalent`, as the canvas and
+  the video editor do — otherwise ⌘S there is dead on ЙЦУКЕН.
+- **Every user-visible string goes through `Localizable.xcstrings`.** SwiftUI literals
+  (`Text("…")`, `Button("…")`, `.help("…")`) are picked up by themselves; a helper that passes
+  text along takes `LocalizedStringKey`, and text that travels as a `String` (models, errors,
+  alerts, window titles) is `String(localized:)` where it is written. Stored values — the
+  `"Space"` label of a `HotKeyBinding` — stay English and are translated only when shown.
 
 ## Commands
 
@@ -388,6 +396,8 @@ Paths are given relative to `Pawshot/Sources/`.
 | **Line breaks, blank lines, indent in the read text** | `Editor/TextRecognition/TextLayout.swift` |
 | Talking to Vision, recognition languages              | `Editor/TextRecognition/TextRecognitionService.swift` |
 | A key that must work on any keyboard layout           | `App/KeyboardLayout.swift`              |
+| A translation, a new language                         | `Resources/Localizable.xcstrings`, `defaultKnownRegions` in `Project.swift` |
+| The language picker and how it is applied             | `App/Settings.swift` (`language`), `Settings/SettingsView.swift` |
 | The "Open Pawshot" window                             | `Welcome/WelcomeView.swift`             |
 
 ## Working notes
@@ -667,6 +677,26 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
 - **X is both the 1x/2x key and the separator in `1920x1080`.** It separates only once digits are
   typed; before that it switches the scale. `RecordingSelectionViewTests` pins both.
 
+### Two languages: what can't be seen from the code
+
+- **The language is `AppleLanguages` in the app's own defaults, and it is read once, at launch.**
+  Menus, alerts and the system's own Edit items would not follow a live switch — only SwiftUI
+  `Text` would, through `\.locale` — so Settings → General offers a Relaunch button instead of
+  pretending. The choice is also kept under `app.language`: read back through `UserDefaults`,
+  `AppleLanguages` falls through to the system's list whenever the app has none, and "System"
+  could never be told apart from "Russian".
+- **The tests run in English.** The test host is the app itself, with the same defaults, so after a
+  switch to Russian `"Space"` would come back as `"Пробел"` under them. `make test` passes
+  `-testLanguage en`, and the project's automatic schemes carry `testLanguage: "en"` for Xcode.
+- **The catalog is filled by a build.** `SWIFT_EMIT_LOC_STRINGS` makes the compiler write
+  `.stringsdata` per file; Xcode merges them into `Localizable.xcstrings` on a build in the IDE,
+  and from the command line it is `xcrun xcstringstool sync Pawshot/Resources/Localizable.xcstrings
+  --stringsdata <each file>` from `DerivedData/…/Pawshot.build/Objects-normal/arm64/`. A string
+  with no Russian falls back to its English key, silently.
+- **The names of System Settings are Apple's own**, copied out of the system's tables
+  (`KeyboardSettings.appex/…/DefaultShortcutsTable.loctable` and friends), so "untick «Сохранить
+  изображение экрана как файл»" matches what is on the screen word for word.
+
 ### SwiftUI and Liquid Glass, and the four places that stay AppKit
 
 On 2026-09-26 the owner moved the app from pure AppKit to SwiftUI + Liquid Glass (macOS 26
@@ -748,9 +778,12 @@ limits for it too. Which means:
 One thing worth knowing is on that list and matters: **whether AppKit matches ⌘-equivalents through
 the ASCII-capable layout by itself**. It is understood to, which is why ⌘C works in Cyrillic across
 the rest of the Mac, but pressing a key in a non-Latin layout is exactly what cannot be synthesised
-here. `AnnotationCanvasView.performKeyEquivalent(with:)` is therefore a safety net rather than the
-main path: it rewrites the event through `KeyboardLayout.latinEquivalent(of:)` and offers it to the
-main menu. Whichever of the two gets there first answers `true`, so the design does not depend on
+here. Measured as far as it goes: an event carrying `в` on the D key, handed to
+`NSMenu.performKeyEquivalent`, does **not** fire the ⌘D item — the test for
+`KeyboardLayout.performMenuEquivalent` goes red without the rewrite. Whether a real keystroke
+takes some other path through AppKit that does match is still unknown. So the canvas and the
+video editor both override `performKeyEquivalent` with that function: it rewrites the event
+through `KeyboardLayout.latinEquivalent(of:)` and offers it to the main menu. Whichever of the two gets there first answers `true`, so the design does not depend on
 the order — and rewriting the whole event instead of keeping a table of shortcuts means ⌘Q and ⌘,
 are covered as well, with nothing to keep in sync when a menu item is added.
 

@@ -10,9 +10,9 @@ enum VideoExportError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unsupported: "This recording can't be exported in that format."
-        case .gifFailed: "The GIF couldn't be written."
-        case .noVideo: "The recording has no picture in it."
+        case .unsupported: String(localized: "This recording can't be exported in that format.")
+        case .gifFailed: String(localized: "The GIF couldn't be written.")
+        case .noVideo: String(localized: "The recording has no picture in it.")
         }
     }
 }

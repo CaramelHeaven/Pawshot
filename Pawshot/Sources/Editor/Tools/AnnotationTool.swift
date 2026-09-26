@@ -26,13 +26,13 @@ enum AnnotationTool: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .select: "Select"
-        case .arrow: "Arrow"
-        case .rectangle: "Rectangle"
-        case .pencil: "Pencil"
-        case .text: "Text"
-        case .blur: "Blur"
-        case .counter: "Counter"
+        case .select: String(localized: "Select")
+        case .arrow: String(localized: "Arrow")
+        case .rectangle: String(localized: "Rectangle")
+        case .pencil: String(localized: "Pencil")
+        case .text: String(localized: "Text")
+        case .blur: String(localized: "Blur")
+        case .counter: String(localized: "Counter")
         }
     }
 

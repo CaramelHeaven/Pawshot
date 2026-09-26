@@ -34,8 +34,11 @@ private let formatScript = TargetScript.pre(
 
 let project = Project(
     name: "Pawshot",
+    // Russian next to English. The tests pin English: the test host is the app itself, so a
+    // language picked in its settings would otherwise turn "Space" into "Пробел" under them.
     options: .options(
-        defaultKnownRegions: ["en"],
+        automaticSchemesOptions: .enabled(testLanguage: "en"),
+        defaultKnownRegions: ["en", "ru"],
         developmentRegion: "en"
     ),
     // Swift 6 is set here rather than through `defaultSwiftVersion` in Tuist.swift: that one
@@ -44,8 +47,12 @@ let project = Project(
     // actor.
     // ENABLE_USER_SCRIPT_SANDBOXING is disabled explicitly: the SwiftFormat phase writes into the
     // sources, and under the script sandbox writing outside the derived directory is forbidden.
+    // The two localization settings let a build collect every user-visible string into the
+    // catalogs in Pawshot/Resources.
     settings: .settings(base: [
         "SWIFT_VERSION": "6.0",
+        "SWIFT_EMIT_LOC_STRINGS": "YES",
+        "LOCALIZATION_PREFERS_STRING_CATALOGS": "YES",
         "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
     ]),
     targets: [
@@ -85,7 +92,7 @@ let project = Project(
             // a copy from DerivedData can't pass for the one in /Applications — launch at login
             // remembers the bundle path, and mixing them up starts a stale build.
             settings: .settings(
-                base: ["MARKETING_VERSION": "0.1.0", "CURRENT_PROJECT_VERSION": "1"],
+                base: ["MARKETING_VERSION": "0.1.1", "CURRENT_PROJECT_VERSION": "1"],
                 configurations: [
                     .debug(
                         name: .debug,

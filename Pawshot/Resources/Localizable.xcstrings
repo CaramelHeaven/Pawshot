@@ -1,0 +1,2083 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (%2$@)"
+          }
+        }
+      },
+      "shouldTranslate" : false
+    },
+    "%@ · %lld s left" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · осталось %2$lld с"
+          }
+        }
+      }
+    },
+    "%lld pieces · total %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%#@pieces@ · total %2$@"
+          },
+          "substitutions" : {
+            "pieces" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg piece"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg pieces"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%#@pieces@ · всего %2$@"
+          },
+          "substitutions" : {
+            "pieces" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "few" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg куска"
+                    }
+                  },
+                  "many" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg кусков"
+                    }
+                  },
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg кусок"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg куска"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld shots taken" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shot taken"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shots taken"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Сделано %lld снимка"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Сделано %lld снимков"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Сделан %lld снимок"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Сделано %lld снимка"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "1x / 2x" : {
+      "shouldTranslate" : false
+    },
+    "A" : {
+      "shouldTranslate" : false
+    },
+    "A 1x video is about four times smaller, with softer text. X switches it on the recording overlay; P switches the format in the video editor." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Видео 1x примерно в четыре раза меньше, текст в нём мягче. На оверлее записи переключается клавишей X, формат в видеоредакторе — клавишей P."
+          }
+        }
+      }
+    },
+    "About Pawshot" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "О программе Pawshot"
+          }
+        }
+      }
+    },
+    "Add ⌘, ⌥ or ⌃" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавьте ⌘, ⌥ или ⌃"
+          }
+        }
+      }
+    },
+    "Allow" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешить"
+          }
+        }
+      }
+    },
+    "Allow it in System Settings → General → Login Items." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешите в Системных настройках → Основные → Объекты входа."
+          }
+        }
+      }
+    },
+    "Allowed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешено"
+          }
+        }
+      }
+    },
+    "Allow…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешить…"
+          }
+        }
+      }
+    },
+    "Already taken" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уже занято"
+          }
+        }
+      }
+    },
+    "Arrow" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стрелка"
+          }
+        }
+      }
+    },
+    "Available once Pawshot is installed in /Applications." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступно, когда Pawshot установлен в /Applications."
+          }
+        }
+      }
+    },
+    "Blur" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размытие"
+          }
+        }
+      }
+    },
+    "Capture" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снимок"
+          }
+        }
+      }
+    },
+    "Capture Full Screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снять весь экран"
+          }
+        }
+      }
+    },
+    "Capture Region" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снять область"
+          }
+        }
+      }
+    },
+    "Capture a region" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снять область"
+          }
+        }
+      }
+    },
+    "Capture a window" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снять окно"
+          }
+        }
+      }
+    },
+    "Capture full screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снять весь экран"
+          }
+        }
+      }
+    },
+    "Capture region" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снять область"
+          }
+        }
+      }
+    },
+    "Capture the full screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снять весь экран"
+          }
+        }
+      }
+    },
+    "Capture window" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снять окно"
+          }
+        }
+      }
+    },
+    "Change Shortcuts…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменить сочетания…"
+          }
+        }
+      }
+    },
+    "Clear All" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить всё"
+          }
+        }
+      }
+    },
+    "Clear all (C)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить всё (C)"
+          }
+        }
+      }
+    },
+    "Click a window" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кликните по окну"
+          }
+        }
+      }
+    },
+    "Clicks" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Клики"
+          }
+        }
+      }
+    },
+    "Close Window" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закрыть окно"
+          }
+        }
+      }
+    },
+    "Colour %lld" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Цвет %lld"
+          }
+        }
+      }
+    },
+    "Copy" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Копировать"
+          }
+        }
+      }
+    },
+    "Copy Text" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Копировать текст"
+          }
+        }
+      }
+    },
+    "Copy as GIF" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Копировать как GIF"
+          }
+        }
+      }
+    },
+    "Copy picture of screen to the clipboard" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопировать изображение экрана в буфер обмена"
+          }
+        }
+      }
+    },
+    "Copy picture of selected area to the clipboard" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопировать изображение выбранной области в буфер обмена"
+          }
+        }
+      }
+    },
+    "Copy picture of the Touch Bar to the clipboard" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопировать изображение панели Touch Bar в буфер обмена"
+          }
+        }
+      }
+    },
+    "Copy the file (⌘C) — ⇧⌘C copies a GIF" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопировать файл (⌘C) — ⇧⌘C копирует GIF"
+          }
+        }
+      }
+    },
+    "Copy the text in the shot (⌘D)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопировать текст со снимка (⌘D)"
+          }
+        }
+      }
+    },
+    "Copy to clipboard (⌘C)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопировать в буфер обмена (⌘C)"
+          }
+        }
+      }
+    },
+    "Couldn't build a PNG out of the shot." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось собрать PNG из снимка."
+          }
+        }
+      }
+    },
+    "Couldn't build a picture of the shot to read." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось собрать изображение снимка для распознавания."
+          }
+        }
+      }
+    },
+    "Couldn't capture the region" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось снять область"
+          }
+        }
+      }
+    },
+    "Couldn't disable launch at login" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось выключить запуск при входе"
+          }
+        }
+      }
+    },
+    "Couldn't enable launch at login" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось включить запуск при входе"
+          }
+        }
+      }
+    },
+    "Couldn't hand off the recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось отдать запись"
+          }
+        }
+      }
+    },
+    "Couldn't hand off the shot" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось отдать снимок"
+          }
+        }
+      }
+    },
+    "Couldn't read the text: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось распознать текст: %@"
+          }
+        }
+      }
+    },
+    "Couldn't start recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось начать запись"
+          }
+        }
+      }
+    },
+    "Couldn't write the file to the Desktop: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось записать файл на Рабочий стол: %@"
+          }
+        }
+      }
+    },
+    "Counter" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Счётчик"
+          }
+        }
+      }
+    },
+    "Drag Pawshot into the list" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перетащите Pawshot в список"
+          }
+        }
+      }
+    },
+    "Drawn in when the video is saved, never while you record. Clicks become orange rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain typing and passwords never appear. Zooms go wherever you pressed %@ while recording. Each can still be switched off for one video in the editor." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рисуется при сохранении видео, а не во время записи. Клики становятся оранжевыми кольцами. Сочетания показываются подписью — только с ⌘, ⌥ или ⌃, так что обычный набор текста и пароли не попадают в кадр. Зум ставится там, где во время записи было нажато %@. Для отдельного видео любое из этого можно выключить в редакторе."
+          }
+        }
+      }
+    },
+    "Esc" : {
+      "shouldTranslate" : false
+    },
+    "Fill (F)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заливка (F)"
+          }
+        }
+      }
+    },
+    "Fill off" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заливка выключена"
+          }
+        }
+      }
+    },
+    "Fill on" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заливка включена"
+          }
+        }
+      }
+    },
+    "Format (P)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Формат (P)"
+          }
+        }
+      }
+    },
+    "GIF" : {
+      "shouldTranslate" : false
+    },
+    "General" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Основные"
+          }
+        }
+      }
+    },
+    "Input Monitoring access" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступ к мониторингу ввода"
+          }
+        }
+      }
+    },
+    "Input Monitoring is allowed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мониторинг ввода разрешён"
+          }
+        }
+      }
+    },
+    "Input Monitoring — for shortcuts in videos" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мониторинг ввода — для сочетаний клавиш в видео"
+          }
+        }
+      }
+    },
+    "It lives in the menu bar and waits for a shortcut." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Живёт в строке меню и ждёт сочетания клавиш."
+          }
+        }
+      }
+    },
+    "Keyboard Shortcuts… → Screenshots, then untick:" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сочетания клавиш… → Снимки экрана, затем снимите флажки:"
+          }
+        }
+      }
+    },
+    "Language" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Язык"
+          }
+        }
+      }
+    },
+    "Launch at Login" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запускать при входе"
+          }
+        }
+      }
+    },
+    "Let Pawshot see the screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешите Pawshot видеть экран"
+          }
+        }
+      }
+    },
+    "Line width %lld" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Толщина линии %lld"
+          }
+        }
+      }
+    },
+    "Line width %lld ([ and ])" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Толщина линии %lld ([ и ])"
+          }
+        }
+      }
+    },
+    "M" : {
+      "shouldTranslate" : false
+    },
+    "Microphone" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Микрофон"
+          }
+        }
+      }
+    },
+    "Microphone (M)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Микрофон (M)"
+          }
+        }
+      }
+    },
+    "Microphone access" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступ к микрофону"
+          }
+        }
+      }
+    },
+    "Microphone is allowed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Микрофон разрешён"
+          }
+        }
+      }
+    },
+    "No shots yet" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снимков пока нет"
+          }
+        }
+      }
+    },
+    "No text found" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст не найден"
+          }
+        }
+      }
+    },
+    "Not allowed yet" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пока не разрешено"
+          }
+        }
+      }
+    },
+    "Nothing readable turned up in this shot — the clipboard is untouched." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На снимке не нашлось читаемого текста — буфер обмена не тронут."
+          }
+        }
+      }
+    },
+    "Nothing was recorded — the stream stopped before the first frame." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ничего не записано — поток остановился до первого кадра."
+          }
+        }
+      }
+    },
+    "Open Keyboard Shortcuts" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть «Сочетания клавиш»"
+          }
+        }
+      }
+    },
+    "Open Pawshot" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть Pawshot"
+          }
+        }
+      }
+    },
+    "Open System Settings" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть Системные настройки"
+          }
+        }
+      }
+    },
+    "Original · HEVC" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оригинал · HEVC"
+          }
+        }
+      }
+    },
+    "P" : {
+      "shouldTranslate" : false
+    },
+    "Pause" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пауза"
+          }
+        }
+      }
+    },
+    "Pause Recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приостановить запись"
+          }
+        }
+      }
+    },
+    "Pawshot" : {
+      "shouldTranslate" : false
+    },
+    "Pawshot app, drag into the list" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приложение Pawshot, перетащите в список"
+          }
+        }
+      }
+    },
+    "Pawshot icon" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Значок Pawshot"
+          }
+        }
+      }
+    },
+    "Pawshot is ready" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pawshot готов"
+          }
+        }
+      }
+    },
+    "Pawshot, capturing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pawshot, идёт съёмка"
+          }
+        }
+      }
+    },
+    "Pawshot, text copied" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pawshot, текст скопирован"
+          }
+        }
+      }
+    },
+    "Pen on / off" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перо вкл / выкл"
+          }
+        }
+      }
+    },
+    "Pen — draw on the screen, Esc to stop" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перо — рисовать на экране, Esc — закончить"
+          }
+        }
+      }
+    },
+    "Pen, while recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перо во время записи"
+          }
+        }
+      }
+    },
+    "Pencil" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карандаш"
+          }
+        }
+      }
+    },
+    "Play / Pause (Space)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Воспроизвести / пауза (Пробел)"
+          }
+        }
+      }
+    },
+    "Press keys…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите клавиши…"
+          }
+        }
+      }
+    },
+    "Press the same shortcut again to stop." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чтобы остановить, нажмите то же сочетание ещё раз."
+          }
+        }
+      }
+    },
+    "Pressed shortcuts" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажатые сочетания"
+          }
+        }
+      }
+    },
+    "Quality" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Качество"
+          }
+        }
+      }
+    },
+    "Quit Pawshot" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завершить Pawshot"
+          }
+        }
+      }
+    },
+    "Record" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись"
+          }
+        }
+      }
+    },
+    "Record Full Screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать весь экран"
+          }
+        }
+      }
+    },
+    "Record Region" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать область"
+          }
+        }
+      }
+    },
+    "Record a region" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать область"
+          }
+        }
+      }
+    },
+    "Record a window" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать окно"
+          }
+        }
+      }
+    },
+    "Record full screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать весь экран"
+          }
+        }
+      }
+    },
+    "Record region" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать область"
+          }
+        }
+      }
+    },
+    "Record the full screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать весь экран"
+          }
+        }
+      }
+    },
+    "Record the microphone" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записывать микрофон"
+          }
+        }
+      }
+    },
+    "Record what the Mac plays" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записывать звук Mac"
+          }
+        }
+      }
+    },
+    "Recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись"
+          }
+        }
+      }
+    },
+    "Recording · %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись · %@"
+          }
+        }
+      }
+    },
+    "Rectangle" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прямоугольник"
+          }
+        }
+      }
+    },
+    "Redo" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить"
+          }
+        }
+      }
+    },
+    "Redo (⇧⌘Z)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить (⇧⌘Z)"
+          }
+        }
+      }
+    },
+    "Relaunch" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перезапустить"
+          }
+        }
+      }
+    },
+    "Relaunch Pawshot" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перезапустить Pawshot"
+          }
+        }
+      }
+    },
+    "Resolution" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешение"
+          }
+        }
+      }
+    },
+    "Restart" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заново"
+          }
+        }
+      }
+    },
+    "Restart Recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начать запись заново"
+          }
+        }
+      }
+    },
+    "Restart — the take is thrown away" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заново — текущий дубль выбрасывается"
+          }
+        }
+      }
+    },
+    "Restart, while recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заново, во время записи"
+          }
+        }
+      }
+    },
+    "Resume" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить"
+          }
+        }
+      }
+    },
+    "Resume Recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить запись"
+          }
+        }
+      }
+    },
+    "Retina, 2x" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retina, 2x"
+          }
+        }
+      }
+    },
+    "Save" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить"
+          }
+        }
+      }
+    },
+    "Save and copy as" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранять и копировать как"
+          }
+        }
+      }
+    },
+    "Save picture of screen as a file" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить изображение экрана как файл"
+          }
+        }
+      }
+    },
+    "Save picture of selected area as a file" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить изображение выбранной области как файл"
+          }
+        }
+      }
+    },
+    "Save picture of the Touch Bar as a file" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить изображение панели Touch Bar как файл"
+          }
+        }
+      }
+    },
+    "Save to Desktop" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить на Рабочий стол"
+          }
+        }
+      }
+    },
+    "Save to Desktop (⌘S)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить на Рабочий стол (⌘S)"
+          }
+        }
+      }
+    },
+    "Save to the Desktop (⌘S)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить на Рабочий стол (⌘S)"
+          }
+        }
+      }
+    },
+    "Screen Recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись экрана"
+          }
+        }
+      }
+    },
+    "Screen Recording is allowed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись экрана разрешена"
+          }
+        }
+      }
+    },
+    "ScreenCaptureKit didn't return display %u — screen recording access is probably missing." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ScreenCaptureKit не вернул дисплей %u — скорее всего, нет доступа к записи экрана."
+          }
+        }
+      }
+    },
+    "Screenshot and recording options" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настройки снимка и записи экрана"
+          }
+        }
+      }
+    },
+    "Screenshots" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снимки экрана"
+          }
+        }
+      }
+    },
+    "Screenshots without a subscription." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скриншоты без подписки."
+          }
+        }
+      }
+    },
+    "Select" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выделение"
+          }
+        }
+      }
+    },
+    "Settings…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настройки…"
+          }
+        }
+      }
+    },
+    "Shortcuts" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сочетания клавиш"
+          }
+        }
+      }
+    },
+    "Shown in the video" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Видно в видео"
+          }
+        }
+      }
+    },
+    "Sound" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Звук"
+          }
+        }
+      }
+    },
+    "Space" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пробел"
+          }
+        }
+      }
+    },
+    "Standard, 1x" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обычное, 1x"
+          }
+        }
+      }
+    },
+    "Stop" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стоп"
+          }
+        }
+      }
+    },
+    "Stop Recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Остановить запись"
+          }
+        }
+      }
+    },
+    "System" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Системный"
+          }
+        }
+      }
+    },
+    "System audio (S)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Системный звук (S)"
+          }
+        }
+      }
+    },
+    "Takes effect after a relaunch." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вступит в силу после перезапуска."
+          }
+        }
+      }
+    },
+    "Text" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст"
+          }
+        }
+      }
+    },
+    "Text style" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стиль текста"
+          }
+        }
+      }
+    },
+    "Text style: plain, outline, plate (F)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стиль текста: простой, контур, плашка (F)"
+          }
+        }
+      }
+    },
+    "The GIF couldn't be written." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось записать GIF."
+          }
+        }
+      }
+    },
+    "The Mac's sound is videos, calls and notifications. With the microphone on, the bar under the area shows its level before you start, and if it stays silent for a second and a half it turns red and says \"no signal\". Both end up mixed into one track." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Звук Mac — это видео, звонки и уведомления. Когда микрофон включён, панель под областью показывает его уровень ещё до старта, а если он молчит полторы секунды — краснеет и пишет «нет сигнала». Оба источника сводятся в одну дорожку."
+          }
+        }
+      }
+    },
+    "The display to record is no longer connected." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дисплей для записи больше не подключён."
+          }
+        }
+      }
+    },
+    "The recording couldn't be written. %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось записать видео. %@"
+          }
+        }
+      }
+    },
+    "The recording has no picture in it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В записи нет изображения."
+          }
+        }
+      }
+    },
+    "The recording ran into a problem" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Во время записи произошла ошибка"
+          }
+        }
+      }
+    },
+    "The selected region didn't land inside the captured frame." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбранная область не попала в снятый кадр."
+          }
+        }
+      }
+    },
+    "The shortcut that started a recording stops it too." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сочетание, которым запись начата, её и останавливает."
+          }
+        }
+      }
+    },
+    "The window to record has closed." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окно для записи закрылось."
+          }
+        }
+      }
+    },
+    "This recording can't be exported in that format." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эту запись нельзя экспортировать в этом формате."
+          }
+        }
+      }
+    },
+    "Undo" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отменить"
+          }
+        }
+      }
+    },
+    "Undo (⌘Z)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отменить (⌘Z)"
+          }
+        }
+      }
+    },
+    "Version %@ (%@)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Версия %1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "While recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Во время записи"
+          }
+        }
+      }
+    },
+    "X" : {
+      "shouldTranslate" : false
+    },
+    "Zoom in here" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приблизить здесь"
+          }
+        }
+      }
+    },
+    "Zoom in here at export" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приблизить здесь при экспорте"
+          }
+        }
+      }
+    },
+    "Zoom in here, while recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приблизить здесь, во время записи"
+          }
+        }
+      }
+    },
+    "Zooms" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зум"
+          }
+        }
+      }
+    },
+    "cancel" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "отмена"
+          }
+        }
+      }
+    },
+    "copy" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "копировать"
+          }
+        }
+      }
+    },
+    "drag over the grey" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "тянуть по серому"
+          }
+        }
+      }
+    },
+    "format" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "формат"
+          }
+        }
+      }
+    },
+    "hide loupe" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "скрыть лупу"
+          }
+        }
+      }
+    },
+    "keep another piece" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "оставить ещё кусок"
+          }
+        }
+      }
+    },
+    "loupe" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "лупа"
+          }
+        }
+      }
+    },
+    "macOS asks again from time to time. That is the system, not Pawshot misbehaving." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS время от времени спрашивает снова. Это поведение системы, а не сбой Pawshot."
+          }
+        }
+      }
+    },
+    "macOS asks every app that captures the screen for permission. Turn Pawshot on in Privacy & Security → Screen & System Audio Recording." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS спрашивает разрешение у каждого приложения, которое снимает экран. Включите Pawshot в разделе «Конфиденциальность и безопасность» → «Запись экрана и системного звука»."
+          }
+        }
+      }
+    },
+    "macOS takes %@ for its own screenshots, so Pawshot never sees the key." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS забирает %@ под свои скриншоты, и Pawshot не получает нажатие."
+          }
+        }
+      }
+    },
+    "no signal" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "нет сигнала"
+          }
+        }
+      }
+    },
+    "off" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "выкл"
+          }
+        }
+      }
+    },
+    "on" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "вкл"
+          }
+        }
+      }
+    },
+    "play" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "воспроизвести"
+          }
+        }
+      }
+    },
+    "ratio" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "пропорции"
+          }
+        }
+      }
+    },
+    "record" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "записать"
+          }
+        }
+      }
+    },
+    "region" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "область"
+          }
+        }
+      }
+    },
+    "remove the piece" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "удалить кусок"
+          }
+        }
+      }
+    },
+    "save" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сохранить"
+          }
+        }
+      }
+    },
+    "then" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "затем"
+          }
+        }
+      }
+    },
+    "width × height" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ширина × высота"
+          }
+        }
+      }
+    },
+    "window" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "окно"
+          }
+        }
+      }
+    },
+    "• %@" : {
+      "shouldTranslate" : false
+    },
+    "↩" : {
+      "shouldTranslate" : false
+    },
+    "↩ apply" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↩ применить"
+          }
+        }
+      }
+    },
+    "⇧⌘C" : {
+      "shouldTranslate" : false
+    },
+    "⌘C" : {
+      "shouldTranslate" : false
+    },
+    "⌘S" : {
+      "shouldTranslate" : false
+    },
+    "⌫" : {
+      "shouldTranslate" : false
+    }
+  },
+  "version" : "1.0"
+}

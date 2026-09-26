@@ -317,8 +317,8 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// tell that nothing had been read.
     private func presentNoTextFound() {
         let alert = NSAlert()
-        alert.messageText = "No text found"
-        alert.informativeText = "Nothing readable turned up in this shot — the clipboard is untouched."
+        alert.messageText = String(localized: "No text found")
+        alert.informativeText = String(localized: "Nothing readable turned up in this shot — the clipboard is untouched.")
         alert.alertStyle = .informational
 
         if let window {
@@ -382,7 +382,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// The window stays open: the work is not saved, and the user must be able to retry.
     private func presentExportFailure(_ error: Error) {
         let alert = NSAlert()
-        alert.messageText = "Couldn't hand off the shot"
+        alert.messageText = String(localized: "Couldn't hand off the shot")
         alert.informativeText = error.localizedDescription
         alert.alertStyle = .warning
 

@@ -551,21 +551,9 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
 
     // MARK: - Keyboard
 
-    /// The safety net for ⌘-combinations in a non-Latin layout.
-    ///
-    /// AppKit is understood to match menu key equivalents through the ASCII-capable layout by
-    /// itself, which is why ⌘C works in Cyrillic across the rest of the Mac — but that could not
-    /// be verified here, and ⌘D being dead on a Russian keyboard would take the whole feature with
-    /// it. So the event is rewritten and offered to the menu; whichever of the two gets there
-    /// first answers `true` and the other never fires.
+    /// ⌘D on a Russian keyboard — see `KeyboardLayout.performMenuEquivalent`.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard
-            event.modifierFlags.contains(.command),
-            let translated = KeyboardLayout.latinEquivalent(of: event),
-            NSApp.mainMenu?.performKeyEquivalent(with: translated) == true
-        else { return super.performKeyEquivalent(with: event) }
-
-        return true
+        KeyboardLayout.performMenuEquivalent(event) || super.performKeyEquivalent(with: event)
     }
 
     override func keyDown(with event: NSEvent) {

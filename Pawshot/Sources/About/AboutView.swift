@@ -57,9 +57,8 @@ struct AboutView: View {
 
     private var shotsLine: String {
         switch settings.captureCount {
-        case 0: "No shots yet"
-        case 1: "1 shot taken"
-        case let count: "\(count.formatted()) shots taken"
+        case 0: String(localized: "No shots yet")
+        case let count: String(localized: "\(count) shots taken")
         }
     }
 }

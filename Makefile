@@ -25,9 +25,10 @@ build: generate ## Debug build from the CLI
 	$(MISE) tuist xcodebuild build -scheme $(SCHEME) -workspace $(WORKSPACE) \
 		-destination "$(DESTINATION)"
 
+# English, whatever language the app was switched to: the test host is the app itself.
 test: generate ## Run PawshotTests
 	$(MISE) tuist xcodebuild test -scheme $(TEST_SCHEME) -workspace $(WORKSPACE) \
-		-destination "$(DESTINATION)"
+		-destination "$(DESTINATION)" -testLanguage en
 
 lint: ## Check formatting without changing anything
 	$(MISE) swiftformat --lint Pawshot/Sources Tests Tools

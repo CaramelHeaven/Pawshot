@@ -55,7 +55,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate {
         )
         window.isReleasedWhenClosed = false
         window.titlebarAppearsTransparent = true
-        window.title = "Recording"
+        window.title = String(localized: "Recording")
         window.minSize = CGSize(width: 520, height: 360)
 
         super.init(window: window)
@@ -118,7 +118,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate {
         let asset = AVURLAsset(url: movieURL)
         guard let duration = try? await asset.load(.duration).seconds, duration > 0 else { return }
         model.keep = KeepRanges(duration: duration)
-        window?.title = "Recording · \(VideoEditing.durationText(duration))"
+        window?.title = String(localized: "Recording · \(VideoEditing.durationText(duration))")
         refreshEstimate()
         await loadThumbnails(of: asset, duration: duration)
     }
@@ -451,7 +451,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate {
 
     private func presentFailure(_ error: Error) {
         let alert = NSAlert()
-        alert.messageText = "Couldn't hand off the recording"
+        alert.messageText = String(localized: "Couldn't hand off the recording")
         alert.informativeText = error.localizedDescription
         alert.alertStyle = .warning
         if let window, window.isVisible {
@@ -547,6 +547,11 @@ final class KeyHostingView<Content: View>: NSHostingView<Content>, NSMenuItemVal
 
     override var acceptsFirstResponder: Bool {
         true
+    }
+
+    /// ⌘S, ⌘C, ⌘Z on a Russian keyboard — see `KeyboardLayout.performMenuEquivalent`.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        KeyboardLayout.performMenuEquivalent(event) || super.performKeyEquivalent(with: event)
     }
 
     override func keyDown(with event: NSEvent) {

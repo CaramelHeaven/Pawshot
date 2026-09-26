@@ -40,7 +40,9 @@ struct HotKeyBinding: Equatable, Codable {
             caps.append("⌘")
         }
         if !label.isEmpty {
-            caps.append(label)
+            // Stored as "Space" (it is also the key the menu is matched on), shown in the
+            // interface language.
+            caps.append(label == "Space" ? String(localized: "Space") : label)
         }
 
         return caps

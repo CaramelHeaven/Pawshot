@@ -27,7 +27,7 @@ final class PermissionWindowController: NSWindowController, NSWindowDelegate {
             defer: false
         )
         window.titlebarAppearsTransparent = true
-        window.title = "Screen Recording"
+        window.title = String(localized: "Screen Recording")
         window.isReleasedWhenClosed = false
         window.contentViewController = NSHostingController(rootView: PermissionView())
         self.init(window: window)
@@ -55,10 +55,12 @@ struct PermissionView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Let Pawshot see the screen")
                     .font(.title2.bold())
-                Text("macOS asks every app that captures the screen for permission. "
-                    + "Turn Pawshot on in Privacy & Security → Screen & System Audio Recording.")
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text("""
+                macOS asks every app that captures the screen for permission. \
+                Turn Pawshot on in Privacy & Security → Screen & System Audio Recording.
+                """)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     VStack(spacing: 8) {
@@ -194,7 +196,9 @@ struct PermissionView: View {
         .glassEffect(.regular, in: .rect(cornerRadius: Tokens.Radius.panel))
     }
 
-    private static func relaunch() {
+    /// Also the settings window's "Relaunch" after a language change: the new process asks this
+    /// one to quit through `replaceOlderInstances`, and this one quits on its own besides.
+    static func relaunch() {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in

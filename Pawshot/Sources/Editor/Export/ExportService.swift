@@ -7,9 +7,9 @@ enum ExportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .encodingFailed:
-            "Couldn't build a PNG out of the shot."
+            String(localized: "Couldn't build a PNG out of the shot.")
         case let .desktopUnavailable(underlying):
-            "Couldn't write the file to the Desktop: \(underlying.localizedDescription)"
+            String(localized: "Couldn't write the file to the Desktop: \(underlying.localizedDescription)")
         }
     }
 }

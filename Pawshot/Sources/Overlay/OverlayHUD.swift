@@ -154,7 +154,7 @@ struct OverlayHintsView: View {
         hint("Esc", "cancel")
     }
 
-    private func hint(_ key: String, _ action: String) -> some View {
+    private func hint(_ key: LocalizedStringKey, _ action: LocalizedStringKey) -> some View {
         HStack(spacing: 6) {
             Text(key)
                 .font(.callout.monospaced().weight(.semibold))

@@ -167,7 +167,7 @@ struct VideoEditorView: View {
 
     private func effectToggle(
         _ symbol: String,
-        _ help: String,
+        _ help: LocalizedStringKey,
         isOn: Bool,
         change: @escaping (inout EffectsOptions) -> Void
     ) -> some View {
@@ -204,7 +204,7 @@ struct VideoEditorView: View {
             let started = model.exportStarted,
             let left = VideoEditing.remainingTime(elapsed: Date().timeIntervalSince(started), progress: progress)
         else { return percent }
-        return "\(percent) · \(Int(left.rounded(.up))) s left"
+        return String(localized: "\(percent) · \(Int(left.rounded(.up))) s left")
     }
 }
 
@@ -232,7 +232,7 @@ private struct EditorHints: View {
         hint("⌘S", "save")
     }
 
-    private func hint(_ key: String, _ action: String) -> some View {
+    private func hint(_ key: LocalizedStringKey, _ action: LocalizedStringKey) -> some View {
         HStack(spacing: 5) {
             Text(key)
                 .font(.caption.monospaced().weight(.semibold))

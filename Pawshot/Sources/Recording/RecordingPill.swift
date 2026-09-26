@@ -273,11 +273,12 @@ struct RecordingPillView: View {
     /// by hovering for a tooltip.
     private func pillButton(
         _ symbol: String,
-        help: String,
+        help: LocalizedStringResource,
         shortcut: HotKeyBinding? = nil,
         isOn: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
+        let help = String(localized: help)
         let label = shortcut.map { "\(help) (\($0.displayString))" } ?? help
         return Button(action: action) {
             VStack(spacing: 1) {

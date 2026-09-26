@@ -94,4 +94,38 @@ final class KeyboardLayoutTests: XCTestCase {
 
         XCTAssertNil(KeyboardLayout.latinEquivalent(of: event))
     }
+
+    /// The physical D key under ⌘ on ЙЦУКЕН prints `в`, and has to fire the ⌘D item all the same —
+    /// in the video editor as much as on the canvas, which is why the net is one shared function.
+    @MainActor
+    func testCyrillicCommandKeyFiresTheMenuItemOnThePhysicalKey() throws {
+        let target = MenuTarget()
+        let menu = NSMenu()
+        let item = menu.addItem(withTitle: "Copy Text", action: #selector(MenuTarget.fire(_:)), keyEquivalent: "d")
+        item.target = target
+
+        let event = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "в",
+            charactersIgnoringModifiers: "в",
+            isARepeat: false,
+            keyCode: UInt16(kVK_ANSI_D)
+        ))
+
+        XCTAssertTrue(KeyboardLayout.performMenuEquivalent(event, in: menu))
+        XCTAssertEqual(target.fired, 1)
+    }
+}
+
+private final class MenuTarget: NSObject {
+    var fired = 0
+
+    @objc func fire(_: Any?) {
+        fired += 1
+    }
 }

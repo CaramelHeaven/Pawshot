@@ -240,7 +240,7 @@ final class SelectionView: NSView {
     private static let cameraCursor: NSCursor = {
         let configuration = NSImage.SymbolConfiguration(pointSize: 22, weight: .regular)
             .applying(NSImage.SymbolConfiguration(paletteColors: [.white]))
-        let image = NSImage(systemSymbolName: "camera.fill", accessibilityDescription: "Capture window")?
+        let image = NSImage(systemSymbolName: "camera.fill", accessibilityDescription: String(localized: "Capture window"))?
             .withSymbolConfiguration(configuration)
             ?? NSImage(size: CGSize(width: 22, height: 22))
 
@@ -845,7 +845,7 @@ final class SelectionView: NSView {
         }
 
         if mode == .window {
-            guard let highlightedWindow else { return ("Click a window", "") }
+            guard let highlightedWindow else { return (String(localized: "Click a window"), "") }
             return (pixelSize(of: highlightedWindow), "")
         }
 
@@ -857,12 +857,12 @@ final class SelectionView: NSView {
     /// scale; or the size being typed.
     private func recordingBadgeText(position: String) -> (String, String) {
         if !sizeInput.isEmpty {
-            return ("\(sizeInput.text)▏", sizeInput.size == nil ? "width × height" : "↩ apply")
+            return ("\(sizeInput.text)▏", sizeInput.size == nil ? String(localized: "width × height") : String(localized: "↩ apply"))
         }
 
         let region: CGRect? = mode == .window ? highlightedWindow : recordingRegion
         guard let region else {
-            return (mode == .window ? "Click a window" : position, "")
+            return (mode == .window ? String(localized: "Click a window") : position, "")
         }
 
         let size = SelectionGeometry.recordingPixelSize(of: region, scale: outputScale)

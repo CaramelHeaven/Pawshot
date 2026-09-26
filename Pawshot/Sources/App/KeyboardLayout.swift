@@ -49,6 +49,23 @@ enum KeyboardLayout {
         )
     }
 
+    /// The safety net for ⌘-combinations in a non-Latin layout: the event is rewritten and offered
+    /// to the menu. Every window with its own first responder calls it from `performKeyEquivalent`.
+    ///
+    /// Handed to `NSMenu.performKeyEquivalent` as it is, `в` on the D key does not fire ⌘D — the
+    /// test goes red without the rewrite. Whether a real keystroke finds the item some other way
+    /// could not be checked here; if it does, whichever of the two gets there first answers
+    /// `true` and the other never fires.
+    @MainActor
+    static func performMenuEquivalent(_ event: NSEvent, in menu: NSMenu? = NSApp.mainMenu) -> Bool {
+        guard
+            event.modifierFlags.contains(.command),
+            let translated = latinEquivalent(of: event)
+        else { return false }
+
+        return menu?.performKeyEquivalent(with: translated) == true
+    }
+
     /// Asks the current **ASCII-capable** layout what this key would print. That is the same
     /// fallback the system uses for menu key equivalents, which is why ⌘C keeps working in
     /// Cyrillic everywhere else on the Mac.

@@ -15,13 +15,13 @@ enum MenuBarIcon {
 
     /// While a capture is running: the paw knocked out of a filled tile, the way the menu bar
     /// highlights a pressed item.
-    static let capturing: NSImage = template(accessibility: "Pawshot, capturing") { rect in
+    static let capturing: NSImage = template(accessibility: String(localized: "Pawshot, capturing")) { rect in
         NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 4.5, yRadius: 4.5).fill()
         normal.draw(in: rect.insetBy(dx: 2.5, dy: 2.5), from: .zero, operation: .destinationOut, fraction: 1)
     }
 
     /// For a moment after ⌘D: a dot in the corner says the text reached the clipboard.
-    static let textCopied: NSImage = template(accessibility: "Pawshot, text copied") { rect in
+    static let textCopied: NSImage = template(accessibility: String(localized: "Pawshot, text copied")) { rect in
         normal.draw(in: rect)
 
         let dot = CGRect(x: rect.maxX - 6.5, y: rect.maxY - 6.5, width: 6, height: 6)
