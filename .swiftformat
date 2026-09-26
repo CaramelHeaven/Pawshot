@@ -1,0 +1,3 @@
+# The rule set is the default one: the list of rules is deliberately not overridden.
+--swiftversion 6.0
+--exclude Derived,.build,Pawshot.xcodeproj,Pawshot.xcworkspace

@@ -1,0 +1,134 @@
+name: Release
+
+run-name: "Pawshot ${{ inputs.version }} #${{ github.run_number }}"
+
+# Started by hand from the Actions tab: builds a signed arm64 app, puts a DMG on GitHub Releases
+# and bumps the cask in CaramelHeaven/homebrew-pawshot.
+#
+# Secrets:
+#   SIGNING_P12_BASE64, SIGNING_P12_PASSWORD — the "Pawshot Self-Signed" identity. Every release
+#     is signed with the same one, which is what keeps the Screen Recording permission alive
+#     across updates (see AGENTS.md → Signing and screen recording access).
+#   HOMEBREW_TAP_TOKEN — a fine-grained token with Contents: write on homebrew-pawshot only.
+#     Without it the release still goes out and the cask bump is skipped.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version, e.g. 0.1.0"
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    env:
+      VERSION: ${{ inputs.version }}
+      DMG: Pawshot-${{ inputs.version }}.dmg
+      APP: build/derived/Build/Products/Release/Pawshot.app
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select Xcode 26
+        run: |
+          XCODE_PATH="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n1)"
+          if [ -z "$XCODE_PATH" ]; then
+            echo "::error::No Xcode 26.x on this runner"; ls /Applications | grep -i xcode || true
+            exit 1
+          fi
+          echo "DEVELOPER_DIR=$XCODE_PATH/Contents/Developer" >> "$GITHUB_ENV"
+
+      # The pinned Tuist and SwiftFormat from mise.toml — the global versions don't read the
+      # manifests (AGENTS.md → Environment).
+      - name: Install mise and the pinned tools
+        run: |
+          brew install mise
+          mise trust
+          mise install
+          mise exec -- tuist generate --no-open
+
+      # A temporary keychain with the one identity, first in the search list so codesign finds it.
+      - name: Import the signing identity
+        env:
+          P12_BASE64: ${{ secrets.SIGNING_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.SIGNING_P12_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KPW="$(openssl rand -base64 24)"
+          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KPW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KPW" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -A -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KPW" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed 's/"//g')
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      # Command-line settings beat Config/Signing.xcconfig, and there is no local signing file here.
+      - name: Build
+        run: |
+          mise exec -- tuist xcodebuild build -scheme Pawshot -workspace Pawshot.xcworkspace \
+            -configuration Release -destination "platform=macOS,arch=arm64" \
+            -derivedDataPath build/derived \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Pawshot Self-Signed" DEVELOPMENT_TEAM= \
+            OTHER_CODE_SIGN_FLAGS="--timestamp=none" \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+
+      - name: Check the build
+        run: |
+          set -e
+          SLICES="$(lipo -archs "$APP/Contents/MacOS/Pawshot")"
+          [ "$SLICES" = "arm64" ] || { echo "::error::expected arm64 alone, got '$SLICES'"; exit 1; }
+          codesign --verify --deep --strict "$APP"
+          codesign -dvv "$APP" 2>&1 | grep -q "Authority=Pawshot Self-Signed" \
+            || { echo "::error::not signed with Pawshot Self-Signed"; codesign -dvv "$APP"; exit 1; }
+          SHOWN="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+          [ "$SHOWN" = "$VERSION" ] || { echo "::error::Info.plist says $SHOWN"; exit 1; }
+
+      - name: Package the DMG
+        run: |
+          STAGE="$(mktemp -d)"
+          cp -R "$APP" "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"
+          mkdir -p dist
+          diskutil image create from "$STAGE" --format UDZO --volumeName Pawshot "dist/$DMG"
+          shasum -a 256 "dist/$DMG" | awk '{print $1}' > dist/sha256
+          echo "sha256 $(cat dist/sha256)"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$VERSION" "dist/$DMG" \
+            --title "Pawshot $VERSION" --generate-notes --target "$GITHUB_SHA"
+
+      - name: Bump the Homebrew cask
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN is not set — the cask was not bumped."
+            exit 0
+          fi
+          SHA="$(cat dist/sha256)"
+          git clone --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/CaramelHeaven/homebrew-pawshot.git" tap
+          CASK=tap/Casks/pawshot.rb
+          sed -i '' -E "s|^  version \".*\"|  version \"${VERSION}\"|" "$CASK"
+          sed -i '' -E "s|^  sha256 \".*\"|  sha256 \"${SHA}\"|" "$CASK"
+          cd tap
+          if git diff --quiet; then
+            echo "The cask already says $VERSION."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -am "pawshot $VERSION"
+          git push
+
+      - name: Clean up the keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true

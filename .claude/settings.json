@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r \".tool_response.filePath // .tool_input.file_path // empty\"); [ -n \"$f\" ] || exit 0; case \"$f\" in *.swift) BIN=\"$(mise which swiftformat 2>/dev/null)\" || BIN=\"$(command -v swiftformat)\"; [ -x \"$BIN\" ] || exit 0; \"$BIN\" --quiet \"$f\" ;; esac",
+            "statusMessage": "SwiftFormat",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

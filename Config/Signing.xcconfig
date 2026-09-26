@@ -1,0 +1,15 @@
+// Signing, shared by every target and configuration.
+//
+// Out of the box the app is signed ad hoc, so it builds on any Mac with no Apple account at all.
+// The catch: an ad-hoc signature is the hash of one binary, so macOS forgets the screen recording
+// permission on every rebuild. Sign with a stable identity — a self-signed one, or your own
+// "Apple Development" certificate — and the permission is granted once: name it in
+// Signing.local.xcconfig (see the .example next to this file). That file is git-ignored; nothing
+// personal ever lands in the repository.
+
+CODE_SIGN_STYLE = Automatic
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+ENABLE_HARDENED_RUNTIME = NO
+
+#include? "Signing.local.xcconfig"

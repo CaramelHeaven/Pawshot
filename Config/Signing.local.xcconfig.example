@@ -1,0 +1,15 @@
+// Copy to Signing.local.xcconfig (git-ignored).
+//
+// A self-signed identity needs no Apple account — the README has the one-time command that makes
+// "Pawshot Self-Signed" in your login keychain. With it:
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = Pawshot Self-Signed
+DEVELOPMENT_TEAM =
+
+// Or your Apple Development certificate (any Apple ID, a free one too, via Xcode → Settings →
+// Accounts). The Team ID is the OU of the certificate:
+//   security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject
+//
+// CODE_SIGN_STYLE = Automatic
+// CODE_SIGN_IDENTITY = Apple Development
+// DEVELOPMENT_TEAM = YOURTEAMID
