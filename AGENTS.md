@@ -210,12 +210,10 @@ build out of it, and in what order, is up to the project owner.
 ```
 Makefile                     every project command, including install into /Applications
 Tools/GenerateAppIcon.swift  draws the app icon's layers in code (`make icon`)
-docs/                        demo.mp4, the README's demo
+docs/                        demo.gif, the README's demo (2× speed)
 mise.toml                    pins for this folder: tuist 4.203.4, swiftformat 0.62.1
 Config/Signing.xcconfig      signing, ad hoc by default; your identity goes into the git-ignored
                              Signing.local.xcconfig (copy the .example)
-.github/workflows/release.yml  a release by hand from Actions: signed arm64 DMG on GitHub Releases,
-                             then the cask in CaramelHeaven/homebrew-pawshot is bumped
 .swiftformat                 formatter config (default rules, swiftversion set)
 Tuist.swift                  Tuist config
 Project.swift                the Pawshot (.app) and PawshotTests (.unitTests) targets, Swift 6
@@ -329,7 +327,7 @@ Paths are given relative to `Pawshot/Sources/`.
 | ------------------------------------------------------ | --------------------------------------- |
 | Change targets, bundle id, deployment target          | `Project.swift`                         |
 | Signing: ad hoc by default, your Team ID locally      | `Config/Signing.xcconfig`, `Config/Signing.local.xcconfig` |
-| The version, a release, the Homebrew cask             | `MARKETING_VERSION` in `Project.swift`, `.github/workflows/release.yml` |
+| The app version                                       | `MARKETING_VERSION` in `Project.swift`  |
 | Add an Info.plist key (including `LSUIElement`)       | `Project.swift`, the `.dictionary` block |
 | The entry point, scenes, main menu commands           | `App/PawshotApp.swift`                  |
 | The "hotkey → selection → capture → preview" chain    | `App/AppDelegate.swift`                 |
@@ -855,9 +853,7 @@ the box it is ad hoc (`CODE_SIGN_IDENTITY = -`, no team), so a fresh clone build
 last line `#include? "Signing.local.xcconfig"` pulls in the git-ignored local file, where a
 developer names a stable identity (`Signing.local.xcconfig.example` shows both kinds). The owner's
 is `Pawshot Self-Signed` — a self-signed certificate made with openssl, `CODE_SIGN_STYLE =
-Manual`, no team — and the release builds are meant to use the very same one, so a permission
-granted to a local build and to an installed release is one and the same. Hardened runtime is
-off. Nothing personal — no Team ID, no certificate name — belongs in a tracked file.
+Manual`, no team. Hardened runtime is off. Nothing personal — no Team ID, no certificate name — belongs in a tracked file.
 
 With a self-signed identity the designated requirement is `certificate leaf = H"<hash of the
 certificate>"`: it survives every rebuild, and it dies with the certificate. Lose the private key
@@ -893,9 +889,8 @@ The certificates on a machine: `security find-identity -v -p codesigning`; the T
 of one: `security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject`.
 Switching the owner's local signing or team — only on the owner's direct request.
 
-There is no Developer ID and no notarisation. The plan for downloads is Tinycast's
-(`abue-ammar/homebrew-tinycast`): a DMG signed with the self-signed identity on GitHub Releases, and
-a cask in a tap whose `postflight` strips the quarantine flag.
+There is no Developer ID and no notarisation, so there is no ready-built download: people build it
+themselves.
 
 App Sandbox is off and there is no entitlements file — deliberately, so screenshot files can be
 written freely later. Once a sandbox appears, questions about folder access appear with it.

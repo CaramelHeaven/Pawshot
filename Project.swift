@@ -66,7 +66,7 @@ let project = Project(
                 "CFBundlePackageType": "APPL",
                 "CFBundleName": "Pawshot",
                 "CFBundleDisplayName": "Pawshot",
-                // From build settings, so the release workflow sets them on the command line.
+                // From build settings, so a build can set them on the command line (`MARKETING_VERSION=…`).
                 "CFBundleShortVersionString": "$(MARKETING_VERSION)",
                 "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
                 "LSMinimumSystemVersion": "26.0",

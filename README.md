@@ -2,7 +2,7 @@
 
 A native macOS screenshot and screen recording tool. One hotkey, draw on it, ⌘C — done.
 
-**[▶ Watch the demo](docs/demo.mp4)** — 72 seconds: capture, annotate, record, cut, export.
+![Pawshot: capture, annotate, record, cut, export — at 2× speed](docs/demo.gif)
 
 ## Why
 
@@ -21,18 +21,10 @@ So I built my own. Native, free, a few megabytes, no account, no nagging. Grab i
   captions, zooms and a pen that draws into the video.
 - Stop, keep the pieces you want, get HEVC, 1080p or a GIF straight onto the clipboard.
 
-## Get it
+## Build it yourself
 
-```sh
-brew trust --tap CaramelHeaven/pawshot && brew tap CaramelHeaven/pawshot
-brew install --cask pawshot
-```
-
-macOS 26, Apple silicon. No Apple Developer ID here: the app is signed with a stable self-signed
-identity (so permissions survive updates), and the cask clears the quarantine flag for you.
-
-**Or build it yourself.** You need Xcode 26 and [mise](https://mise.jdx.dev) (it pulls the pinned
-Tuist and SwiftFormat on its own).
+You need macOS 26, Xcode 26 and [mise](https://mise.jdx.dev) (it pulls the pinned Tuist and
+SwiftFormat on its own).
 
 ```sh
 git clone https://github.com/CaramelHeaven/Pawshot.git && cd Pawshot
