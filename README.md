@@ -61,6 +61,20 @@ Keyboard Shortcuts → Screenshots — Pawshot's Settings warns while they're st
 `make test` runs the tests, `make run` a Debug copy, `make uninstall` removes it, `make` lists
 the rest.
 
+## Hand it to someone
+
+```sh
+make dist
+```
+
+builds Release and packs it into `build/Pawshot-<version>.dmg` — the usual window with the app on
+the left and Applications on the right. Nothing is installed. The first run asks to let Terminal
+control Finder: that is how the window gets its layout.
+
+On the other Mac (macOS 26): open the DMG, drag Pawshot onto Applications. The build isn't
+notarised, so the first launch is blocked — System Settings → Privacy & Security → **Open Anyway**,
+or `xattr -dr com.apple.quarantine /Applications/Pawshot.app`.
+
 ## For AI agents
 
 Read [`AGENTS.md`](AGENTS.md) first — the architecture, the hard rules and every trap already

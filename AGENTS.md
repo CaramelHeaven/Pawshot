@@ -210,6 +210,8 @@ build out of it, and in what order, is up to the project owner.
 ```
 Makefile                     every project command, including install into /Applications
 Tools/GenerateAppIcon.swift  draws the app icon's layers in code (`make icon`)
+Tools/make-dmg.sh            packs a built app into the DMG (`make dist`); its background is
+                             drawn by Tools/GenerateDMGBackground.swift
 docs/                        demo.gif, the README's demo (2× speed)
 mise.toml                    pins for this folder: tuist 4.203.4, swiftformat 0.62.1
 Config/Signing.xcconfig      signing, ad hoc by default; your identity goes into the git-ignored
@@ -308,6 +310,7 @@ make lint       # SwiftFormat, changing nothing
 make format     # format the sources
 make icon       # redraw the icon from Tools/GenerateAppIcon.swift
 make install    # Release → /Applications, launch (launch at login works after this)
+make dist       # Release → build/Pawshot-<version>.dmg to hand over, nothing installed
 make uninstall  # remove from /Applications
 make run        # build Debug and launch it
 make clean      # wipe build/, Derived/ and the generated project

@@ -12,7 +12,7 @@ INSTALL_PATH := /Applications/Pawshot.app
 ICON_SET := Pawshot/Resources
 
 .DEFAULT_GOAL := help
-.PHONY: help generate build test lint format icon install uninstall run clean
+.PHONY: help generate build test lint format icon install dist uninstall run clean
 
 help: ## List every target
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -46,6 +46,11 @@ install: generate ## Release build and install into /Applications
 	@rsync -a --delete "$(RELEASE_APP)/" "$(INSTALL_PATH)/"
 	@echo "installed: $(INSTALL_PATH)"
 	@open "$(INSTALL_PATH)"
+
+dist: generate ## Release build packed into build/Pawshot-<version>.dmg, nothing installed
+	$(MISE) tuist xcodebuild build -scheme $(SCHEME) -workspace $(WORKSPACE) \
+		-destination "$(DESTINATION)" -configuration Release -derivedDataPath $(DERIVED)
+	Tools/make-dmg.sh "$(RELEASE_APP)"
 
 uninstall: ## Remove the app from /Applications
 	@pkill -x Pawshot 2>/dev/null || true
