@@ -84,15 +84,24 @@ let project = Project(
                 // Without it the first recording with the microphone on doesn't ask — it crashes.
                 "NSMicrophoneUsageDescription": "Pawshot records your voice along with the screen when the microphone is turned on.",
                 "NSHumanReadableCopyright": "Copyright © CaramelHeaven",
+                // Sparkle: the feed is the appcast attached to the latest GitHub release, and every
+                // update is checked against this key — its private half is in the owner's Keychain.
+                // Automatic checks are on from the start, so nobody is asked about them.
+                "SUFeedURL": "https://github.com/CaramelHeaven/Pawshot/releases/latest/download/appcast.xml",
+                "SUPublicEDKey": "bUcibJ2q7HFlHu/dGcGXXSdBtVjoUhzBagdc3AFhkuo=",
+                "SUEnableAutomaticChecks": true,
             ]),
             sources: ["Pawshot/Sources/**"],
             resources: ["Pawshot/Resources/**"],
             scripts: [formatScript],
+            dependencies: [.external(name: "Sparkle")],
             // Two Icon Composer icons, drawn by `make icon`: the Debug build wears the grey one, so
             // a copy from DerivedData can't pass for the one in /Applications — launch at login
             // remembers the bundle path, and mixing them up starts a stale build.
             settings: .settings(
-                base: ["MARKETING_VERSION": "0.4.3", "CURRENT_PROJECT_VERSION": "1"],
+                // The build number is the version: Sparkle compares CFBundleVersion, and a constant
+                // "1" would never read as newer.
+                base: ["MARKETING_VERSION": "0.4.4", "CURRENT_PROJECT_VERSION": "$(MARKETING_VERSION)"],
                 configurations: [
                     .debug(
                         name: .debug,

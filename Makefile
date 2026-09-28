@@ -12,13 +12,14 @@ INSTALL_PATH := /Applications/Pawshot.app
 ICON_SET := Pawshot/Resources
 
 .DEFAULT_GOAL := help
-.PHONY: help generate build test lint format icon install dist uninstall run clean
+.PHONY: help generate build test lint format icon install dist release publish uninstall run clean
 
 help: ## List every target
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-generate: ## Generate the Xcode project (without opening it)
+generate: ## Fetch Sparkle and generate the Xcode project (without opening it)
+	$(MISE) tuist install
 	$(MISE) tuist generate --no-open
 
 build: generate ## Debug build from the CLI
@@ -52,6 +53,27 @@ dist: generate ## Release build packed into build/Pawshot-<version>.dmg, nothing
 	$(MISE) tuist xcodebuild build -scheme $(SCHEME) -workspace $(WORKSPACE) \
 		-destination "$(DESTINATION)" -configuration Release -derivedDataPath $(DERIVED)
 	Tools/make-dmg.sh "$(RELEASE_APP)"
+
+# Sparkle's tools come with the package; where SwiftPM unpacks them has moved before, so look.
+# `=` and not `:=`: both are read when a recipe runs, after the build they depend on.
+SPARKLE_BIN = $(dir $(firstword $(shell find Tuist/.build -type f -path '*/Sparkle/bin/generate_appcast')))
+VERSION = $(shell /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$(RELEASE_APP)/Contents/Info.plist")
+RELEASE_DIR := build/release
+REPO := CaramelHeaven/Pawshot
+
+# The appcast lists this one DMG, signed with the private key in the login Keychain (macOS asks
+# for access the first time). The feed is read from the latest release, so it goes up with it.
+release: dist ## DMG + signed appcast.xml into build/release, ready for `make publish`
+	@rm -rf $(RELEASE_DIR) && mkdir -p $(RELEASE_DIR)
+	cp "build/Pawshot-$(VERSION).dmg" $(RELEASE_DIR)/
+	"$(SPARKLE_BIN)generate_appcast" \
+		--download-url-prefix "https://github.com/$(REPO)/releases/download/v$(VERSION)/" $(RELEASE_DIR)
+	@echo "ready: $(RELEASE_DIR) (v$(VERSION))"
+
+# Not a pre-release: `releases/latest` skips those, and Sparkle would never see it.
+publish: ## Put build/release up on GitHub as release v<version> (gh)
+	gh release create "v$(VERSION)" -R $(REPO) --title "Pawshot $(VERSION)" --generate-notes \
+		"$(RELEASE_DIR)/Pawshot-$(VERSION).dmg" "$(RELEASE_DIR)/appcast.xml"
 
 uninstall: ## Remove the app from /Applications
 	@pkill -x Pawshot 2>/dev/null || true

@@ -395,6 +395,16 @@
         }
       }
     },
+    "Check for Updates…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверить обновления…"
+          }
+        }
+      }
+    },
     "Clear All" : {
       "localizations" : {
         "ru" : {

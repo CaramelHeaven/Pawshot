@@ -321,6 +321,7 @@ Config/Signing.xcconfig      signing, ad hoc by default; your identity goes into
                              Signing.local.xcconfig (copy the .example)
 .swiftformat                 formatter config (default rules, swiftversion set)
 Tuist.swift                  Tuist config
+Tuist/Package.swift          third-party packages (Sparkle only), fetched by `tuist install`
 Project.swift                the Pawshot (.app) and PawshotTests (.unitTests) targets, Swift 6
 Pawshot/Resources/           Assets.xcassets (MenuBarIcon), AppIcon.icon and AppIcon-Debug.icon,
                              Localizable.xcstrings and InfoPlist.xcstrings (English and Russian)
@@ -422,6 +423,8 @@ make format     # format the sources
 make icon       # redraw the icon from Tools/GenerateAppIcon.swift
 make install    # Release → /Applications, launch (launch at login works after this)
 make dist       # Release → build/Pawshot-<version>.dmg to hand over, nothing installed
+make release    # dist + a Sparkle-signed appcast.xml in build/release
+make publish    # build/release → GitHub release v<version> (gh), which is what updates read
 make uninstall  # remove from /Applications
 make run        # build Debug and launch it
 make clean      # wipe build/, Derived/ and the generated project
@@ -477,6 +480,7 @@ Paths are given relative to `Pawshot/Sources/`.
 | The effects' layer tree (export and preview)          | `VideoEditor/EffectsLayerBuilder.swift` |
 | Which window the cursor is over                       | `Overlay/WindowPicker.swift`            |
 | The About window / the version it shows               | `About/AboutView.swift` / `App/AboutPanel.swift` |
+| Updates: Sparkle, "Check for Updates…"                | `App/Updater.swift`, `SU…` keys in `Project.swift` |
 | The shortcut itself and the Carbon plumbing           | `HotKey/GlobalHotKey.swift`             |
 | Overlay looks: dimming, border, coordinates badge     | `Overlay/SelectionView.swift`           |
 | Overlay windows, multi-monitor, app activation        | `Overlay/SelectionOverlayController.swift` |
@@ -1203,8 +1207,41 @@ The certificates on a machine: `security find-identity -v -p codesigning`; the T
 of one: `security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject`.
 Switching the owner's local signing or team — only on the owner's direct request.
 
-There is no Developer ID and no notarisation, so there is no ready-built download: people build it
-themselves.
+There is no Developer ID and no notarisation. A DMG from GitHub Releases therefore opens only
+through Privacy & Security → Open Anyway and an admin password — once; the updates after it come
+through Sparkle (below).
+
+### Updates: Sparkle and GitHub Releases
+
+Why it exists: a DMG handed over by hand arrives quarantined, and every new build asked for Open
+Anyway and the password again. Sparkle downloads the update itself, strips the quarantine and
+swaps the bundle, so Gatekeeper never looks — and since the certificate stays the same, Screen
+Recording survives. The owner's call on 2026-09-28: free now, Developer ID maybe later (Sparkle
+stays when it comes).
+
+- **The feed is `releases/latest/download/appcast.xml`** — GitHub redirects it to the latest
+  release's asset, so there is no separate hosting. A pre-release is not "latest": `make publish`
+  never marks one, and a release marked so by hand is invisible to every copy.
+- **The build number is the version** (`CURRENT_PROJECT_VERSION = $(MARKETING_VERSION)`). Sparkle
+  compares `CFBundleVersion`; it used to be a constant `1`, under which no build is ever newer.
+- **The EdDSA private key lives in the owner's login Keychain**, the public half is
+  `SUPublicEDKey`. `generate_appcast` signs with it (macOS asks for Keychain access the first
+  time). Lose it and every installed copy refuses all updates — the backup, `generate_keys -x`,
+  is kept with the signing `.p12`.
+- **Releasing:** raise `MARKETING_VERSION`, commit, push, `make release publish`. The tag goes on
+  the remote's default branch, so push first, or the tag lands on the previous commit.
+- **Sparkle's tools** (`generate_keys`, `generate_appcast`) come with the package under
+  `Tuist/.build/…/Sparkle/bin/`; the Makefile finds them rather than naming the path, which moved
+  between SwiftPM versions.
+- **Not under tests:** the test host is the app, so `Updater.start()` is skipped there, as
+  `replaceOlderInstances()` is (`AppDelegate.isTestHost`).
+- **Self-built copies read the owner's feed too** — the key and the URL are in `Project.swift`.
+  An update then replaces a self-built copy with the owner's build and its certificate, so Screen
+  Recording is asked for again once.
+- The helpers inside `Sparkle.framework` (`Autoupdate`, `Updater.app`) come out ad-hoc signed in
+  the built bundle while the app is `Pawshot Self-Signed`; `codesign --verify --deep --strict`
+  passes. Whether an update installs through them no test can show — only a real update
+  (0.4.4 → 0.4.5 is the first one to prove it).
 
 App Sandbox is off and there is no entitlements file — deliberately, so screenshot files can be
 written freely later. Once a sandbox appears, questions about folder access appear with it.

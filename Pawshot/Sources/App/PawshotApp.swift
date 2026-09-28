@@ -27,7 +27,8 @@ struct PawshotApp: App {
                 recordFullScreen: { Self.menu("record the full screen"); delegate.beginFullScreenRecording() },
                 stopRecording: { Self.menu("stop recording"); delegate.stopRecording() },
                 togglePause: { Self.menu("pause or resume"); delegate.toggleRecordingPause() },
-                restartRecording: { Self.menu("restart recording"); delegate.restartRecording() }
+                restartRecording: { Self.menu("restart recording"); delegate.restartRecording() },
+                checkForUpdates: { Self.menu("check for updates"); Updater.checkForUpdates() }
             ))
         } label: {
             MenuBarLabel()

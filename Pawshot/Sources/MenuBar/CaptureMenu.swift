@@ -11,6 +11,7 @@ struct CaptureActions {
     var stopRecording: @MainActor () -> Void
     var togglePause: @MainActor () -> Void
     var restartRecording: @MainActor () -> Void
+    var checkForUpdates: @MainActor () -> Void
 }
 
 /// The menu under the paw.
@@ -103,6 +104,10 @@ struct CaptureMenu: View {
         Button("About Pawshot") {
             NSApp.activate()
             openWindow(id: WindowID.about)
+        }
+
+        Button("Check for Updates…") {
+            actions.checkForUpdates()
         }
 
         Divider()

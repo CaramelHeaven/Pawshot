@@ -24,6 +24,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         logLaunch()
         replaceOlderInstances()
+        if !Self.isTestHost {
+            Updater.start()
+        }
 
         settings.onHotKeysChange = { [weak self] in self?.registerHotKeys() }
         LabelFont.family = settings.labelFontFamily
@@ -127,10 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Not under tests: the test host is this app, and it must not close the owner's running copy.
     private func replaceOlderInstances() {
-        let environment = ProcessInfo.processInfo.environment
-        let isTestHost = ["XCTestConfigurationFilePath", "XCTestBundlePath", "XCTestSessionIdentifier"]
-            .contains { environment[$0] != nil }
-        guard !isTestHost, let bundleID = Bundle.main.bundleIdentifier else {
+        guard !Self.isTestHost, let bundleID = Bundle.main.bundleIdentifier else {
             Self.logger.notice("older copies: not checked (test host)")
             return
         }
@@ -143,6 +143,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             other.terminate()
         }
     }
+
+    /// The unit tests run inside this app, so whatever reaches outside it — other running copies,
+    /// the update feed — has to know.
+    private static let isTestHost = {
+        let environment = ProcessInfo.processInfo.environment
+        return ["XCTestConfigurationFilePath", "XCTestBundlePath", "XCTestSessionIdentifier"]
+            .contains { environment[$0] != nil }
+    }()
 
     // MARK: - Hotkeys
 
