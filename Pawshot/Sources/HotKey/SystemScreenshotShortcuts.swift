@@ -23,6 +23,9 @@ struct SystemScreenshotShortcuts: Equatable {
 
     let shortcuts: [Shortcut]
 
+    /// Keyboard → Keyboard Shortcuts, where the Screenshots items are unticked.
+    static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")
+
     /// The system's screenshot shortcuts as macOS ships them — used for any id missing from the
     /// preferences, which is what an untouched Mac looks like.
     static let factoryDefaults: [Shortcut] = [

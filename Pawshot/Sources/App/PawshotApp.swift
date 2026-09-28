@@ -44,11 +44,13 @@ struct PawshotApp: App {
             SettingsView()
         }
 
+        // Opens by itself until "Get Started" is pressed; after that only from the paw's menu.
         Window("Pawshot", id: WindowID.welcome) {
             WelcomeView()
         }
         .windowResizability(.contentSize)
-        .defaultLaunchBehavior(.suppressed)
+        .windowStyle(.hiddenTitleBar)
+        .defaultLaunchBehavior(Settings.shared.welcomeCompleted || AppDelegate.isTestHost ? .suppressed : .presented)
         .restorationBehavior(.disabled)
 
         Window("About Pawshot", id: WindowID.about) {

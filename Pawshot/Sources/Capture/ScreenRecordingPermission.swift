@@ -8,8 +8,28 @@ import os
 enum ScreenRecordingPermission {
     private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "permission")
 
+    static let settingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+    )
+
     static var isGranted: Bool {
         CGPreflightScreenCaptureAccess()
+    }
+
+    private static var askedFromAButton = false
+
+    /// From a button: the system prompt the first time, System Settings on every press after it —
+    /// the prompt comes once per installation, and opening both at once would be two windows for
+    /// one question.
+    static func request() {
+        if askedFromAButton, let settingsURL {
+            logger.notice("screen recording: opening System Settings")
+            NSWorkspace.shared.open(settingsURL)
+        } else {
+            logger.notice("screen recording: asked for from a button")
+            askedFromAButton = true
+            _ = CGRequestScreenCaptureAccess()
+        }
     }
 
     /// Returns `true` when capturing is already allowed. Otherwise asks the system to show the

@@ -43,16 +43,6 @@ final class PermissionWindowController: NSWindowController, NSWindowDelegate {
 }
 
 struct PermissionView: View {
-    private static let settingsURL = URL(
-        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
-    )
-    private static let microphoneSettingsURL = URL(
-        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
-    )
-    private static let inputMonitoringURL = URL(
-        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
-    )
-
     var body: some View {
         HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 14) {
@@ -74,7 +64,7 @@ struct PermissionView: View {
                             microphoneRow(status: MicrophonePermission.status)
                         }
                         if Settings.shared.showsKeystrokes {
-                            inputMonitoringRow(granted: CGPreflightListenEventAccess())
+                            inputMonitoringRow(granted: InputMonitoringPermission.isGranted)
                         }
                     }
                 }
@@ -110,7 +100,7 @@ struct PermissionView: View {
                     .tint(Tokens.paw)
             } else {
                 Button("Open System Settings") {
-                    if let url = Self.settingsURL {
+                    if let url = ScreenRecordingPermission.settingsURL {
                         NSWorkspace.shared.open(url)
                     }
                 }
@@ -137,17 +127,11 @@ struct PermissionView: View {
                 .font(.headline)
             Spacer()
             if status == .notDetermined {
-                Button("Allow") {
-                    Task { _ = await MicrophonePermission.resolve(wanted: true) }
-                }
-                .buttonStyle(.glass)
+                Button("Allow", action: MicrophonePermission.request)
+                    .buttonStyle(.glass)
             } else if !granted {
-                Button("Open System Settings") {
-                    if let url = Self.microphoneSettingsURL {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-                .buttonStyle(.glass)
+                Button("Open System Settings", action: MicrophonePermission.request)
+                    .buttonStyle(.glass)
             }
         }
         .padding(12)
@@ -165,13 +149,8 @@ struct PermissionView: View {
                 .font(.headline)
             Spacer()
             if !granted {
-                Button("Open System Settings") {
-                    _ = CGRequestListenEventAccess()
-                    if let url = Self.inputMonitoringURL {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-                .buttonStyle(.glass)
+                Button("Open System Settings", action: InputMonitoringPermission.request)
+                    .buttonStyle(.glass)
             }
         }
         .padding(12)

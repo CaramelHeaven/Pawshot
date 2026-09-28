@@ -156,6 +156,13 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(Settings(defaults: defaults).warnsBeforeQuitting)
     }
 
+    /// The welcome window opens by itself until "Get Started" — and never again after it.
+    func testWelcomeIsPendingUntilCompleted() {
+        XCTAssertFalse(Settings(defaults: defaults).welcomeCompleted)
+        Settings(defaults: defaults).welcomeCompleted = true
+        XCTAssertTrue(Settings(defaults: defaults).welcomeCompleted)
+    }
+
     func testTheOverlayToolsScaleStartsAtOneAndIsRemembered() {
         XCTAssertEqual(Settings(defaults: defaults).overlayToolsScale, 1)
         Settings(defaults: defaults).overlayToolsScale = 1.25

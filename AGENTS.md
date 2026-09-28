@@ -32,8 +32,19 @@ started the take (⇧⌘3 or ⇧⌘4) stops it — there is no separate stop. �
 and dropped as awkward mid-take. The
 pill writes each shortcut under its button. These four are registered only during a recording —
 not ⌘R/⌘D, which a global hotkey would take away from the app being recorded — and like the rest
-they are set in Settings → Shortcuts and listed in the "Open Pawshot" window. No Pawshot window is ever in the
-video — the filter leaves the whole app out.
+they are set in Settings → Shortcuts. No Pawshot window is ever in the video — the filter leaves
+the whole app out.
+
+**The welcome window opens by itself at launch until "Get Started" is pressed** (`app.welcomeCompleted`;
+closing it any other way is not an answer, so it comes back next launch), and after that from the
+paw's "Open Pawshot". The owner picked its layout, W-C, on 2026-09-28 from four mockups: on the left
+the four main shortcuts as they are set right now, on the right every access Pawshot can use — Screen
+Recording (the one that is required, and the only one "Get Started" waits for), the microphone, Input
+Monitoring, whether macOS still keeps any of our shortcuts, launch at login — each read once a second
+with a button to it. It asks for nothing by itself: every system prompt comes from a button press.
+The shortcuts used only during a take (zoom, pen, restart) are not on it; the pill and Settings show
+them. It replaced the old "Open Pawshot" window rather than sitting next to it. To see it again:
+`defaults delete com.caramelheaven.pawshot app.welcomeCompleted`.
 
 **Stop opens the video editor**: the player, a film strip, and a footer with the format, the
 length that comes out and an estimated size. On the strip every kept piece sits inside a pair of
@@ -334,7 +345,7 @@ Pawshot/Sources/
                              the icon's corner brackets as a Shape
   MenuBar/                   the menu under the paw and the paw's three states
   Settings/                  the settings window and the shortcut recorder
-  Welcome/                   the "Open Pawshot" window: shortcuts, permission, login item
+  Welcome/                   the welcome window ("Open Pawshot"): shortcuts, every access, login item
   About/                     the About window
   Onboarding/                the screen recording permission window
   HotKey/                    global hotkeys on top of Carbon + the binding model
@@ -466,6 +477,7 @@ Paths are given relative to `Pawshot/Sources/`.
 | The dimming and frame around a region being recorded  | `Recording/RecordingFrame.swift`        |
 | The outline shown for a zoom mark while recording     | `Recording/ZoomMarkIndicator.swift`     |
 | The microphone permission                             | `Recording/MicrophonePermission.swift`  |
+| The Input Monitoring permission                       | `Recording/InputMonitoringPermission.swift` |
 | The mic level on the overlay, "no signal"             | `Recording/MicrophoneLevelMeter.swift`  |
 | Recording overlay: keys, proportions, typed size      | `Overlay/RecordingOverlayOptions.swift` |
 | Recording overlay: region handles, ghost, sound bar   | `Overlay/SelectionView.swift` + `OverlayHUD.swift` |
@@ -514,7 +526,7 @@ Paths are given relative to `Pawshot/Sources/`.
 | A key that must work on any keyboard layout           | `App/KeyboardLayout.swift`              |
 | A translation, a new language                         | `Resources/Localizable.xcstrings`, `defaultKnownRegions` in `Project.swift` |
 | The language picker and how it is applied             | `App/Settings.swift` (`language`), `Settings/SettingsView.swift` |
-| The "Open Pawshot" window                             | `Welcome/WelcomeView.swift`             |
+| The welcome window, when it opens by itself           | `Welcome/WelcomeView.swift`, `PawshotApp.swift` |
 
 ## Working notes
 
@@ -544,7 +556,8 @@ What helps is `ScreenCaptureService.warmUp()` — a throwaway shot at launch tha
 price while nobody is waiting. It must be **full-size**, going through the same `capture(_:)` a
 real capture uses: a 1×1 warm-up was tried and measured, and the first real capture still cost
 125–142 ms, because the buffers are size-specific. It stays silent without the screen recording
-permission — the app must not ask for anything before the user has requested a capture.
+permission — the app must not ask for anything before the user has asked for it: a capture, or a
+button in the welcome window.
 
 Measured on the owner's machine in Release, hotkey to crosshair (`ready … ms after the hotkey`):
 

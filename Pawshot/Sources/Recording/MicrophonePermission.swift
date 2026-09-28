@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import os
 
@@ -9,8 +10,21 @@ enum MicrophonePermission {
         AVCaptureDevice.authorizationStatus(for: .audio)
     }
 
+    static let settingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+    )
+
     static var isGranted: Bool {
         status == .authorized
+    }
+
+    /// From a button: the system prompt the first time, System Settings after a refusal.
+    static func request() {
+        if status == .notDetermined {
+            Task { _ = await resolve(wanted: true) }
+        } else if let settingsURL {
+            NSWorkspace.shared.open(settingsURL)
+        }
     }
 
     /// Whether a recording that wants the microphone may have it. Shows the system prompt the first

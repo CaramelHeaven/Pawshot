@@ -22,6 +22,16 @@
         }
       }
     },
+    "%lld of 4 allowed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выдано %lld из 4"
+          }
+        }
+      }
+    },
     "%lld pieces · total %@" : {
       "localizations" : {
         "en" : {
@@ -195,6 +205,16 @@
         }
       }
     },
+    "Access" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступы"
+          }
+        }
+      }
+    },
     "Add ⌘, ⌥ or ⌃" : {
       "localizations" : {
         "ru" : {
@@ -295,6 +315,16 @@
         }
       }
     },
+    "Captions of the shortcuts you press in videos, like ⌘Z ×3." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подписи нажатых сочетаний в видео — вроде «⌘Z ×3»."
+          }
+        }
+      }
+    },
     "Capture" : {
       "localizations" : {
         "ru" : {
@@ -331,16 +361,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Снять область"
-          }
-        }
-      }
-    },
-    "Capture a window" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Снять окно"
           }
         }
       }
@@ -838,6 +858,16 @@
         }
       }
     },
+    "Free" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свободны"
+          }
+        }
+      }
+    },
     "GIF" : {
       "shouldTranslate" : false
     },
@@ -847,6 +877,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Основные"
+          }
+        }
+      }
+    },
+    "Get Started" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начать"
           }
         }
       }
@@ -871,6 +911,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Оттенок"
+          }
+        }
+      }
+    },
+    "Input Monitoring" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мониторинг ввода"
           }
         }
       }
@@ -1068,16 +1118,6 @@
         }
       }
     },
-    "Not allowed yet" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Пока не разрешено"
-          }
-        }
-      }
-    },
     "Nothing readable turned up in this shot — the clipboard is untouched." : {
       "localizations" : {
         "ru" : {
@@ -1094,6 +1134,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ничего не записано — поток остановился до первого кадра."
+          }
+        }
+      }
+    },
+    "Only the first one is required. The rest are for videos and can wait." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обязателен только первый. Остальные — для видео, можно позже."
           }
         }
       }
@@ -1134,6 +1184,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Открыть Системные настройки"
+          }
+        }
+      }
+    },
+    "Open…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть…"
           }
         }
       }
@@ -1204,16 +1264,6 @@
         }
       }
     },
-    "Pawshot is ready" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pawshot готов"
-          }
-        }
-      }
-    },
     "Pawshot, capturing" : {
       "localizations" : {
         "ru" : {
@@ -1250,16 +1300,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Перо — рисовать на экране, Esc — закончить"
-          }
-        }
-      }
-    },
-    "Pen, while recording" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перо во время записи"
           }
         }
       }
@@ -1384,16 +1424,6 @@
         }
       }
     },
-    "Record a window" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Записать окно"
-          }
-        }
-      }
-    },
     "Record full screen" : {
       "localizations" : {
         "ru" : {
@@ -1514,6 +1544,16 @@
         }
       }
     },
+    "Required" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "обязательно"
+          }
+        }
+      }
+    },
     "Resize the tools" : {
       "localizations" : {
         "ru" : {
@@ -1560,16 +1600,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Заново — текущий дубль выбрасывается"
-          }
-        }
-      }
-    },
-    "Restart, while recording" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Заново, во время записи"
           }
         }
       }
@@ -1874,6 +1904,16 @@
         }
       }
     },
+    "Shortcuts %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сочетания %@"
+          }
+        }
+      }
+    },
     "Shown in the video" : {
       "localizations" : {
         "ru" : {
@@ -2034,6 +2074,16 @@
         }
       }
     },
+    "The paw is in the menu bar as soon as the Mac starts." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лапа в строке меню сразу после включения Mac."
+          }
+        }
+      }
+    },
     "The recording couldn't be written. %@" : {
       "localizations" : {
         "ru" : {
@@ -2080,16 +2130,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Выбранная область не попала в снятый кадр."
-          }
-        }
-      }
-    },
-    "The shortcut that started a recording stops it too." : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сочетание, которым запись начата, её и останавливает."
           }
         }
       }
@@ -2194,6 +2234,16 @@
         }
       }
     },
+    "Without it Pawshot can't see the screen: no screenshots, no videos." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без неё Pawshot не видит экран — ни скриншотов, ни видео."
+          }
+        }
+      }
+    },
     "Wrong total — $42!" : {
       "localizations" : {
         "ru" : {
@@ -2227,6 +2277,16 @@
         }
       }
     },
+    "Your voice in videos." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ваш голос в видео."
+          }
+        }
+      }
+    },
     "Zoom in here" : {
       "localizations" : {
         "ru" : {
@@ -2243,16 +2303,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Приблизить здесь при экспорте"
-          }
-        }
-      }
-    },
-    "Zoom in here, while recording" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Приблизить здесь, во время записи"
           }
         }
       }
@@ -2357,6 +2407,16 @@
         }
       }
     },
+    "macOS keeps them for its own screenshots. Untick them in Keyboard Shortcuts → Screenshots." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Их держит macOS для своих скриншотов. Снимите флажки в «Сочетания клавиш → Снимки экрана»."
+          }
+        }
+      }
+    },
     "macOS takes %@ for its own screenshots, so Pawshot never sees the key." : {
       "localizations" : {
         "ru" : {
@@ -2453,16 +2513,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "сохранить"
-          }
-        }
-      }
-    },
-    "then" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "затем"
           }
         }
       }

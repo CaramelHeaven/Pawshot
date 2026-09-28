@@ -38,6 +38,7 @@ final class Settings {
         case captureCount = "stats.captureCount"
         case language = "app.language"
         case warnsBeforeQuitting = "app.warnsBeforeQuitting"
+        case welcomeCompleted = "app.welcomeCompleted"
         case customColor = "editor.customColor"
         case recentColors = "editor.recentColors"
         case labelFont = "editor.labelFont"
@@ -125,6 +126,13 @@ final class Settings {
     var warnsBeforeQuitting: Bool {
         get { flag(.warnsBeforeQuitting, default: true) }
         set { setFlag(newValue, for: .warnsBeforeQuitting) }
+    }
+
+    /// "Get Started" was pressed in the welcome window. Until then it opens by itself at every
+    /// launch — closing it some other way is not an answer.
+    var welcomeCompleted: Bool {
+        get { flag(.welcomeCompleted, default: false) }
+        set { setFlag(newValue, for: .welcomeCompleted) }
     }
 
     /// The microphone goes into recordings. Off by default: the app asks for nothing until the

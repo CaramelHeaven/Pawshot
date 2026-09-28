@@ -195,13 +195,6 @@ private struct LabelFontPicker: View {
 private struct RecordingSettings: View {
     @Bindable private var settings = Settings.shared
 
-    private static let microphoneSettingsURL = URL(
-        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
-    )
-    private static let inputMonitoringURL = URL(
-        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
-    )
-
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
             Form {
@@ -226,7 +219,7 @@ private struct RecordingSettings: View {
                 accessRow(
                     "Microphone access",
                     granted: MicrophonePermission.isGranted,
-                    action: requestMicrophone
+                    action: MicrophonePermission.request
                 )
             }
         } header: {
@@ -252,7 +245,7 @@ private struct RecordingSettings: View {
                 accessRow(
                     "Input Monitoring access",
                     granted: CGPreflightListenEventAccess(),
-                    action: requestInputMonitoring
+                    action: InputMonitoringPermission.request
                 )
             }
             Toggle(isOn: $settings.showsZooms) {
@@ -319,21 +312,6 @@ private struct RecordingSettings: View {
         }
     }
 
-    private func requestMicrophone() {
-        if MicrophonePermission.status == .notDetermined {
-            Task { _ = await MicrophonePermission.resolve(wanted: true) }
-        } else if let url = Self.microphoneSettingsURL {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
-    private func requestInputMonitoring() {
-        _ = CGRequestListenEventAccess()
-        if let url = Self.inputMonitoringURL {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
     /// The same for Input Monitoring: asked for when the switch goes on, not in the middle of a
     /// take.
     private var keystrokesBinding: Binding<Bool> {
@@ -363,10 +341,6 @@ private struct RecordingSettings: View {
 private struct ShortcutSettings: View {
     private let settings = Settings.shared
     @State private var isConfirmingReset = false
-
-    private static let keyboardSettingsURL = URL(
-        string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension"
-    )
 
     private typealias Row = (title: LocalizedStringKey, keyPath: ReferenceWritableKeyPath<Settings, HotKeyBinding>)
 
@@ -487,7 +461,7 @@ private struct ShortcutSettings: View {
             .foregroundStyle(.secondary)
 
             Button("Open Keyboard Shortcuts") {
-                if let url = Self.keyboardSettingsURL {
+                if let url = SystemScreenshotShortcuts.settingsURL {
                     NSWorkspace.shared.open(url)
                 }
             }
