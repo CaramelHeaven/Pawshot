@@ -3,7 +3,7 @@ import AppKit
 /// A blurred region. It stores only a rectangle — the pixels themselves come from the shared
 /// `BlurSource`, so copies of the shot don't pile up one per object.
 @MainActor
-final class BlurAnnotation: Annotation {
+final class BlurAnnotation: Reshapable {
     let id = UUID()
     var style: AnnotationStyle
     var mode: BlurMode
@@ -26,6 +26,16 @@ final class BlurAnnotation: Annotation {
 
     var boundingBox: CGRect {
         rect
+    }
+
+    /// Resized by its handles, never turned: it hides a line of text, and lines on a shot are
+    /// level — a turned pixelation reads as a glitch.
+    var shape: SelectionGeometry.RotatedBox {
+        get { SelectionGeometry.RotatedBox(center: CGPoint(x: rect.midX, y: rect.midY), size: rect.size) }
+        set {
+            start = CGPoint(x: newValue.center.x - newValue.size.width / 2, y: newValue.center.y - newValue.size.height / 2)
+            end = CGPoint(x: newValue.center.x + newValue.size.width / 2, y: newValue.center.y + newValue.size.height / 2)
+        }
     }
 
     var isMeaningful: Bool {

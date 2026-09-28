@@ -6,7 +6,7 @@ import AppKit
 /// The canvas draws it from the model even while it is being typed — the text field on top only
 /// carries the caret and the selection — so what is typed is exactly what gets exported.
 @MainActor
-final class TextAnnotation: Annotation {
+final class TextAnnotation: Reshapable {
     let id = UUID()
     var style: AnnotationStyle {
         didSet { cachedSize = nil }
@@ -25,14 +25,16 @@ final class TextAnnotation: Annotation {
     /// The top left corner of the text in image coordinates.
     private(set) var origin: CGPoint
 
-    /// Quarter turns clockwise the shot made after the label was placed. The label is laid out
-    /// level at `origin` and then turned about that corner as a whole, so it stays where it was
-    /// drawn on the picture.
-    private(set) var quarterTurns = 0
+    /// How far the label is turned, in radians, clockwise on screen: by the shot's quarter turns
+    /// made after it was placed, and by its own turning handle. The label is laid out level at
+    /// `origin` and then turned about that corner as a whole, so it stays where it was drawn.
+    private(set) var angle: CGFloat = 0
 
     /// Level layout → where it is on the shot.
     var turn: CGAffineTransform {
-        QuarterTurn.affine(quarterTurns, around: origin)
+        CGAffineTransform(translationX: origin.x, y: origin.y)
+            .rotated(by: angle)
+            .translatedBy(x: -origin.x, y: -origin.y)
     }
 
     private var cachedSize: CGSize?
@@ -52,33 +54,72 @@ final class TextAnnotation: Annotation {
         LabelFont.font(size: fontSize, weight: style.textWeight)
     }
 
-    /// What a corner drag changes, taken and put back as one for undo.
+    /// What a handle drag changes, taken and put back as one for undo.
     struct Geometry: Equatable {
         var textSize: CGFloat
         var fixedWidth: CGFloat?
         var origin: CGPoint
+        var angle: CGFloat = 0
     }
 
     var geometry: Geometry {
-        get { Geometry(textSize: style.textSize, fixedWidth: fixedWidth, origin: origin) }
+        get { Geometry(textSize: style.textSize, fixedWidth: fixedWidth, origin: origin, angle: angle) }
         set {
             style.textSize = newValue.textSize
             fixedWidth = newValue.fixedWidth
             origin = newValue.origin
+            angle = newValue.angle
         }
+    }
+
+    var shape: Geometry {
+        get { geometry }
+        set { geometry = newValue }
     }
 
     /// A new size from a corner drag. A wrapping box widens with its letters, so the lines break
     /// where they did; and the label moves so the `pinned` corner of its frame stays put — the one
-    /// opposite the handle. Works for a turned label too, its frame being turned already.
+    /// opposite the handle. Works for a turned label too: the corner is the turned frame's.
     func resize(from start: Geometry, to size: CGFloat, pinning pinned: SelectionGeometry.Corner) {
         geometry = start
-        let before = pinned.point(of: boundingBox)
+        let before = box.corner(pinned)
         style.textSize = size
         fixedWidth = start.fixedWidth.map { $0 * size / start.textSize }
-        let after = pinned.point(of: boundingBox)
+        let after = box.corner(pinned)
         origin.x += before.x - after.x
         origin.y += before.y - after.y
+    }
+
+    /// A side dragged: the label becomes a box `width` wide that the text wraps inside, and the
+    /// other side stays put. `rightSide` — the right side was dragged, the left one is pinned.
+    func setWidth(from start: Geometry, to width: CGFloat, rightSide: Bool) {
+        geometry = start
+        let side: CGFloat = rightSide ? -1 : 1
+        let before = box.toWorld(CGPoint(x: side * box.size.width / 2, y: 0))
+        fixedWidth = width
+        let after = box.toWorld(CGPoint(x: side * box.size.width / 2, y: 0))
+        origin.x += before.x - after.x
+        origin.y += before.y - after.y
+    }
+
+    /// Turned by its handle to `angle`, about the middle of the label, which stays put.
+    func rotate(from start: Geometry, to angle: CGFloat) {
+        geometry = start
+        let before = box.center
+        self.angle = angle
+        let after = box.center
+        origin.x += before.x - after.x
+        origin.y += before.y - after.y
+    }
+
+    /// The label's frame as it lies on the shot — what its handles sit on.
+    var box: SelectionGeometry.RotatedBox {
+        let level = levelBounds
+        return SelectionGeometry.RotatedBox(
+            center: CGPoint(x: level.midX, y: level.midY).applying(turn),
+            size: level.size,
+            angle: angle
+        )
     }
 
     /// The family changed in Settings: the measured size no longer holds.
@@ -118,13 +159,17 @@ final class TextAnnotation: Annotation {
         fontSize * 0.08
     }
 
-    var boundingBox: CGRect {
-        let level = switch style.textStyle {
+    /// Everything the label covers, before the turn.
+    private var levelBounds: CGRect {
+        switch style.textStyle {
         case .plain: textFrame.insetBy(dx: -2, dy: -2)
         case .outline: textFrame.insetBy(dx: -outlineWidth - 2, dy: -outlineWidth - 2)
         case .plate: plateRect.insetBy(dx: -2, dy: -2)
         }
-        return level.applying(turn)
+    }
+
+    var boundingBox: CGRect {
+        angle == 0 ? levelBounds : box.bounds
     }
 
     var isMeaningful: Bool {
@@ -141,14 +186,20 @@ final class TextAnnotation: Annotation {
 
     func rotateQuarter(clockwise: Bool, mapping turn: (CGPoint) -> CGPoint) {
         origin = turn(origin)
-        quarterTurns = (quarterTurns + (clockwise ? 1 : 3)) % 4
+        angle = SelectionGeometry.normalizedAngle(angle + (clockwise ? .pi / 2 : -.pi / 2))
     }
 
     func draw() {
         guard !text.isEmpty else { return }
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
-        QuarterTurn.transform(quarterTurns, around: origin).concat()
+        if angle != 0 {
+            let transform = NSAffineTransform()
+            transform.translateX(by: origin.x, yBy: origin.y)
+            transform.rotate(byRadians: angle)
+            transform.translateX(by: -origin.x, yBy: -origin.y)
+            transform.concat()
+        }
 
         let string = text as NSString
         let frame = textFrame
@@ -184,7 +235,7 @@ final class TextAnnotation: Annotation {
     }
 
     func hitTest(_ point: CGPoint, tolerance: CGFloat) -> Bool {
-        boundingBox.insetBy(dx: -tolerance, dy: -tolerance).contains(point)
+        box.local.insetBy(dx: -tolerance, dy: -tolerance).contains(box.toLocal(point))
     }
 
     /// The same layout rules the text field uses, so the caret lands on the letters drawn here.

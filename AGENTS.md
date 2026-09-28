@@ -44,7 +44,8 @@ Playback skips the grey. Several pieces are always re-encoded — a passthrough 
 needs an edit list that not every player honours. For the first five openings a line of key hints
 sits under the strip. The rules are the
 screenshot's: `⌘C`, `⇧⌘C` and `⌘S` hand the video off and the window dissolves, any other way of
-closing it throws the recording away. An export shows its progress in the window and keeps running
+closing it throws the recording away — `⌘W`, or a tap of `⌘Q` after a question; Esc only lets go
+of the selected piece. An export shows its progress in the window and keeps running
 if the window is closed, then delivers anyway.
 
 | Key | In the video editor |
@@ -57,7 +58,9 @@ if the window is closed, then delivers anyway.
 | `⌘C` | the file, in the chosen format, onto the clipboard |
 | `⇧⌘C` | a GIF onto the clipboard, whatever the format |
 | `⌘S` | to the Desktop, in the chosen format |
-| `Esc` / `⌘W` | close and throw the recording away |
+| `Esc` | let go of the selected piece — never closes |
+| `⌘W` | close and throw the recording away |
+| `⌘Q` tapped / held | ask, then close and throw the recording away / quit Pawshot |
 
 **Effects are added at export, from a timeline recorded alongside the video**
 (`<raw>.events.json`): orange rings on clicks, a caption for shortcuts with ⌘, ⌥ or ⌃ (`⌘Z ×3`),
@@ -139,6 +142,32 @@ setting. A family no longer installed falls back to the system font. Each label 
 **handles on its four corners** — drag one and the text grows about the opposite corner, one
 step of ⌘Z. A bundled Formular was tried and removed.
 
+**A selected object has handles under `V`** — the owner picked them on 2026-09-28 from a page of
+variants (the codes Л-A, Л-C, Н-A, П-C, П-D, Б-A, Т-C, Э-1, Э-4 on it). One step of ⌘Z per drag
+or click, and a chip by the cursor says the number while dragging — pixels of the file, degrees,
+points for a label's size. What each object has lives in `Editor/CanvasHandles.swift`, the
+arithmetic in `SelectionGeometry`, and the cursor is decided by one function there:
+
+- **A line** has no frame: a circle on each end drags that end (`⇧` — the direction on 15°
+  steps), a diamond halfway bends the line into an arc through the mouse (dropped back on the
+  straight line, it is straight again; moving an end carries the bend along), and a small round
+  button beside it walks the heads *at the end → at the start → at both → at the end*, showing the
+  next stop. The start stop is `pointsBack` on the object, not a fourth `LineEnds`, so the toolbar's
+  three looks stay as they were; the button changes that line only, never the style new lines
+  take. A plain line's click gives a head at the end.
+- **A rectangle** has squares on its corners and grabbable sides that are not drawn (the cursor
+  shows them, as on the recording region); `⇧` keeps a corner's proportions, `⌥` grows it from
+  the middle. Just outside a corner it **turns** about its middle (`⇧` — 15°), Figma's way,
+  with nothing drawn there — the owner asked for the turning to stay quiet. The angle is stored
+  on the rectangle; the frame, the hit test and the export all turn with it.
+- **A blur** resizes like a rectangle and never turns: it hides a line of text, and a turned
+  pixelation reads as a glitch.
+- **A label**: the corners set the size, the left and right sides the width its text wraps
+  inside, and it turns from outside a corner like a rectangle. `quarterTurns` became a free
+  `angle`; the text field follows it through `frameCenterRotation`.
+- The pencil and the step numbers keep the plain frame (the owner's call). A frame under 24 pt
+  carries its handles on a frame grown to 24, so the object's middle can still be grabbed.
+
 **`⌘L` / `⌘R` turn the selected object a quarter about its own centre; with nothing selected,
 they turn the shot**, as in Preview, with everything drawn on it — labels and
 step numbers included, as if they had been drawn before the turn. The whole captured frame turns,
@@ -182,14 +211,29 @@ a single existing gesture.
 | | | `⌘D` | copy the text read off the shot, the window closes |
 | | | `⌘S` | save a PNG to the Desktop, the window closes |
 | | | hold `⌘` | move whatever is under the cursor, without leaving the tool |
+| | | `⇧` dragging a handle | a line's end or a turn on 15° steps; a corner keeps proportions |
+| | | `⌥` dragging a handle | a rectangle or a blur grows from its middle |
 | | | double click / `↩` | edit a label (`↩` on a selected one) |
 | | | `⌘L` / `⌘R` | turn the selection, or the whole shot, a quarter left / right |
 | | | `⌘W` | close the window |
-| | | `Esc` | typing → tool → selection → close the window |
+| | | `Esc` | typing → tool → selection, then nothing |
+| | | `⌘Q` tapped / held | close the window (asking if there is work) / quit Pawshot |
 
-`Esc` cascades deliberately: one accidental press must not close a window with work in it. While
-text is being typed, letters land in the text instead of switching tools, and `⌘Z` takes back the
-typing rather than the last object.
+`Esc` cascades and then stops: it never closes the window — the owner's call on 2026-09-28, after
+losing shots to it. While text is being typed, letters land in the text instead of switching
+tools, and `⌘Z` takes back the typing rather than the last object.
+
+**⌘Q is Chrome's "Warn Before Quitting"** (`App/QuitKey.swift`, `App/QuitToast.swift`; Settings →
+General, on by default; off, ⌘Q quits at once). A tap — let go within 0.3 s — closes the window
+in front, with no toast. Held longer, a glass "Hold ⌘Q to Quit" toast comes up in the middle of
+the screen with a bar filling in the paw colour; at 1.3 s from the press the windows fade and
+Pawshot quits without asking, and let go before that the toast melts away and nothing else
+happens. The press starts a check that polls the key state, since a held key sends only repeats.
+A tap on a shot with work in it — anything drawn, cropped or turned, i.e. anything undo
+remembers — asks first in a sheet; a bare shot closes at once. The video editor always asks, its
+recording being thrown away, unless an export is running. Settings and the other small windows
+just close; the capture overlay ignores a tap. The paw menu's "Quit Pawshot" quits at once as it
+always did.
 
 **The editor opens in the middle of the screen the shot was taken on**, and a shot bigger than the
 window (a full-screen capture) opens scrolled to its middle, still at 1:1.
@@ -447,11 +491,16 @@ Paths are given relative to `Pawshot/Sources/`.
 | The clipboard and writing to the Desktop              | `Editor/Export/ExportService.swift`     |
 | Drawing, mouse, hotkeys, text input                   | `Editor/AnnotationCanvasView.swift`     |
 | The "drag an object or draw a new one" rule           | `Editor/CanvasInteraction.swift`        |
+| ⌘Q: tap closes the window, hold quits                  | `App/QuitKey.swift`                     |
+| The "Hold ⌘Q to Quit" toast                           | `App/QuitToast.swift`                   |
 | The annotation list, selection, undo, turning the shot | `Editor/EditorDocument.swift`          |
 | The colour picker behind the fifth swatch, hex        | `Editor/ColorPickerPopover.swift`       |
 | The bottom capsule, the top toolbar                   | `Editor/EditorView.swift`               |
 | The labels' family, its weights, the nearest face     | `Editor/Model/LabelFont.swift`          |
 | A label's corner handles, the size drag               | `Editor/AnnotationCanvasView.swift`, `TextAnnotation.resize` |
+| Which handles an object has, where, the cursor        | `Editor/CanvasHandles.swift`            |
+| Dragging a handle: resize, turn, bend, the chip        | `Editor/AnnotationCanvasView.swift` (`beginReshaping`) |
+| Turned boxes, bends, snapping to 15°                  | `Overlay/SelectionGeometry.swift`       |
 | A new tool: letter, icon, object creation             | `Editor/Tools/AnnotationTool.swift`     |
 | How a specific annotation looks and is hit by a mouse | `Editor/Model/*Annotation.swift`        |
 | **Line breaks, blank lines, indent in the read text** | `Editor/TextRecognition/TextLayout.swift` |

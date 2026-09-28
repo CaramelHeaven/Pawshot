@@ -160,20 +160,42 @@ final class EditorDocument {
     /// The end of a corner drag: the label is already at `geometry` from the live drag, and this
     /// records the whole gesture as one step of ⌘Z. New labels take the size too.
     func finishResizing(_ label: TextAnnotation, from previous: TextAnnotation.Geometry) {
-        let current = label.geometry
-        guard current != previous else { return }
-        style.textSize = current.textSize
+        if label.geometry.textSize != previous.textSize {
+            style.textSize = label.geometry.textSize
+        }
+        finishReshaping(label, from: previous)
+    }
+
+    /// The end of any handle drag: the object is already in its new shape from the live drag,
+    /// and this records the whole gesture as one step of ⌘Z.
+    func finishReshaping<Object: Reshapable>(_ object: Object, from previous: Object.Shape) {
+        guard object.shape != previous else { return }
         registerUndo { document in
-            document.setGeometry(previous, of: label)
+            document.setShape(previous, of: object)
         }
         onChange?()
     }
 
-    private func setGeometry(_ geometry: TextAnnotation.Geometry, of label: TextAnnotation) {
-        let previous = label.geometry
-        label.geometry = geometry
+    private func setShape<Object: Reshapable>(_ shape: Object.Shape, of object: Object) {
+        let previous = object.shape
+        object.shape = shape
         registerUndo { document in
-            document.setGeometry(previous, of: label)
+            document.setShape(previous, of: object)
+        }
+        onChange?()
+    }
+
+    /// The button beside a selected line: its heads go one stop further — at the end, at the
+    /// start, at both. Only this line changes, not the style new lines are drawn with.
+    func turnHeads(of arrow: ArrowAnnotation) {
+        setHeads(arrow.heads.next, of: arrow)
+    }
+
+    private func setHeads(_ heads: ArrowAnnotation.Heads, of arrow: ArrowAnnotation) {
+        let previous = arrow.heads
+        arrow.heads = heads
+        registerUndo { document in
+            document.setHeads(previous, of: arrow)
         }
         onChange?()
     }

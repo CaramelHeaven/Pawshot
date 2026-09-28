@@ -163,6 +163,28 @@ final class AnnotationRendererTests: XCTestCase {
         XCTAssertEqual(bottom.r, bottom.b, "the bottom of the shot must stay white")
     }
 
+    /// A turned rectangle comes out turned: a square turned 45° covers the point above its level
+    /// top edge and leaves its level corner empty — the export draws what the canvas drew.
+    func testATurnedRectangleIsExportedTurned() throws {
+        let document = makeDocument(pointSize: CGSize(width: 200, height: 300), scale: 1)
+        let square = RectangleAnnotation(
+            start: CGPoint(x: 60, y: 20),
+            style: AnnotationStyle(color: .red, lineWidth: 3, fillOpacity: 1)
+        )
+        square.update(to: CGPoint(x: 140, y: 100))
+        var turned = square.shape
+        turned.angle = .pi / 4
+        square.shape = turned
+        document.add(square)
+
+        let rendered = try XCTUnwrap(AnnotationRenderer.render(document))
+        let aboveTheLevelTop = try XCTUnwrap(color(of: rendered, atX: 100, y: 12))
+        let levelCorner = try XCTUnwrap(color(of: rendered, atX: 64, y: 24))
+
+        XCTAssertGreaterThan(aboveTheLevelTop.r, aboveTheLevelTop.b, "the turned tip reaches up here")
+        XCTAssertEqual(levelCorner.r, levelCorner.b, "the level corner is empty after the turn")
+    }
+
     /// The regression guard for annotations living in frame coordinates: growing the shot to the
     /// left must not drag what is already drawn. The marker sits 20 pt from the left edge of the
     /// crop; after the crop grows by 40 pt on that side, the very same pixels have to be 60 pt in.

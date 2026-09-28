@@ -668,6 +668,238 @@ enum SelectionGeometry {
         return CGPoint(x: x, y: rect.maxY - gap * 2 - barSize.height)
     }
 
+    // MARK: - Handles on drawn objects
+
+    /// A rectangle turned about its own centre, in the Y-down system: a positive angle turns it
+    /// clockwise on screen. The editor keeps a rotated rectangle and a turned label this way, and
+    /// their handles sit on its corners.
+    struct RotatedBox: Equatable {
+        var center: CGPoint
+        var size: CGSize
+        /// Radians.
+        var angle: CGFloat = 0
+
+        /// The box unturned, around the origin — the system its handles are found in.
+        var local: CGRect {
+            CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height)
+        }
+
+        /// A point of the shot → the box's own unturned system, origin at its centre.
+        func toLocal(_ point: CGPoint) -> CGPoint {
+            let dx = point.x - center.x
+            let dy = point.y - center.y
+            return CGPoint(x: dx * cos(angle) + dy * sin(angle), y: -dx * sin(angle) + dy * cos(angle))
+        }
+
+        func toWorld(_ point: CGPoint) -> CGPoint {
+            CGPoint(
+                x: center.x + point.x * cos(angle) - point.y * sin(angle),
+                y: center.y + point.x * sin(angle) + point.y * cos(angle)
+            )
+        }
+
+        func corner(_ corner: Corner) -> CGPoint {
+            toWorld(corner.point(of: local))
+        }
+
+        /// The same box grown by `inset` on every side, and to at least `minimumSide` — where the
+        /// handles of a very small object go, so its middle can still be grabbed.
+        func grown(by inset: CGFloat, minimumSide: CGFloat = 0) -> RotatedBox {
+            RotatedBox(
+                center: center,
+                size: CGSize(
+                    width: max(size.width + inset * 2, minimumSide),
+                    height: max(size.height + inset * 2, minimumSide)
+                ),
+                angle: angle
+            )
+        }
+
+        /// The axis-aligned rectangle around the turned box.
+        var bounds: CGRect {
+            let corners = Corner.allCases.map(corner)
+            let xs = corners.map(\.x)
+            let ys = corners.map(\.y)
+            return CGRect(x: xs.min()!, y: ys.min()!, width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!)
+        }
+    }
+
+    /// The box with a handle dragged: the edge or corner follows the mouse by how far it moved, in
+    /// the box's own turned system, and the opposite side stays where it is on the shot.
+    ///
+    /// - `keepsAspect`: a corner keeps the proportions (⇧).
+    /// - `fromCentre`: the opposite side mirrors the dragged one and the centre stays (⌥).
+    /// - A side never shrinks under `minimumSide` and never flips over the opposite one.
+    static func resized(
+        _ box: RotatedBox,
+        dragging handle: Handle,
+        grabbedAt grab: CGPoint,
+        mouse: CGPoint,
+        keepsAspect: Bool,
+        fromCentre: Bool,
+        minimumSide: CGFloat
+    ) -> RotatedBox {
+        let local = box.local
+        let target = handleTarget(handle, of: local, grabbedAt: box.toLocal(grab), mouse: box.toLocal(mouse))
+        let sx: CGFloat = switch handle {
+        case .left, .topLeft, .bottomLeft: -1
+        case .right, .topRight, .bottomRight: 1
+        default: 0
+        }
+        let sy: CGFloat = switch handle {
+        case .top, .topLeft, .topRight: -1
+        case .bottom, .bottomLeft, .bottomRight: 1
+        default: 0
+        }
+
+        var width = box.size.width
+        var height = box.size.height
+        if sx != 0 {
+            width = fromCentre ? 2 * sx * target.x : sx * (target.x - (-sx * local.width / 2))
+            width = max(width, minimumSide)
+        }
+        if sy != 0 {
+            height = fromCentre ? 2 * sy * target.y : sy * (target.y - (-sy * local.height / 2))
+            height = max(height, minimumSide)
+        }
+        if keepsAspect, sx != 0, sy != 0, box.size.width > 0, box.size.height > 0 {
+            let scale = max(width / box.size.width, height / box.size.height)
+            width = max(box.size.width * scale, minimumSide)
+            height = max(box.size.height * scale, minimumSide)
+        }
+
+        let centre = fromCentre
+            ? CGPoint.zero
+            : CGPoint(
+                x: sx == 0 ? 0 : -sx * local.width / 2 + sx * width / 2,
+                y: sy == 0 ? 0 : -sy * local.height / 2 + sy * height / 2
+            )
+        return RotatedBox(center: box.toWorld(centre), size: CGSize(width: width, height: height), angle: box.angle)
+    }
+
+    /// Whether `point` is in the turning zone of a box: just outside one of its corners, where
+    /// Figma turns things. Nothing is drawn there — the cursor says it.
+    static func isRotationZone(_ point: CGPoint, of box: RotatedBox, reach: CGFloat = 16) -> Bool {
+        let local = box.toLocal(point)
+        guard !box.local.insetBy(dx: -2, dy: -2).contains(local) else { return false }
+        return Corner.allCases.contains { corner in
+            let tip = corner.point(of: box.local)
+            return hypot(local.x - tip.x, local.y - tip.y) <= reach
+        }
+    }
+
+    /// The angle a turn drag has reached: the start angle plus how far the mouse went round the
+    /// centre. With `snaps` it lands on whole multiples of `step` — 0°, 15°, 30°…
+    static func turnedAngle(
+        from start: CGFloat,
+        centre: CGPoint,
+        grab: CGPoint,
+        mouse: CGPoint,
+        snaps: Bool,
+        step: CGFloat = .pi / 12
+    ) -> CGFloat {
+        let swept = atan2(mouse.y - centre.y, mouse.x - centre.x) - atan2(grab.y - centre.y, grab.x - centre.x)
+        let angle = normalizedAngle(start + swept)
+        return snaps ? normalizedAngle((angle / step).rounded() * step) : angle
+    }
+
+    /// An angle brought into (−π, π].
+    static func normalizedAngle(_ angle: CGFloat) -> CGFloat {
+        var result = angle.truncatingRemainder(dividingBy: 2 * .pi)
+        if result > .pi {
+            result -= 2 * .pi
+        }
+        if result <= -.pi {
+            result += 2 * .pi
+        }
+        return result
+    }
+
+    /// Degrees as a person reads them off a shot: counterclockwise is positive, like on a
+    /// protractor — the Y-down angle with its sign turned.
+    static func displayDegrees(_ angle: CGFloat) -> Int {
+        let degrees = Int((-angle * 180 / .pi).rounded())
+        return degrees == -180 ? 180 : degrees
+    }
+
+    /// The moving end of a line with ⇧: the same length, the direction rounded to `step`.
+    static func snappedEnd(fixed: CGPoint, moving: CGPoint, step: CGFloat = .pi / 12) -> CGPoint {
+        let length = hypot(moving.x - fixed.x, moving.y - fixed.y)
+        let angle = (atan2(moving.y - fixed.y, moving.x - fixed.x) / step).rounded() * step
+        return CGPoint(x: fixed.x + cos(angle) * length, y: fixed.y + sin(angle) * length)
+    }
+
+    /// A point of the quadratic curve from `start` to `end` bent by `control`.
+    static func curvePoint(start: CGPoint, control: CGPoint, end: CGPoint, at t: CGFloat) -> CGPoint {
+        let u = 1 - t
+        return CGPoint(
+            x: u * u * start.x + 2 * u * t * control.x + t * t * end.x,
+            y: u * u * start.y + 2 * u * t * control.y + t * t * end.y
+        )
+    }
+
+    /// The control point that makes the curve pass through `middle` halfway along — what dragging
+    /// the diamond on a line means. Dropped within `straightens` of the straight line's middle, the
+    /// line is straight again: `nil`.
+    static func control(through middle: CGPoint, start: CGPoint, end: CGPoint, straightens: CGFloat = 4) -> CGPoint? {
+        let chordMiddle = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
+        guard hypot(middle.x - chordMiddle.x, middle.y - chordMiddle.y) > straightens else { return nil }
+        return CGPoint(x: 2 * middle.x - chordMiddle.x, y: 2 * middle.y - chordMiddle.y)
+    }
+
+    /// Points along a line, straight or bent — for hitting it with the mouse and for its frame.
+    static func curveSamples(start: CGPoint, control: CGPoint?, end: CGPoint, count: Int = 24) -> [CGPoint] {
+        guard let control else { return [start, end] }
+        return (0 ... count).map { curvePoint(start: start, control: control, end: end, at: CGFloat($0) / CGFloat(count)) }
+    }
+
+    /// A bend carried along when an end of the line moves: the control point keeps its place
+    /// relative to the line, so the arc turns and stretches with it instead of staying behind.
+    static func carriedControl(
+        _ control: CGPoint,
+        from old: (start: CGPoint, end: CGPoint),
+        to new: (start: CGPoint, end: CGPoint)
+    ) -> CGPoint {
+        let u = CGPoint(x: old.end.x - old.start.x, y: old.end.y - old.start.y)
+        let length = u.x * u.x + u.y * u.y
+        guard length > 0.0001 else { return control }
+        let dx = control.x - old.start.x
+        let dy = control.y - old.start.y
+        let along = (dx * u.x + dy * u.y) / length
+        let across = (-dx * u.y + dy * u.x) / length
+
+        let v = CGPoint(x: new.end.x - new.start.x, y: new.end.y - new.start.y)
+        return CGPoint(
+            x: new.start.x + along * v.x - across * v.y,
+            y: new.start.y + along * v.y + across * v.x
+        )
+    }
+
+    /// Where the button that turns the heads sits: beside the middle of the line, on the side away
+    /// from its bend (above a straight one), `offset` points clear of it.
+    static func headsButtonCentre(start: CGPoint, end: CGPoint, bentMiddle: CGPoint?, offset: CGFloat) -> CGPoint {
+        let middle = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
+        let length = max(hypot(end.x - start.x, end.y - start.y), 0.0001)
+        var normal = CGPoint(x: (end.y - start.y) / length, y: -(end.x - start.x) / length)
+        if let bentMiddle {
+            if (bentMiddle.x - middle.x) * normal.x + (bentMiddle.y - middle.y) * normal.y > 0 {
+                normal = CGPoint(x: -normal.x, y: -normal.y)
+            }
+        } else if normal.y > 0 {
+            normal = CGPoint(x: -normal.x, y: -normal.y)
+        }
+        return CGPoint(x: middle.x + normal.x * offset, y: middle.y + normal.y * offset)
+    }
+
+    /// The handle a resize cursor should picture on a turned box: the handle's own direction
+    /// turned by the box's angle and rounded to the nearest of the eight.
+    static func screenHandle(_ handle: Handle, turnedBy angle: CGFloat) -> Handle {
+        let order: [Handle] = [.right, .bottomRight, .bottom, .bottomLeft, .left, .topLeft, .top, .topRight]
+        guard let index = order.firstIndex(of: handle) else { return handle }
+        let steps = Int((angle / (.pi / 4)).rounded())
+        return order[((index + steps) % 8 + 8) % 8]
+    }
+
     // MARK: - Recording effects
 
     /// The mouse (AppKit screen coordinates) as a fraction of the recorded area, origin top left

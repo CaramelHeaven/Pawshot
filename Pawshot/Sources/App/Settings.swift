@@ -36,6 +36,7 @@ final class Settings {
         case videoEditorOpenCount = "stats.videoEditorOpenCount"
         case captureCount = "stats.captureCount"
         case language = "app.language"
+        case warnsBeforeQuitting = "app.warnsBeforeQuitting"
         case customColor = "editor.customColor"
         case recentColors = "editor.recentColors"
         case labelFont = "editor.labelFont"
@@ -115,6 +116,13 @@ final class Settings {
             regionHotKey, fullScreenHotKey, recordRegionHotKey, recordFullScreenHotKey,
             zoomMarkHotKey, penHotKey, restartHotKey,
         ]
+    }
+
+    /// ⌘Q has to be held to quit, with a toast saying so — Chrome's "Warn Before Quitting". On by
+    /// default; off, ⌘Q quits at once, as in any other app.
+    var warnsBeforeQuitting: Bool {
+        get { flag(.warnsBeforeQuitting, default: true) }
+        set { setFlag(newValue, for: .warnsBeforeQuitting) }
     }
 
     /// The microphone goes into recordings. Off by default: the app asks for nothing until the

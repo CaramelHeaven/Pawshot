@@ -450,4 +450,128 @@ final class SelectionGeometryTests: XCTestCase {
         XCTAssertEqual(coreGraphics.minY, 1440 - 600)
         XCTAssertEqual(SelectionGeometry.convertToAppKit(rect: coreGraphics, primaryScreenMaxY: 1440), appKit)
     }
+
+    // MARK: - Handles on drawn objects
+
+    private func assertPoint(_ a: CGPoint, _ b: CGPoint, _ message: String = "", line: UInt = #line) {
+        XCTAssertEqual(a.x, b.x, accuracy: 0.001, message, line: line)
+        XCTAssertEqual(a.y, b.y, accuracy: 0.001, message, line: line)
+    }
+
+    /// The trap for a turned box: its "right" side is wherever the turn put it, and the opposite
+    /// side must not move on the shot while the dragged one follows the mouse.
+    func testDraggingASideOfATurnedBoxKeepsTheOppositeSidePut() {
+        let box = SelectionGeometry.RotatedBox(center: CGPoint(x: 100, y: 100), size: CGSize(width: 100, height: 50), angle: .pi / 2)
+        let rightSide = box.toWorld(CGPoint(x: 50, y: 0))
+        assertPoint(rightSide, CGPoint(x: 100, y: 150), "turned clockwise, its right side faces down")
+        let leftSide = box.toWorld(CGPoint(x: -50, y: 0))
+
+        let resized = SelectionGeometry.resized(
+            box,
+            dragging: .right,
+            grabbedAt: rightSide,
+            mouse: CGPoint(x: 103, y: 170),
+            keepsAspect: false,
+            fromCentre: false,
+            minimumSide: 4
+        )
+
+        XCTAssertEqual(resized.size.width, 120, accuracy: 0.001)
+        XCTAssertEqual(resized.size.height, 50, accuracy: 0.001)
+        assertPoint(resized.toWorld(CGPoint(x: -60, y: 0)), leftSide)
+    }
+
+    func testCornerWithShiftKeepsTheProportionsAndOptionTheCentre() {
+        let box = SelectionGeometry.RotatedBox(center: .zero, size: CGSize(width: 100, height: 50))
+        let corner = CGPoint(x: 50, y: 25)
+
+        let proportional = SelectionGeometry.resized(
+            box, dragging: .bottomRight, grabbedAt: corner, mouse: CGPoint(x: 150, y: 30),
+            keepsAspect: true, fromCentre: false, minimumSide: 4
+        )
+        XCTAssertEqual(proportional.size.width / proportional.size.height, 2, accuracy: 0.001)
+        assertPoint(proportional.corner(.topLeft), CGPoint(x: -50, y: -25), "the opposite corner stays")
+
+        let centred = SelectionGeometry.resized(
+            box, dragging: .bottomRight, grabbedAt: corner, mouse: CGPoint(x: 60, y: 35),
+            keepsAspect: false, fromCentre: true, minimumSide: 4
+        )
+        assertPoint(centred.center, .zero)
+        XCTAssertEqual(centred.size.width, 120, accuracy: 0.001)
+        XCTAssertEqual(centred.size.height, 70, accuracy: 0.001)
+    }
+
+    /// A side dragged over the opposite one stops at the minimum instead of flipping the box.
+    func testASideNeverCrossesTheOppositeOne() {
+        let box = SelectionGeometry.RotatedBox(center: .zero, size: CGSize(width: 100, height: 50))
+        let resized = SelectionGeometry.resized(
+            box, dragging: .right, grabbedAt: CGPoint(x: 50, y: 0), mouse: CGPoint(x: -200, y: 0),
+            keepsAspect: false, fromCentre: false, minimumSide: 4
+        )
+        XCTAssertEqual(resized.size.width, 4, accuracy: 0.001)
+        XCTAssertEqual(resized.corner(.topLeft).x, -50, accuracy: 0.001)
+    }
+
+    func testTurningSnapsToFifteenDegreesWithShift() {
+        let angle = SelectionGeometry.turnedAngle(
+            from: 0, centre: .zero, grab: CGPoint(x: 10, y: 0), mouse: CGPoint(x: 10, y: 3.4), snaps: true
+        )
+        XCTAssertEqual(angle, .pi / 12, accuracy: 0.0001)
+        XCTAssertEqual(SelectionGeometry.displayDegrees(angle), -15, "clockwise on screen reads as negative")
+
+        let free = SelectionGeometry.turnedAngle(
+            from: 0, centre: .zero, grab: CGPoint(x: 10, y: 0), mouse: CGPoint(x: 10, y: 3.4), snaps: false
+        )
+        XCTAssertEqual(free, atan2(3.4, 10), accuracy: 0.0001)
+    }
+
+    func testShiftKeepsTheLengthAndRoundsTheDirection() {
+        let end = SelectionGeometry.snappedEnd(fixed: .zero, moving: CGPoint(x: 100, y: 5))
+        assertPoint(end, CGPoint(x: CGFloat(100 * 100 + 5 * 5).squareRoot(), y: 0))
+    }
+
+    func testTheBendPassesThroughTheDraggedMiddle() throws {
+        let start = CGPoint(x: 0, y: 0)
+        let end = CGPoint(x: 100, y: 0)
+        let control = try XCTUnwrap(SelectionGeometry.control(through: CGPoint(x: 50, y: -30), start: start, end: end))
+        assertPoint(SelectionGeometry.curvePoint(start: start, control: control, end: end, at: 0.5), CGPoint(x: 50, y: -30))
+        XCTAssertNil(
+            SelectionGeometry.control(through: CGPoint(x: 51, y: 2), start: start, end: end),
+            "dropped on the straight line, it is straight again"
+        )
+    }
+
+    /// Moving an end turns and stretches the bend with the line: the same bend on a line twice
+    /// as long, turned a quarter, is twice as deep and turned too.
+    func testTheBendFollowsTheLine() {
+        let carried = SelectionGeometry.carriedControl(
+            CGPoint(x: 50, y: -20),
+            from: (CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)),
+            to: (CGPoint(x: 0, y: 0), CGPoint(x: 0, y: 200))
+        )
+        assertPoint(carried, CGPoint(x: 40, y: 100))
+    }
+
+    func testTheHeadsButtonSitsAboveALineAndAwayFromItsBend() {
+        let above = SelectionGeometry.headsButtonCentre(start: .zero, end: CGPoint(x: 100, y: 0), bentMiddle: nil, offset: 20)
+        assertPoint(above, CGPoint(x: 50, y: -20))
+
+        let awayFromBend = SelectionGeometry.headsButtonCentre(
+            start: .zero, end: CGPoint(x: 100, y: 0), bentMiddle: CGPoint(x: 50, y: -30), offset: 20
+        )
+        assertPoint(awayFromBend, CGPoint(x: 50, y: 20))
+    }
+
+    func testAResizeCursorTurnsWithTheBox() {
+        XCTAssertEqual(SelectionGeometry.screenHandle(.right, turnedBy: .pi / 2), .bottom)
+        XCTAssertEqual(SelectionGeometry.screenHandle(.topLeft, turnedBy: .pi / 4), .top)
+        XCTAssertEqual(SelectionGeometry.screenHandle(.left, turnedBy: 0), .left)
+    }
+
+    func testTheTurningZoneIsJustOutsideACorner() {
+        let box = SelectionGeometry.RotatedBox(center: .zero, size: CGSize(width: 100, height: 50))
+        XCTAssertTrue(SelectionGeometry.isRotationZone(CGPoint(x: 58, y: -33), of: box))
+        XCTAssertFalse(SelectionGeometry.isRotationZone(CGPoint(x: 40, y: -20), of: box), "inside is moving")
+        XCTAssertFalse(SelectionGeometry.isRotationZone(CGPoint(x: 0, y: -40), of: box), "beside a side is nothing")
+    }
 }

@@ -1,12 +1,17 @@
 import AppKit
 
 @MainActor
-final class ArrowAnnotation: Annotation {
+final class ArrowAnnotation: Reshapable {
     let id = UUID()
     var style: AnnotationStyle
 
-    private var start: CGPoint
-    private var end: CGPoint
+    private(set) var start: CGPoint
+    private(set) var end: CGPoint
+    /// Where the line is bent to, dragged by the diamond in its middle; `nil` — straight.
+    private(set) var control: CGPoint?
+    /// A single head at `start` instead of `end` — the second stop of the heads button. The line
+    /// keeps the direction it was drawn in, so the toolbar's three looks mean what they always did.
+    var pointsBack = false
 
     init(start: CGPoint, style: AnnotationStyle) {
         self.start = start
@@ -14,8 +19,45 @@ final class ArrowAnnotation: Annotation {
         self.style = style
     }
 
+    /// What the handles change: the ends and the bend.
+    struct Shape: Equatable {
+        var start: CGPoint
+        var end: CGPoint
+        var control: CGPoint?
+    }
+
+    var shape: Shape {
+        get { Shape(start: start, end: end, control: control) }
+        set {
+            start = newValue.start
+            end = newValue.end
+            control = newValue.control
+        }
+    }
+
+    var hasHeadAtEnd: Bool {
+        style.lineEnds == .both || (style.lineEnds == .end && !pointsBack)
+    }
+
+    var hasHeadAtStart: Bool {
+        style.lineEnds == .both || (style.lineEnds == .end && pointsBack)
+    }
+
+    /// Where the diamond is: halfway along the line, bent or not.
+    var middle: CGPoint {
+        guard let control else { return CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2) }
+        return SelectionGeometry.curvePoint(start: start, control: control, end: end, at: 0.5)
+    }
+
+    private var samples: [CGPoint] {
+        SelectionGeometry.curveSamples(start: start, control: control, end: end)
+    }
+
     var boundingBox: CGRect {
-        let rect = SelectionGeometry.rect(from: start, to: end)
+        let points = samples
+        let xs = points.map(\.x)
+        let ys = points.map(\.y)
+        let rect = CGRect(x: xs.min()!, y: ys.min()!, width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!)
         let slack = headLength / 2
         return rect.insetBy(dx: -slack, dy: -slack)
     }
@@ -39,11 +81,13 @@ final class ArrowAnnotation: Annotation {
         start.y += delta.dy
         end.x += delta.dx
         end.y += delta.dy
+        control = control.map { CGPoint(x: $0.x + delta.dx, y: $0.y + delta.dy) }
     }
 
     func rotateQuarter(clockwise _: Bool, mapping turn: (CGPoint) -> CGPoint) {
         start = turn(start)
         end = turn(end)
+        control = control.map(turn)
     }
 
     /// One object for a plain line, an arrow and a double arrow — only the heads differ, so a
@@ -52,31 +96,40 @@ final class ArrowAnnotation: Annotation {
         style.color.setStroke()
         style.color.setFill()
 
-        let angle = atan2(end.y - start.y, end.x - start.x)
-        let hasEndHead = style.lineEnds != .none
-        let hasStartHead = style.lineEnds == .both
+        // A head points along the line where it arrives: from the bend for a bent line.
+        let startAngle = atan2(start.y - (control ?? end).y, start.x - (control ?? end).x)
+        let endAngle = atan2(end.y - (control ?? start).y, end.x - (control ?? start).x)
 
         // The shaft stops short of a tip: otherwise the line sticks out from under the head.
         let pullBack = headLength * 0.75
-        let shaftStart = hasStartHead
-            ? CGPoint(x: start.x + cos(angle) * pullBack, y: start.y + sin(angle) * pullBack)
+        let shaftStart = hasHeadAtStart
+            ? CGPoint(x: start.x - cos(startAngle) * pullBack, y: start.y - sin(startAngle) * pullBack)
             : start
-        let shaftEnd = hasEndHead
-            ? CGPoint(x: end.x - cos(angle) * pullBack, y: end.y - sin(angle) * pullBack)
+        let shaftEnd = hasHeadAtEnd
+            ? CGPoint(x: end.x - cos(endAngle) * pullBack, y: end.y - sin(endAngle) * pullBack)
             : end
 
         let shaft = NSBezierPath()
         shaft.move(to: shaftStart)
-        shaft.line(to: shaftEnd)
+        if let control {
+            // Quadratic → cubic: AppKit only draws the latter.
+            shaft.curve(
+                to: shaftEnd,
+                controlPoint1: CGPoint(x: shaftStart.x + (control.x - shaftStart.x) * 2 / 3, y: shaftStart.y + (control.y - shaftStart.y) * 2 / 3),
+                controlPoint2: CGPoint(x: shaftEnd.x + (control.x - shaftEnd.x) * 2 / 3, y: shaftEnd.y + (control.y - shaftEnd.y) * 2 / 3)
+            )
+        } else {
+            shaft.line(to: shaftEnd)
+        }
         shaft.lineWidth = style.lineWidth
         shaft.lineCapStyle = .round
         shaft.stroke()
 
-        if hasEndHead {
-            drawHead(at: end, pointing: angle)
+        if hasHeadAtEnd {
+            drawHead(at: end, pointing: endAngle)
         }
-        if hasStartHead {
-            drawHead(at: start, pointing: angle + .pi)
+        if hasHeadAtStart {
+            drawHead(at: start, pointing: startAngle)
         }
     }
 
@@ -102,6 +155,44 @@ final class ArrowAnnotation: Annotation {
     }
 
     func hitTest(_ point: CGPoint, tolerance: CGFloat) -> Bool {
-        GeometryMath.distance(from: point, toSegment: start, end) <= tolerance + style.lineWidth
+        let points = samples
+        return zip(points, points.dropFirst()).contains { a, b in
+            GeometryMath.distance(from: point, toSegment: a, b) <= tolerance + style.lineWidth
+        }
+    }
+
+    // MARK: - The heads button
+
+    /// Where the heads go, and in which order the button walks them: at the end → at the start →
+    /// at both → at the end. A plain line gets a head at the end — the button is about heads.
+    struct Heads: Equatable {
+        var lineEnds: AnnotationStyle.LineEnds
+        var pointsBack: Bool
+
+        var next: Heads {
+            switch (lineEnds, pointsBack) {
+            case (.end, false): Heads(lineEnds: .end, pointsBack: true)
+            case (.end, true): Heads(lineEnds: .both, pointsBack: false)
+            default: Heads(lineEnds: .end, pointsBack: false)
+            }
+        }
+
+        /// The picture on the button, drawn along the line from start to end.
+        var glyph: String {
+            switch (lineEnds, pointsBack) {
+            case (.both, _): "↔"
+            case (.end, true): "←"
+            case (.end, false): "→"
+            case (.none, _): "—"
+            }
+        }
+    }
+
+    var heads: Heads {
+        get { Heads(lineEnds: style.lineEnds, pointsBack: pointsBack) }
+        set {
+            style.lineEnds = newValue.lineEnds
+            pointsBack = newValue.pointsBack
+        }
     }
 }

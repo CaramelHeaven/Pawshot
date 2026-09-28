@@ -7,7 +7,7 @@ import SwiftUI
 /// The window, the document, the canvas and every action stay here; `EditorView` only draws the
 /// chrome and calls back through `EditorChromeModel`.
 @MainActor
-final class EditorWindowController: NSWindowController, NSWindowDelegate, AnnotationCanvasDelegate {
+final class EditorWindowController: NSWindowController, NSWindowDelegate, AnnotationCanvasDelegate, ClosesOnQuitKey {
     /// Live windows — otherwise nothing holds on to them once the method returns.
     private static var openControllers: Set<EditorWindowController> = []
 
@@ -511,8 +511,27 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         syncChrome()
     }
 
-    func canvasDidRequestClose(_: AnnotationCanvasView) {
-        close()
+    /// A tap of ⌘Q. A shot nothing was done to closes at once; one with work in it — anything
+    /// drawn, cropped or turned, which is exactly what undo remembers — asks first.
+    func closeForQuitKey() {
+        guard hasWork, let window else {
+            close()
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Close the screenshot?")
+        alert.informativeText = String(localized: "What is drawn on it will be lost.")
+        let close = alert.addButton(withTitle: String(localized: "Close"))
+        close.hasDestructiveAction = true
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn else { return }
+            self?.close()
+        }
+    }
+
+    var hasWork: Bool {
+        !editorDocument.annotations.isEmpty || editorDocument.undoManager?.canUndo == true
     }
 
     /// The labels' family changed in Settings: every open editor re-sets its labels right away.

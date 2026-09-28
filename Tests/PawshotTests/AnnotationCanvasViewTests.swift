@@ -518,6 +518,240 @@ final class AnnotationCanvasViewTests: XCTestCase {
         XCTAssertEqual(along.x, start.x, accuracy: 0.5, "turned clockwise, the line of text runs down")
         XCTAssertEqual(along.y, start.y + 20, accuracy: 0.5)
     }
+
+    // MARK: - Handles
+
+    private func selected<A: Annotation>(_ annotation: A, in canvas: AnnotationCanvasView, _ document: EditorDocument, _ undoManager: UndoManager) -> A {
+        undoManager.beginUndoGrouping()
+        document.add(annotation)
+        undoManager.endUndoGrouping()
+        canvas.select(tool: .select)
+        document.selection = annotation
+        return annotation
+    }
+
+    private func grouped(_ undoManager: UndoManager, _ body: () throws -> Void) rethrows {
+        undoManager.beginUndoGrouping()
+        try body()
+        undoManager.endUndoGrouping()
+    }
+
+    private func line(from start: CGPoint, to end: CGPoint) -> ArrowAnnotation {
+        let arrow = ArrowAnnotation(start: start, style: .default)
+        arrow.update(to: end)
+        return arrow
+    }
+
+    private func rectangle(_ rect: CGRect) -> RectangleAnnotation {
+        let rectangle = RectangleAnnotation(start: rect.origin, style: AnnotationStyle(color: .red, lineWidth: 2, fillOpacity: 0))
+        rectangle.update(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        return rectangle
+    }
+
+    /// The circle on a line's end drags that end alone; the other stays, and the drag is one ⌘Z.
+    func testDraggingALinesEndMovesOnlyThatEnd() throws {
+        let (canvas, document, undoManager) = try makeCanvas()
+        let arrow = selected(line(from: CGPoint(x: 40, y: 100), to: CGPoint(x: 140, y: 100)), in: canvas, document, undoManager)
+
+        try grouped(undoManager) {
+            try drag(canvas, [CGPoint(x: 140, y: 100), CGPoint(x: 150, y: 120), CGPoint(x: 160, y: 140)])
+        }
+
+        XCTAssertEqual(arrow.start, CGPoint(x: 40, y: 100))
+        XCTAssertEqual(arrow.end, CGPoint(x: 160, y: 140))
+        XCTAssertEqual(document.annotations.count, 1, "reshaped, not drawn")
+        undoManager.undo()
+        XCTAssertEqual(arrow.end, CGPoint(x: 140, y: 100))
+    }
+
+    /// ⇧ on an end: the same length, the direction on a 15° step.
+    func testShiftSnapsALinesEndToFifteenDegrees() throws {
+        let (canvas, document, undoManager) = try makeCanvas()
+        let arrow = selected(line(from: CGPoint(x: 40, y: 100), to: CGPoint(x: 140, y: 100)), in: canvas, document, undoManager)
+
+        try grouped(undoManager) {
+            try drag(canvas, [CGPoint(x: 140, y: 100), CGPoint(x: 130, y: 108)], flags: .shift)
+        }
+
+        let angle = atan2(arrow.end.y - arrow.start.y, arrow.end.x - arrow.start.x) * 180 / .pi
+        XCTAssertEqual(angle, (angle / 15).rounded() * 15, accuracy: 0.001)
+        XCTAssertNotEqual(arrow.end, CGPoint(x: 130, y: 108), "pulled onto the ray, not left at the mouse")
+    }
+
+    /// The diamond halfway bends the line through the mouse; the arc is then hit where it is drawn,
+    /// and dragging an end carries the bend along.
+    func testDraggingTheDiamondBendsTheLine() throws {
+        let (canvas, document, undoManager) = try makeCanvas()
+        let arrow = selected(line(from: CGPoint(x: 40, y: 100), to: CGPoint(x: 160, y: 100)), in: canvas, document, undoManager)
+
+        try grouped(undoManager) {
+            try drag(canvas, [CGPoint(x: 100, y: 100), CGPoint(x: 100, y: 80), CGPoint(x: 100, y: 60)])
+        }
+
+        XCTAssertNotNil(arrow.control)
+        XCTAssertEqual(arrow.middle.y, 60, accuracy: 0.5, "the line passes where the diamond was left")
+        XCTAssertTrue(arrow.hitTest(CGPoint(x: 100, y: 60), tolerance: 2))
+        XCTAssertFalse(arrow.hitTest(CGPoint(x: 100, y: 100), tolerance: 2), "the straight line is gone")
+
+        try grouped(undoManager) {
+            try drag(canvas, [CGPoint(x: 160, y: 100), CGPoint(x: 180, y: 100)])
+        }
+        XCTAssertEqual(arrow.middle.x, 110, accuracy: 0.5, "the bend went along with the end")
+        XCTAssertLessThan(arrow.middle.y, 100, "and kept its side")
+
+        undoManager.undo()
+        undoManager.undo()
+        XCTAssertNil(arrow.control)
+    }
+
+    /// The button beside a line walks its heads: at the end → at the start → at both → at the end.
+    /// A plain line gets a head at the end. Only that line changes, each click one ⌘Z.
+    func testTheHeadsButtonWalksTheHeadsRound() throws {
+        let (canvas, document, undoManager) = try makeCanvas()
+        let arrow = selected(line(from: CGPoint(x: 40, y: 120), to: CGPoint(x: 160, y: 120)), in: canvas, document, undoManager)
+        let button = CanvasHandles.headsButtonCentre(of: arrow)
+        XCTAssertLessThan(button.y, 120, "above a straight line")
+
+        func click() throws {
+            try grouped(undoManager) {
+                try canvas.mouseDown(with: mouse(.leftMouseDown, at: button, in: canvas))
+                try canvas.mouseUp(with: mouse(.leftMouseUp, at: button, in: canvas))
+            }
+        }
+
+        try click()
+        XCTAssertEqual(arrow.heads, ArrowAnnotation.Heads(lineEnds: .end, pointsBack: true))
+        XCTAssertTrue(arrow.hasHeadAtStart)
+        XCTAssertFalse(arrow.hasHeadAtEnd)
+        try click()
+        XCTAssertEqual(arrow.heads.lineEnds, .both)
+        try click()
+        XCTAssertEqual(arrow.heads, ArrowAnnotation.Heads(lineEnds: .end, pointsBack: false))
+        XCTAssertEqual(document.style.lineEnds, .end, "new lines keep the style they had")
+
+        undoManager.undo()
+        XCTAssertEqual(arrow.heads.lineEnds, .both)
+
+        XCTAssertEqual(ArrowAnnotation.Heads(lineEnds: .none, pointsBack: false).next.lineEnds, .end)
+        XCTAssertEqual(ArrowAnnotation.Heads(lineEnds: .end, pointsBack: false).next.glyph, "←")
+    }
+
+    /// A rectangle's side is grabbed anywhere along it, though nothing is drawn there, and moves
+    /// only itself.
+    func testDraggingARectanglesSideMovesOnlyThatSide() throws {
+        let (canvas, document, undoManager) = try makeCanvas()
+        let shape = selected(rectangle(CGRect(x: 40, y: 40, width: 100, height: 60)), in: canvas, document, undoManager)
+        let frame = try XCTUnwrap(CanvasHandles.handleBox(of: shape))
+        let side = CGPoint(x: frame.center.x + frame.size.width / 2, y: 60)
+
+        try grouped(undoManager) {
+            try drag(canvas, [side, CGPoint(x: side.x + 10, y: 62), CGPoint(x: side.x + 30, y: 65)])
+        }
+
+        XCTAssertEqual(shape.rect, CGRect(x: 40, y: 40, width: 130, height: 60))
+        undoManager.undo()
+        XCTAssertEqual(shape.rect, CGRect(x: 40, y: 40, width: 100, height: 60))
+    }
+
+    /// ⌥ on a corner grows the rectangle about its middle; ⇧ keeps its proportions.
+    func testOptionAndShiftOnARectanglesCorner() throws {
+        let (canvas, document, undoManager) = try makeCanvas()
+        let shape = selected(rectangle(CGRect(x: 60, y: 60, width: 80, height: 40)), in: canvas, document, undoManager)
+        let corner = try XCTUnwrap(CanvasHandles.handleBox(of: shape)).corner(.bottomRight)
+
+        try grouped(undoManager) {
+            try drag(canvas, [corner, CGPoint(x: corner.x + 10, y: corner.y + 10)], flags: .option)
+        }
+        XCTAssertEqual(shape.rect.midX, 100, accuracy: 0.01, "the middle stays")
+        XCTAssertEqual(shape.rect.width, 100, accuracy: 0.01)
+
+        let next = try XCTUnwrap(CanvasHandles.handleBox(of: shape)).corner(.bottomRight)
+        try grouped(undoManager) {
+            try drag(canvas, [next, CGPoint(x: next.x + 40, y: next.y + 2)], flags: .shift)
+        }
+        XCTAssertEqual(shape.rect.width / shape.rect.height, 100 / 60, accuracy: 0.01)
+    }
+
+    /// Just outside a corner the rectangle turns about its middle; ⇧ lands on 15° steps.
+    func testTurningARectangleFromOutsideItsCorner() throws {
+        let (canvas, document, undoManager) = try makeCanvas()
+        let shape = selected(rectangle(CGRect(x: 60, y: 80, width: 80, height: 40)), in: canvas, document, undoManager)
+        let box = try XCTUnwrap(CanvasHandles.handleBox(of: shape))
+        let corner = box.corner(.topRight)
+        let outside = CGPoint(x: corner.x + 8, y: corner.y - 8)
+        XCTAssertEqual(CanvasHandles.handle(at: outside, of: shape), .turn)
+
+        try grouped(undoManager) {
+            try drag(canvas, [outside, CGPoint(x: outside.x + 12, y: outside.y + 30)], flags: .shift)
+        }
+
+        XCTAssertGreaterThan(shape.angle, 0, "turned clockwise")
+        let degrees = shape.angle * 180 / .pi
+        XCTAssertEqual(degrees, (degrees / 15).rounded() * 15, accuracy: 0.001)
+        XCTAssertEqual(shape.box.center.x, 100, accuracy: 0.01, "about its own middle")
+        XCTAssertTrue(shape.hitTest(shape.box.corner(.topLeft), tolerance: 1), "hit where it is drawn")
+
+        undoManager.undo()
+        XCTAssertEqual(shape.angle, 0)
+    }
+
+    /// A blur is resized like a rectangle but never turned.
+    func testABlurHasNoTurningZone() throws {
+        let (canvas, document, undoManager) = try makeCanvas()
+        let blur = BlurAnnotation(start: CGPoint(x: 60, y: 60), style: .default, mode: .blur, source: document.blurSource)
+        blur.update(to: CGPoint(x: 140, y: 100))
+        _ = selected(blur, in: canvas, document, undoManager)
+        let box = try XCTUnwrap(CanvasHandles.handleBox(of: blur))
+        let corner = box.corner(.topRight)
+
+        XCTAssertNil(CanvasHandles.handle(at: CGPoint(x: corner.x + 8, y: corner.y - 8), of: blur))
+        XCTAssertEqual(CanvasHandles.handle(at: corner, of: blur), .box(.topRight))
+    }
+
+    /// A label's side sets the width its text wraps inside; the other side stays put.
+    func testDraggingALabelsSideSetsItsWrapWidth() throws {
+        let (canvas, document, undoManager) = try makeCanvas()
+        let label = selected(
+            TextAnnotation(origin: CGPoint(x: 30, y: 60), style: .default, text: "Two words"),
+            in: canvas, document, undoManager
+        )
+        let left = label.textFrame.minX
+        let startWidth = label.textFrame.width
+        let box = try XCTUnwrap(CanvasHandles.handleBox(of: label))
+        let side = CGPoint(x: box.center.x + box.size.width / 2, y: box.center.y)
+        XCTAssertEqual(CanvasHandles.handle(at: side, of: label), .box(.right))
+
+        try grouped(undoManager) {
+            try drag(canvas, [side, CGPoint(x: side.x - 20, y: side.y), CGPoint(x: side.x - 40, y: side.y)])
+        }
+
+        let width = try XCTUnwrap(label.fixedWidth)
+        XCTAssertEqual(width, startWidth - 40, accuracy: 0.5)
+        XCTAssertEqual(label.textFrame.minX, left, accuracy: 0.01, "the left side stays")
+        undoManager.undo()
+        XCTAssertNil(label.fixedWidth)
+    }
+
+    /// A label turns about its middle from outside a corner, and stays hit where it is drawn.
+    func testTurningALabel() throws {
+        let (canvas, document, undoManager) = try makeCanvas()
+        let label = selected(
+            TextAnnotation(origin: CGPoint(x: 60, y: 80), style: .default, text: "Label"),
+            in: canvas, document, undoManager
+        )
+        let centre = label.box.center
+        let corner = try XCTUnwrap(CanvasHandles.handleBox(of: label)).corner(.bottomRight)
+        let outside = CGPoint(x: corner.x + 8, y: corner.y + 8)
+
+        try grouped(undoManager) {
+            try drag(canvas, [outside, CGPoint(x: outside.x - 20, y: outside.y + 20)])
+        }
+
+        XCTAssertNotEqual(label.angle, 0)
+        XCTAssertEqual(label.box.center.x, centre.x, accuracy: 0.01)
+        XCTAssertEqual(label.box.center.y, centre.y, accuracy: 0.01)
+        XCTAssertTrue(label.hitTest(label.box.center, tolerance: 0))
+    }
 }
 
 @MainActor
@@ -526,7 +760,6 @@ private final class CanvasDelegateSpy: AnnotationCanvasDelegate {
 
     func canvasDidChangeTool(_: AnnotationCanvasView) {}
     func canvasDidChangeStyle(_: AnnotationCanvasView) {}
-    func canvasDidRequestClose(_: AnnotationCanvasView) {}
     func canvasDidRequestCustomColor(_: AnnotationCanvasView) {
         customColorRequests += 1
     }

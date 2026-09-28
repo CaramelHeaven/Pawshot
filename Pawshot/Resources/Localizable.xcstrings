@@ -165,6 +165,16 @@
         }
       }
     },
+    "A tap of ⌘Q closes the window in front; hold ⌘Q to quit Pawshot." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Короткое нажатие ⌘Q закрывает окно впереди; чтобы выйти из Pawshot, удерживайте ⌘Q."
+          }
+        }
+      }
+    },
     "About Pawshot" : {
       "localizations" : {
         "ru" : {
@@ -261,6 +271,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Размытие"
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отмена"
           }
         }
       }
@@ -395,12 +415,42 @@
         }
       }
     },
+    "Close" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закрыть"
+          }
+        }
+      }
+    },
     "Close Window" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Закрыть окно"
+          }
+        }
+      }
+    },
+    "Close the recording?" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закрыть запись?"
+          }
+        }
+      }
+    },
+    "Close the screenshot?" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закрыть скриншот?"
           }
         }
       }
@@ -753,6 +803,17 @@
     },
     "HEX" : {
       "shouldTranslate" : false
+    },
+    "Hold" : {
+      "comment" : "The quit toast, before the ⌘Q key caps: Hold ⌘Q to Quit",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживайте"
+          }
+        }
+      }
     },
     "Hue" : {
       "localizations" : {
@@ -1933,6 +1994,16 @@
         }
       }
     },
+    "The recording will be deleted." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись будет удалена."
+          }
+        }
+      }
+    },
     "The selected region didn't land inside the captured frame." : {
       "localizations" : {
         "ru" : {
@@ -2019,6 +2090,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Версия %1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "Warn Before Quitting (⌘Q)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предупреждать перед выходом (⌘Q)"
+          }
+        }
+      }
+    },
+    "What is drawn on it will be lost." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нарисованное на нём пропадёт."
           }
         }
       }
@@ -2306,6 +2397,17 @@
         }
       }
     },
+    "to Quit" : {
+      "comment" : "The quit toast, after the ⌘Q key caps: Hold ⌘Q to Quit",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "чтобы выйти"
+          }
+        }
+      }
+    },
     "width × height" : {
       "localizations" : {
         "ru" : {
@@ -2347,6 +2449,16 @@
     },
     "⌘C" : {
       "shouldTranslate" : false
+    },
+    "⌘Q quits Pawshot at once." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘Q сразу закрывает Pawshot."
+          }
+        }
+      }
     },
     "⌘S" : {
       "shouldTranslate" : false

@@ -66,6 +66,94 @@ final class EditorWindowControllerTests: XCTestCase {
         XCTAssertEqual(hosting.sizingOptions, [], "the window's size follows the shot, not SwiftUI")
     }
 
+    private func shownController(_ document: EditorDocument) throws -> (EditorWindowController, NSWindow) {
+        let controller = try EditorWindowController(document: document, on: XCTUnwrap(NSScreen.main))
+        controller.recognizeText = { _ in "" }
+        let window = try XCTUnwrap(controller.window)
+        window.alphaValue = 0
+        window.orderFront(nil)
+        return (controller, window)
+    }
+
+    private func canvas(in view: NSView?) -> AnnotationCanvasView? {
+        guard let view else { return nil }
+        if let canvas = view as? AnnotationCanvasView {
+            return canvas
+        }
+        return view.subviews.lazy.compactMap { self.canvas(in: $0) }.first
+    }
+
+    /// Esc lets go of the selection and then does nothing at all: it used to close the window
+    /// once everything else was let go of, and a shot was lost to one press too many.
+    func testEscapeNeverClosesTheEditor() throws {
+        let document = try makeDocument(pointSize: CGSize(width: 300, height: 200), scale: 1)
+        let (_, window) = try shownController(document)
+        defer { window.orderOut(nil) }
+        let box = RectangleAnnotation(start: CGPoint(x: 10, y: 10), style: .default)
+        box.update(to: CGPoint(x: 50, y: 30))
+        document.add(box)
+        document.selection = box
+        let canvas = try XCTUnwrap(canvas(in: window.contentView))
+
+        canvas.cancelOperation(nil)
+        XCTAssertNil(document.selection)
+        canvas.cancelOperation(nil)
+        canvas.cancelOperation(nil)
+
+        XCTAssertTrue(window.isVisible, "still open after Esc on an empty selection")
+    }
+
+    /// A tap of ⌘Q closes a shot nothing was done to straight away.
+    func testQuitKeyClosesAnUntouchedShotAtOnce() throws {
+        let document = try makeDocument(pointSize: CGSize(width: 300, height: 200), scale: 1)
+        let (controller, window) = try shownController(document)
+        defer { window.orderOut(nil) }
+        XCTAssertEqual(QuitKey.action(for: window), .askController)
+        XCTAssertFalse(controller.hasWork)
+
+        controller.closeForQuitKey()
+
+        XCTAssertFalse(window.isVisible)
+    }
+
+    /// With something drawn, a tap of ⌘Q asks first and leaves the window where it is.
+    func testQuitKeyAsksBeforeThrowingAwayWork() throws {
+        let document = try makeDocument(pointSize: CGSize(width: 300, height: 200), scale: 1)
+        let (controller, window) = try shownController(document)
+        defer { window.orderOut(nil) }
+        let box = RectangleAnnotation(start: CGPoint(x: 10, y: 10), style: .default)
+        box.update(to: CGPoint(x: 50, y: 30))
+        document.add(box)
+
+        controller.closeForQuitKey()
+
+        XCTAssertTrue(window.isVisible)
+        let sheet = try XCTUnwrap(window.attachedSheet, "asks before closing")
+        window.endSheet(sheet, returnCode: .alertSecondButtonReturn)
+    }
+
+    /// A tap closes the window; held past it, the toast comes up with its bar filling; held to
+    /// the end, Pawshot quits.
+    func testQuitKeyTellsATapFromAHold() {
+        XCTAssertEqual(QuitKey.phase(heldFor: .milliseconds(100)), .tap)
+        XCTAssertEqual(QuitKey.phase(heldFor: .milliseconds(500)), .warning)
+        XCTAssertEqual(QuitKey.phase(heldFor: .milliseconds(1300)), .quit)
+
+        XCTAssertEqual(QuitKey.progress(heldFor: .milliseconds(300)), 0)
+        XCTAssertEqual(QuitKey.progress(heldFor: .milliseconds(800)), 0.5, accuracy: 0.001)
+        XCTAssertEqual(QuitKey.progress(heldFor: .seconds(5)), 1)
+    }
+
+    /// Windows of our own decide for themselves; any other closable window just closes; the
+    /// capture overlay, with no close button, stays.
+    func testQuitKeyPicksWhatToDoPerWindow() {
+        let plain = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: true)
+        XCTAssertEqual(QuitKey.action(for: plain), .performClose)
+
+        let borderless = NSWindow(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: true)
+        XCTAssertEqual(QuitKey.action(for: borderless), .nothing)
+    }
+
     /// ⌘R turns the selected object when there is one, and the whole shot when there isn't.
     func testRotateRightTurnsTheSelectionOrTheShot() throws {
         let screen = try XCTUnwrap(NSScreen.main)

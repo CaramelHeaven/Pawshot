@@ -149,6 +149,13 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(Settings(defaults: defaults).toolsPlacement, .overlay)
     }
 
+    /// Chrome's "Warn Before Quitting" is on out of the box, and turning it off sticks.
+    func testWarnBeforeQuittingStartsOnAndIsRemembered() {
+        XCTAssertTrue(Settings(defaults: defaults).warnsBeforeQuitting)
+        Settings(defaults: defaults).warnsBeforeQuitting = false
+        XCTAssertFalse(Settings(defaults: defaults).warnsBeforeQuitting)
+    }
+
     func testTheOverlayToolsScaleStartsAtOneAndIsRemembered() {
         XCTAssertEqual(Settings(defaults: defaults).overlayToolsScale, 1)
         Settings(defaults: defaults).overlayToolsScale = 1.25

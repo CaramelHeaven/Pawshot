@@ -31,6 +31,14 @@ protocol Annotation: AnyObject {
     var isMeaningful: Bool { get }
 }
 
+/// An object whose handles change its shape. `shape` is everything a handle drag touches, taken
+/// before the drag and put back by one step of ⌘Z.
+@MainActor
+protocol Reshapable: Annotation {
+    associatedtype Shape: Equatable
+    var shape: Shape { get set }
+}
+
 extension Annotation {
     /// The gap between the object and its dashed selection frame.
     static var selectionInset: CGFloat {

@@ -63,6 +63,14 @@ private struct AppCommands: Commands {
                 openWindow(id: WindowID.about)
             }
         }
+
+        // Tapped, ⌘Q closes the window in front; held for a second, it quits — `QuitKey`.
+        CommandGroup(replacing: .appTermination) {
+            Button("Quit Pawshot") {
+                QuitKey.pressed()
+            }
+            .keyboardShortcut("q")
+        }
     }
 }
 

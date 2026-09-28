@@ -12,7 +12,7 @@ import SwiftUI
 /// other way throws the recording away. An export keeps running after its window is gone and still
 /// delivers — the take is not lost to an impatient ⌘W.
 @MainActor
-final class VideoEditorWindowController: NSWindowController, NSWindowDelegate {
+final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, ClosesOnQuitKey {
     private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "video")
 
     /// Alive until the window is closed and its export, if any, has finished.
@@ -67,7 +67,8 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate {
             actions: actions
         ))
         host.onKey = { [weak self] event in self?.handleKey(event) ?? false }
-        host.onCancel = { [weak self] in self?.close() }
+        // Esc lets go of the selected piece and nothing more: it never throws the take away.
+        host.onCancel = { [weak self] in self?.model.selectedPiece = nil }
         host.contentUndoManager = piecesUndoManager
         window.contentView = host
         window.initialFirstResponder = host
@@ -463,6 +464,25 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate {
     }
 
     // MARK: - Closing
+
+    /// A tap of ⌘Q. Closing throws the recording away, so it always asks — unless an export is
+    /// running, which delivers the file whether the window stays or not.
+    func closeForQuitKey() {
+        guard exportTask == nil, let window else {
+            close()
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Close the recording?")
+        alert.informativeText = String(localized: "The recording will be deleted.")
+        let close = alert.addButton(withTitle: String(localized: "Close"))
+        close.hasDestructiveAction = true
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn else { return }
+            self?.close()
+        }
+    }
 
     func windowWillClose(_: Notification) {
         windowIsClosed = true

@@ -34,6 +34,18 @@ private struct GeneralSettings: View {
                 }
             }
             Section {
+                Toggle("Warn Before Quitting (⌘Q)", isOn: $settings.warnsBeforeQuitting)
+                Group {
+                    if settings.warnsBeforeQuitting {
+                        Text("A tap of ⌘Q closes the window in front; hold ⌘Q to quit Pawshot.")
+                    } else {
+                        Text("⌘Q quits Pawshot at once.")
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+            Section {
                 Picker("Language", selection: $settings.language) {
                     Text("System").tag(AppLanguage.system)
                     // Each language is named in itself, so it can be found from the other one.

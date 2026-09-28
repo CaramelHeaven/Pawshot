@@ -5,7 +5,6 @@ import Carbon.HIToolbox
 protocol AnnotationCanvasDelegate: AnyObject {
     func canvasDidChangeTool(_ canvas: AnnotationCanvasView)
     func canvasDidChangeStyle(_ canvas: AnnotationCanvasView)
-    func canvasDidRequestClose(_ canvas: AnnotationCanvasView)
     /// Key 5: the colour of one's own lives with the toolbar, not with the canvas.
     func canvasDidRequestCustomColor(_ canvas: AnnotationCanvasView)
 }
@@ -32,11 +31,17 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     private var lastDragPoint: CGPoint?
     private var isMovingSelection = false
 
-    /// A corner of a selected label being dragged: the size it started at, and the corner that
-    /// stays put.
-    private var labelResize: (label: TextAnnotation, start: TextAnnotation.Geometry, pinned: SelectionGeometry.Corner, from: CGPoint)?
+    /// A handle of the selected object being dragged: what each mouse position does to it, and how
+    /// the gesture ends up as one step of ⌘Z.
+    private struct Reshaping {
+        /// Applies the mouse position and returns the chip's text, if the drag has a number to show.
+        let update: (CGPoint, NSEvent.ModifierFlags) -> String?
+        let finish: () -> Void
+    }
 
-    private static let handleSize: CGFloat = 8
+    private var reshaping: Reshaping?
+    /// The number shown by the cursor while a handle is dragged: a size, a length, an angle.
+    private var reshapeChip: (text: String, at: CGPoint)?
     /// A move made by holding ⌘ under a drawing tool. The selection it makes is only for the
     /// duration of the drag: once it ends, the tool draws again and nothing stays selected.
     private var isTemporaryMove = false
@@ -182,8 +187,8 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         }
 
         let moves = tool == .select || isCommandHeld
-        if let (_, corner) = sizeHandle(at: point) {
-            NSCursor.frameResize(position: Self.resizePosition(corner), directions: .all).set()
+        if let (selection, handle) = handle(at: point) {
+            Self.cursor(for: CanvasHandles.cursorKind(for: handle, of: selection)).set()
         } else if isMovingSelection {
             NSCursor.closedHand.set()
         } else if moves, isOverSelection(point) || (isCommandHeld && isOverAnnotation(point)) {
@@ -239,60 +244,353 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         }
 
         if let selection = document.selection {
-            selection.drawSelectionIndicator()
-            if tool == .select, let label = selection as? TextAnnotation {
-                drawSizeHandles(around: label)
+            if tool == .select {
+                drawHandles(of: selection)
+            } else {
+                selection.drawSelectionIndicator()
             }
+        }
+        if let reshapeChip {
+            drawChip(reshapeChip.text, at: reshapeChip.at)
         }
     }
 
-    /// Four squares on a selected label's corners: drag one and the text grows or shrinks. While
-    /// it is being dragged, a chip says the size in points.
-    private func drawSizeHandles(around label: TextAnnotation) {
-        let frame = label.selectionFrame
-        for corner in SelectionGeometry.Corner.allCases {
-            let point = corner.point(of: frame)
-            let size = Self.handleSize
-            let handle = NSBezierPath(
-                roundedRect: CGRect(x: point.x - size / 2, y: point.y - size / 2, width: size, height: size),
-                xRadius: 2,
-                yRadius: 2
-            )
-            NSColor.white.setFill()
-            handle.fill()
-            Tokens.pawNSColor.setStroke()
-            handle.lineWidth = 1.5
-            handle.stroke()
+    // MARK: - Handles
+
+    /// The handles of the selected object under V. A line has no frame — circles on its ends, a
+    /// diamond halfway and the heads button beside it. A rectangle, a blur and a label get their
+    /// frame turned with them and squares on its corners; their sides and the turning zones are
+    /// not drawn, the cursor shows them. Anything else keeps the plain frame.
+    private func drawHandles(of selection: Annotation) {
+        if let arrow = selection as? ArrowAnnotation {
+            drawLineHandles(of: arrow)
+            return
+        }
+        guard let box = CanvasHandles.handleBox(of: selection) else {
+            selection.drawSelectionIndicator()
+            return
         }
 
-        guard labelResize != nil else { return }
-        let text = "\(Int(label.style.textSize.rounded())) pt" as NSString
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        let transform = NSAffineTransform()
+        transform.translateX(by: box.center.x, yBy: box.center.y)
+        transform.rotate(byRadians: box.angle)
+        transform.concat()
+
+        let frame = NSBezierPath(roundedRect: box.local, xRadius: 3, yRadius: 3)
+        frame.lineWidth = 1.5
+        Tokens.pawNSColor.withAlphaComponent(0.95).setStroke()
+        frame.stroke()
+        for corner in SelectionGeometry.Corner.allCases {
+            drawSquareHandle(at: corner.point(of: box.local))
+        }
+    }
+
+    private func drawSquareHandle(at point: CGPoint) {
+        let side = CanvasHandles.squareSide
+        let handle = NSBezierPath(
+            roundedRect: CGRect(x: point.x - side / 2, y: point.y - side / 2, width: side, height: side),
+            xRadius: 2,
+            yRadius: 2
+        )
+        NSColor.white.setFill()
+        handle.fill()
+        Tokens.pawNSColor.setStroke()
+        handle.lineWidth = 1.5
+        handle.stroke()
+    }
+
+    private func drawLineHandles(of arrow: ArrowAnnotation) {
+        let radius = CanvasHandles.endRadius(of: arrow)
+        for point in [arrow.start, arrow.end] {
+            let circle = NSBezierPath(ovalIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2))
+            NSColor.white.setFill()
+            circle.fill()
+            Tokens.pawNSColor.setStroke()
+            circle.lineWidth = 1.5
+            circle.stroke()
+        }
+
+        let middle = arrow.middle
+        let diamond = NSBezierPath()
+        diamond.move(to: CGPoint(x: middle.x, y: middle.y - 5))
+        diamond.line(to: CGPoint(x: middle.x + 5, y: middle.y))
+        diamond.line(to: CGPoint(x: middle.x, y: middle.y + 5))
+        diamond.line(to: CGPoint(x: middle.x - 5, y: middle.y))
+        diamond.close()
+        NSColor.white.setFill()
+        diamond.fill()
+        Tokens.pawNSColor.setStroke()
+        diamond.lineWidth = 1.5
+        diamond.stroke()
+
+        drawHeadsButton(of: arrow)
+    }
+
+    /// A small round button beside the line with what a click turns its heads into, drawn along
+    /// the line: → at the end, ← at the start, ↔ at both.
+    private func drawHeadsButton(of arrow: ArrowAnnotation) {
+        let centre = CanvasHandles.headsButtonCentre(of: arrow)
+        let radius = CanvasHandles.buttonRadius
+        let button = NSBezierPath(ovalIn: CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2))
+        NSColor.white.withAlphaComponent(0.92).setFill()
+        button.fill()
+        NSColor.black.withAlphaComponent(0.25).setStroke()
+        button.lineWidth = 1
+        button.stroke()
+
+        let glyph = arrow.heads.next.glyph as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: NSColor.black.withAlphaComponent(0.75),
+        ]
+        let size = glyph.size(withAttributes: attributes)
+
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        let transform = NSAffineTransform()
+        transform.translateX(by: centre.x, yBy: centre.y)
+        transform.rotate(byRadians: atan2(arrow.end.y - arrow.start.y, arrow.end.x - arrow.start.x))
+        transform.concat()
+        glyph.draw(at: CGPoint(x: -size.width / 2, y: -size.height / 2), withAttributes: attributes)
+    }
+
+    /// The black pill with a number that follows the cursor while a handle is dragged.
+    private func drawChip(_ text: String, at point: CGPoint) {
+        let string = text as NSString
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),
             .foregroundColor: NSColor.white,
         ]
-        let textSize = text.size(withAttributes: attributes)
-        let chip = CGRect(x: frame.maxX + 8, y: frame.minY - textSize.height - 8, width: textSize.width + 12, height: textSize.height + 4)
+        let textSize = string.size(withAttributes: attributes)
+        let chip = CGRect(x: point.x + 14, y: point.y + 14, width: textSize.width + 12, height: textSize.height + 4)
         NSColor.black.withAlphaComponent(0.75).setFill()
         NSBezierPath(roundedRect: chip, xRadius: chip.height / 2, yRadius: chip.height / 2).fill()
-        text.draw(at: CGPoint(x: chip.minX + 6, y: chip.minY + 2), withAttributes: attributes)
+        string.draw(at: CGPoint(x: chip.minX + 6, y: chip.minY + 2), withAttributes: attributes)
     }
 
-    private static func resizePosition(_ corner: SelectionGeometry.Corner) -> NSCursor.FrameResizePosition {
-        switch corner {
-        case .topLeft: .topLeft
-        case .topRight: .topRight
-        case .bottomLeft: .bottomLeft
-        case .bottomRight: .bottomRight
+    /// The handle under the point, on the object selected under V.
+    private func handle(at point: CGPoint) -> (Annotation, CanvasHandle)? {
+        guard tool == .select, let selection = document.selection else { return nil }
+        return CanvasHandles.handle(at: point, of: selection).map { (selection, $0) }
+    }
+
+    /// Points of the shot → pixels of the file, for the chip: that is the size that comes out.
+    private func pixels(_ points: CGFloat) -> Int {
+        Int((points * document.frame.scale).rounded())
+    }
+
+    /// What dragging `handle` does to `selection`. Every drag starts from the shape taken here, so
+    /// letting go of ⇧ or ⌥ mid-drag lands where the mouse is, not where the snap was.
+    private func beginReshaping(_ selection: Annotation, by handle: CanvasHandle, grabbedAt grab: CGPoint) -> Reshaping? {
+        switch (selection, handle) {
+        case let (arrow as ArrowAnnotation, .lineStart), let (arrow as ArrowAnnotation, .lineEnd):
+            let start = arrow.shape
+            let movesStart = handle == .lineStart
+            let tip = movesStart ? start.start : start.end
+            return Reshaping(update: { [weak self] point, flags in
+                var shape = start
+                let fixed = movesStart ? start.end : start.start
+                var moved = CGPoint(x: point.x + tip.x - grab.x, y: point.y + tip.y - grab.y)
+                if flags.contains(.shift) {
+                    moved = SelectionGeometry.snappedEnd(fixed: fixed, moving: moved)
+                }
+                if movesStart {
+                    shape.start = moved
+                } else {
+                    shape.end = moved
+                }
+                shape.control = start.control.map {
+                    SelectionGeometry.carriedControl($0, from: (start.start, start.end), to: (shape.start, shape.end))
+                }
+                arrow.shape = shape
+                let length = hypot(shape.end.x - shape.start.x, shape.end.y - shape.start.y)
+                let angle = atan2(shape.end.y - shape.start.y, shape.end.x - shape.start.x)
+                return "\(self?.pixels(length) ?? 0) px · \(SelectionGeometry.displayDegrees(angle))°"
+            }, finish: { [weak self] in
+                self?.document.finishReshaping(arrow, from: start)
+            })
+
+        case let (arrow as ArrowAnnotation, .bend):
+            let start = arrow.shape
+            let middle = arrow.middle
+            return Reshaping(update: { point, _ in
+                var shape = start
+                shape.control = SelectionGeometry.control(
+                    through: CGPoint(x: point.x + middle.x - grab.x, y: point.y + middle.y - grab.y),
+                    start: start.start,
+                    end: start.end
+                )
+                arrow.shape = shape
+                return nil
+            }, finish: { [weak self] in
+                self?.document.finishReshaping(arrow, from: start)
+            })
+
+        case let (label as TextAnnotation, .box(side)):
+            return labelReshaping(label, side: side, grabbedAt: grab)
+
+        case let (label as TextAnnotation, .turn):
+            let start = label.shape
+            let centre = label.box.center
+            return Reshaping(update: { point, flags in
+                let angle = SelectionGeometry.turnedAngle(
+                    from: start.angle,
+                    centre: centre,
+                    grab: grab,
+                    mouse: point,
+                    snaps: flags.contains(.shift)
+                )
+                label.rotate(from: start, to: angle)
+                return "\(SelectionGeometry.displayDegrees(angle))°"
+            }, finish: { [weak self] in
+                self?.document.finishReshaping(label, from: start)
+            })
+
+        case let (rectangle as RectangleAnnotation, .turn):
+            let start = rectangle.shape
+            return Reshaping(update: { point, flags in
+                var shape = start
+                shape.angle = SelectionGeometry.turnedAngle(
+                    from: start.angle,
+                    centre: start.center,
+                    grab: grab,
+                    mouse: point,
+                    snaps: flags.contains(.shift)
+                )
+                rectangle.shape = shape
+                return "\(SelectionGeometry.displayDegrees(shape.angle))°"
+            }, finish: { [weak self] in
+                self?.document.finishReshaping(rectangle, from: start)
+            })
+
+        case let (rectangle as RectangleAnnotation, .box(side)):
+            return boxReshaping(rectangle, side: side, grabbedAt: grab)
+
+        case let (blur as BlurAnnotation, .box(side)):
+            return boxReshaping(blur, side: side, grabbedAt: grab)
+
+        default:
+            return nil
         }
     }
 
-    /// The handle under the point, on a label selected under V.
-    private func sizeHandle(at point: CGPoint) -> (TextAnnotation, SelectionGeometry.Corner)? {
-        guard tool == .select, let label = document.selection as? TextAnnotation else { return nil }
-        let corner = SelectionGeometry.corner(of: label.selectionFrame, near: point, radius: Self.handleSize / 2 + 3)
-        return corner.map { (label, $0) }
+    /// A corner or a side of a rectangle or a blur: ⇧ keeps a corner's proportions, ⌥ grows it
+    /// from the middle.
+    private func boxReshaping<Object: Reshapable>(
+        _ object: Object,
+        side: SelectionGeometry.Handle,
+        grabbedAt grab: CGPoint
+    ) -> Reshaping? where Object.Shape == SelectionGeometry.RotatedBox {
+        let start = object.shape
+        return Reshaping(update: { [weak self] point, flags in
+            let shape = SelectionGeometry.resized(
+                start,
+                dragging: side,
+                grabbedAt: grab,
+                mouse: point,
+                keepsAspect: flags.contains(.shift),
+                fromCentre: flags.contains(.option),
+                minimumSide: 4
+            )
+            object.shape = shape
+            return "\(self?.pixels(shape.size.width) ?? 0) × \(self?.pixels(shape.size.height) ?? 0)"
+        }, finish: { [weak self] in
+            self?.document.finishReshaping(object, from: start)
+        })
     }
+
+    /// A label's corner sets the size of its letters, as it always did; its left and right sides
+    /// set the width its text wraps inside.
+    private func labelReshaping(_ label: TextAnnotation, side: SelectionGeometry.Handle, grabbedAt grab: CGPoint) -> Reshaping? {
+        let start = label.shape
+        guard let box = CanvasHandles.handleBox(of: label) else { return nil }
+
+        if side == .left || side == .right {
+            let startWidth = label.fixedWidth ?? label.textFrame.width
+            let startBox = label.box
+            let rightSide = side == .right
+            return Reshaping(update: { [weak self] point, _ in
+                let delta = startBox.toLocal(point).x - startBox.toLocal(grab).x
+                let width = max(label.fontSize, startWidth + (rightSide ? delta : -delta))
+                label.setWidth(from: start, to: width, rightSide: rightSide)
+                return "\(self?.pixels(width) ?? 0) px"
+            }, finish: { [weak self] in
+                self?.document.finishReshaping(label, from: start)
+            })
+        }
+
+        let corner: SelectionGeometry.Corner = switch side {
+        case .topLeft: .topLeft
+        case .topRight: .topRight
+        case .bottomLeft: .bottomLeft
+        default: .bottomRight
+        }
+        let pinned = corner.opposite
+        let anchor = box.corner(pinned)
+        return Reshaping(update: { point, _ in
+            let scale = SelectionGeometry.cornerScale(anchor: anchor, start: grab, current: point)
+            let size = min(max(start.textSize * scale, 8), 400)
+            label.resize(from: start, to: size, pinning: pinned)
+            return "\(Int(size.rounded())) pt"
+        }, finish: { [weak self] in
+            self?.document.finishResizing(label, from: start)
+        })
+    }
+
+    private static func cursor(for kind: CanvasHandles.CursorKind) -> NSCursor {
+        switch kind {
+        case let .resize(handle): NSCursor.frameResize(position: resizePosition(handle), directions: .all)
+        case .turn: turnCursor
+        case .point: NSCursor.crosshair
+        case .button: NSCursor.arrow
+        }
+    }
+
+    private static func resizePosition(_ handle: SelectionGeometry.Handle) -> NSCursor.FrameResizePosition {
+        switch handle {
+        case .topLeft: .topLeft
+        case .top: .top
+        case .topRight: .topRight
+        case .right: .right
+        case .bottomRight: .bottomRight
+        case .bottom: .bottom
+        case .bottomLeft: .bottomLeft
+        case .left, .inside: .left
+        }
+    }
+
+    /// AppKit has no turning cursor: a small curved arrow, black on a white outline so it reads on
+    /// any shot, the way the overlay draws its crosshair.
+    private static let turnCursor: NSCursor = {
+        let size = CGSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: true) { _ in
+            let arc = NSBezierPath()
+            arc.appendArc(withCenter: CGPoint(x: 9, y: 9), radius: 5.5, startAngle: 200, endAngle: 470)
+            arc.lineCapStyle = .round
+            NSColor.white.setStroke()
+            arc.lineWidth = 3.6
+            arc.stroke()
+            NSColor.black.setStroke()
+            arc.lineWidth = 1.6
+            arc.stroke()
+
+            let tip = CGPoint(x: 9 + 5.5 * cos(470 * .pi / 180), y: 9 + 5.5 * sin(470 * .pi / 180))
+            let head = NSBezierPath()
+            head.move(to: CGPoint(x: tip.x + 3.5, y: tip.y))
+            head.line(to: CGPoint(x: tip.x - 1.5, y: tip.y - 3))
+            head.line(to: CGPoint(x: tip.x - 1.5, y: tip.y + 3))
+            head.close()
+            NSColor.white.setStroke()
+            head.lineWidth = 1.5
+            head.stroke()
+            NSColor.black.setFill()
+            head.fill()
+            return true
+        }
+        return NSCursor(image: image, hotSpot: CGPoint(x: 9, y: 9))
+    }()
 
     /// A thin dashed frame around the label being typed: where it is, and how far it reaches.
     private func drawEditingFrame(around text: TextAnnotation) {
@@ -343,8 +641,13 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
             return
         }
 
-        if let (label, corner) = sizeHandle(at: point) {
-            labelResize = (label, label.geometry, corner.opposite, corner.point(of: label.selectionFrame))
+        if let (selection, handle) = handle(at: point) {
+            if handle == .heads, let arrow = selection as? ArrowAnnotation {
+                document.turnHeads(of: arrow)
+                needsDisplay = true
+            } else {
+                reshaping = beginReshaping(selection, by: handle, grabbedAt: point)
+            }
             return
         }
 
@@ -407,11 +710,8 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     override func mouseDragged(with event: NSEvent) {
         let point = imagePoint(from: event)
 
-        if let resize = labelResize {
-            let anchor = resize.pinned.point(of: resize.label.selectionFrame)
-            let scale = SelectionGeometry.cornerScale(anchor: anchor, start: resize.from, current: point)
-            let size = min(max(resize.start.textSize * scale, 8), 400)
-            resize.label.resize(from: resize.start, to: size, pinning: resize.pinned)
+        if let reshaping {
+            reshapeChip = reshaping.update(point, event.modifierFlags).map { ($0, point) }
             needsDisplay = true
             return
         }
@@ -446,11 +746,13 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     }
 
     override func mouseUp(with event: NSEvent) {
-        if let resize = labelResize {
-            labelResize = nil
-            document.finishResizing(resize.label, from: resize.start)
+        if let reshaping {
+            self.reshaping = nil
+            reshapeChip = nil
+            reshaping.finish()
             delegate?.canvasDidChangeStyle(self)
             needsDisplay = true
+            updateCursor(at: imagePoint(from: event))
             return
         }
 
@@ -620,13 +922,16 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     func place(_ editor: NSTextView, over annotation: TextAnnotation) {
         let level = textEditorFrame(for: annotation)
         editor.frameCenterRotation = 0
-        guard annotation.quarterTurns != 0 else {
+        guard annotation.angle != 0 else {
             editor.frame = level
             return
         }
 
-        let center = CGPoint(x: level.midX, y: level.midY)
-            .applying(QuarterTurn.affine(annotation.quarterTurns, around: level.origin))
+        let center = CGPoint(x: level.midX, y: level.midY).applying(
+            CGAffineTransform(translationX: level.minX, y: level.minY)
+                .rotated(by: annotation.angle)
+                .translatedBy(x: -level.minX, y: -level.minY)
+        )
         editor.frame = CGRect(
             x: center.x - level.width / 2,
             y: center.y - level.height / 2,
@@ -635,7 +940,7 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         )
         // AppKit turns a positive angle counterclockwise; in this flipped view that is clockwise
         // on screen already. `AnnotationCanvasViewTests` pins which way it goes.
-        editor.frameCenterRotation = CGFloat(annotation.quarterTurns) * 90
+        editor.frameCenterRotation = annotation.angle * 180 / .pi
     }
 
     /// The user finished typing — Esc, ⌘↩ or a click elsewhere: the label comes out selected, in V,
@@ -848,9 +1153,9 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     /// back letters rather than the last arrow.
     let textUndoManager = UndoManager()
 
-    /// Esc cascades: first the text input, then the tool, then the selection, and only in an
-    /// empty state does it close the window. Otherwise a single accidental press would cost all
-    /// the work.
+    /// Esc cascades: first the text input, then the tool, then the selection — and there it
+    /// stops. It never closes the window: the owner lost a shot to it once too often. Closing is
+    /// ⌘W, or a tap of ⌘Q, which asks when there is work to lose (`QuitKey`).
     override func cancelOperation(_: Any?) {
         if isEditingText {
             finishTypingAndSelect()
@@ -863,9 +1168,7 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         if document.selection != nil {
             document.selection = nil
             needsDisplay = true
-            return
         }
-        delegate?.canvasDidRequestClose(self)
     }
 }
 
