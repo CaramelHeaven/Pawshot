@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import IOKit.ps
 import os
 
 /// Settings → General → "Save Logs…": one text file a person can send with a bug report.
@@ -37,6 +38,13 @@ enum LogExport {
         var hotKeys: [(name: String, shortcut: String, takenBy: String?)]
         var settings: [(name: String, value: String)]
         var otherCopies: [String]
+        /// The chip and the memory: "Apple M1, 8 GB".
+        var hardware = ""
+        /// The Mac's state right now — see `SystemState`.
+        var system = ""
+        /// Other screenshot and screen-recording apps running: they may take the hotkey or share
+        /// ScreenCaptureKit.
+        var otherCaptureApps: [String] = []
     }
 
     static func header(_ facts: Facts, generatedAt date: Date) -> String {
@@ -64,6 +72,8 @@ enum LogExport {
             lines.append("  \(setting.name): \(setting.value)")
         }
         lines.append("Other running copies: \(facts.otherCopies.isEmpty ? "none" : facts.otherCopies.joined(separator: ", "))")
+        lines.append("Other capture apps: \(facts.otherCaptureApps.isEmpty ? "none" : facts.otherCaptureApps.joined(separator: ", "))")
+        lines.insert("Hardware: \(facts.hardware); now: \(facts.system)", at: 4)
         return lines.joined(separator: "\n")
     }
 
@@ -107,14 +117,19 @@ enum LogExport {
                 ("Native resolution", "\(settings.recordsAtNativeResolution)"),
                 ("Captures so far", "\(settings.captureCount)"),
             ],
-            otherCopies: others
+            otherCopies: others,
+            hardware: SystemState.hardware,
+            system: SystemState.now,
+            otherCaptureApps: SystemState.otherCaptureApps
         )
     }
 
     static func describe(_ screen: NSScreen) -> String {
         let size = screen.frame.size
         let main = screen == NSScreen.screens.first ? " (main)" : ""
-        return "\(Int(size.width))×\(Int(size.height)) pt @\(screen.backingScaleFactor)x\(main)"
+        // The refresh rate: at 60 Hz a frame is 16 ms, at 120 Hz 8 — what a draw has to fit in.
+        let hertz = screen.maximumFramesPerSecond
+        return "\(Int(size.width))×\(Int(size.height)) pt @\(screen.backingScaleFactor)x \(hertz) Hz\(main)"
     }
 
     private static var hardwareModel: String {
@@ -217,5 +232,78 @@ enum LogExport {
             alert.alertStyle = .warning
             alert.runModal()
         }
+    }
+}
+
+/// What the Mac itself is doing, read without asking for any permission: whether "it lags" is
+/// Pawshot or a Mac that was throttled, short of memory or saving power at that moment.
+enum SystemState {
+    /// "Apple M1, 8 GB".
+    static var hardware: String {
+        let memory = ProcessInfo.processInfo.physicalMemory / 1_073_741_824
+        return "\(sysctlString("machdep.cpu.brand_string") ?? "?"), \(memory) GB"
+    }
+
+    /// "thermal nominal, memory pressure normal, low power off, on AC" — cheap enough to log with
+    /// every capture.
+    static var now: String {
+        let thermal = switch ProcessInfo.processInfo.thermalState {
+        case .nominal: "nominal"
+        case .fair: "fair"
+        case .serious: "SERIOUS"
+        case .critical: "CRITICAL"
+        @unknown default: "unknown"
+        }
+        let lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled ? "ON" : "off"
+        return "thermal \(thermal), memory pressure \(memoryPressure), low power \(lowPower), \(powerSource)"
+    }
+
+    /// The kernel's own verdict: 1 normal, 2 warn, 4 critical.
+    static var memoryPressure: String {
+        var level: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        guard sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &size, nil, 0) == 0 else { return "?" }
+        return switch level {
+        case 1: "normal"
+        case 2: "WARN"
+        case 4: "CRITICAL"
+        default: "\(level)"
+        }
+    }
+
+    static var powerSource: String {
+        guard
+            let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+            let type = IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() as String?
+        else { return "power ?" }
+        return type == kIOPMBatteryPowerKey ? "on battery" : "on AC"
+    }
+
+    /// Screenshot and screen-recording apps that may take a shortcut or share ScreenCaptureKit.
+    static let captureAppNames = [
+        "CleanShot", "Shottr", "Snagit", "Xnapper", "Monosnap", "Lightshot", "Skitch",
+        "OBS Studio", "Screen Studio", "screencaptureui",
+    ]
+    /// Names too short to look for inside others: "OBS" would catch Obsidian.
+    static let exactCaptureAppNames: Set = ["OBS", "Kap", "Loom", "Screenshot"]
+
+    @MainActor
+    static var otherCaptureApps: [String] {
+        let running = NSWorkspace.shared.runningApplications.compactMap(\.localizedName)
+        return matchingCaptureApps(running)
+    }
+
+    static func matchingCaptureApps(_ names: [String]) -> [String] {
+        names.filter { name in
+            exactCaptureAppNames.contains(name) || captureAppNames.contains { name.localizedCaseInsensitiveContains($0) }
+        }
+    }
+
+    private static func sysctlString(_ name: String) -> String? {
+        var size = 0
+        guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else { return nil }
+        var buffer = [CChar](repeating: 0, count: size)
+        guard sysctlbyname(name, &buffer, &size, nil, 0) == 0 else { return nil }
+        return String(cString: buffer)
     }
 }

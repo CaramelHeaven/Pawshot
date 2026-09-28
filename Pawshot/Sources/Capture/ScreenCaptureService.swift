@@ -178,13 +178,24 @@ enum ScreenCaptureService {
     /// other app's open list or menu is still alive and makes it into the frame. For the same
     /// reason our own windows are not excluded by the filter — there would be a hole where they
     /// are, and both an open Pawshot editor and our own menu bar icon belong in the frame.
+    ///
+    /// - Parameter hiding: windows of ours that are already on screen and must not be in the frame
+    ///   — the overlay, which now goes up before the frame is taken. Leaving them out takes a fresh
+    ///   window list (tens of ms), but the dimming is already on screen while it runs.
     static func captureDisplays(
-        _ displayIDs: [CGDirectDisplayID]
+        _ displayIDs: [CGDirectDisplayID],
+        hiding: [CGWindowID] = []
     ) async throws -> [CGDirectDisplayID: CapturedFrame] {
-        // Served from the cache in the common case — see `shareableContent(including:)`.
+        // Served from the cache in the common case — see `shareableContent(including:)`. The
+        // overlay's windows are new, so leaving them out needs a list taken after they appeared.
         let contentStarted = Date()
-        let content = try await shareableContent(including: displayIDs)
+        let content = if hiding.isEmpty {
+            try await shareableContent(including: displayIDs)
+        } else {
+            try await freshContent()
+        }
         let contentElapsed = Int(Date().timeIntervalSince(contentStarted) * 1000)
+        let exclusion = hiding.isEmpty ? nil : Self.exclusion(hiding: hiding, in: content)
 
         let captureStarted = Date()
         var frames: [CGDirectDisplayID: CapturedFrame] = [:]
@@ -201,7 +212,7 @@ enum ScreenCaptureService {
             }
 
             let shotStarted = Date()
-            frames[displayID] = try await capture(display)
+            frames[displayID] = try await capture(display, excluding: exclusion)
             let shotElapsed = Int(Date().timeIntervalSince(shotStarted) * 1000)
             let size = "\(Int(display.frame.width))×\(Int(display.frame.height))"
             logger.notice("display \(displayID, privacy: .public) (\(size, privacy: .public) pt) captured in \(shotElapsed, privacy: .public) ms")
@@ -215,8 +226,45 @@ enum ScreenCaptureService {
         return frames
     }
 
-    private static func capture(_ display: SCDisplay) async throws -> CapturedFrame {
-        let filter = SCContentFilter(display: display, excludingWindows: [])
+    private static func freshContent() async throws -> SCShareableContent {
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        cachedContent = content
+        return content
+    }
+
+    /// Pawshot left out of the frame, except its windows that belong in it: an open editor, the
+    /// paw in the menu bar. Leaving the app out, rather than the overlay's windows one by one,
+    /// doesn't depend on ScreenCaptureKit having noticed windows that appeared milliseconds ago.
+    private struct Exclusion {
+        let application: SCRunningApplication
+        let keeping: [SCWindow]
+    }
+
+    private static func exclusion(hiding: [CGWindowID], in content: SCShareableContent) -> Exclusion? {
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        guard let application = content.applications.first(where: { $0.processID == ownPID }) else {
+            logger.notice("capture: Pawshot not in the window list, nothing of ours to leave out")
+            return nil
+        }
+        let ours = content.windows.filter { $0.owningApplication?.processID == ownPID }
+        let keptIDs = Set(windowsToKeep(ours.map(\.windowID), hiding: hiding))
+        let keeping = ours.filter { keptIDs.contains($0.windowID) }
+        logger.notice("capture: leaving out \(hiding.count, privacy: .public) overlay window(s), keeping \(keeping.count, privacy: .public) of ours")
+        return Exclusion(application: application, keeping: keeping)
+    }
+
+    /// Of our own windows, the ones that stay in the frame: every one but the overlay's.
+    nonisolated static func windowsToKeep(_ ours: [CGWindowID], hiding: [CGWindowID]) -> [CGWindowID] {
+        let hidden = Set(hiding)
+        return ours.filter { !hidden.contains($0) }
+    }
+
+    private static func capture(_ display: SCDisplay, excluding exclusion: Exclusion? = nil) async throws -> CapturedFrame {
+        let filter = if let exclusion {
+            SCContentFilter(display: display, excludingApplications: [exclusion.application], exceptingWindows: exclusion.keeping)
+        } else {
+            SCContentFilter(display: display, excludingWindows: [])
+        }
         let scale = CGFloat(filter.pointPixelScale)
         let sourceRect = CGRect(origin: .zero, size: display.frame.size)
         let pixelSize = SelectionGeometry.pixelSize(of: sourceRect, scale: scale)

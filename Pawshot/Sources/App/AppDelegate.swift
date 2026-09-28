@@ -65,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // The first capture of a session is the slow one; pay for it now, while nobody waits.
         ScreenCaptureService.beginObservingDisplayChanges()
+        prepareOverlay()
         Task { await ScreenCaptureService.warmUp() }
         SelectionView.prepareCursors()
     }
@@ -97,11 +98,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Self.logger.notice(
             "launch: displays \(facts.displays.joined(separator: "; "), privacy: .public); screen recording \(facts.screenRecording, privacy: .public), microphone \(facts.microphone, privacy: .public), input monitoring \(facts.inputMonitoring, privacy: .public)"
         )
+        Self.logger.notice(
+            "launch: \(facts.hardware, privacy: .public); \(facts.system, privacy: .public); other capture apps: \(facts.otherCaptureApps.joined(separator: ", "), privacy: .public)"
+        )
         for hotKey in facts.hotKeys where hotKey.takenBy != nil {
             Self.logger.error(
                 "launch: \(hotKey.name, privacy: .public) \(hotKey.shortcut, privacy: .public) is taken by macOS (\(hotKey.takenBy ?? "", privacy: .public)) — Pawshot never sees it"
             )
         }
+    }
+
+    /// The overlay's windows exist before the first hotkey: creating them was part of the wait.
+    func prepareOverlay() {
+        overlayController.prepareWindows()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
@@ -190,10 +199,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Capture
 
     func beginCapture() {
-        startCapture { [weak self] frames in
-            await self?.selectRegion(in: frames) { selection in
-                self?.openEditor(for: selection)
-            }
+        startOverlayCapture(purpose: .screenshot) { [weak self] selection in
+            self?.openEditor(for: selection)
         }
     }
 
@@ -271,31 +278,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func selectRegion(
-        in frames: [CGDirectDisplayID: CapturedFrame],
-        purpose: OverlayPurpose = .screenshot,
+    /// A region or a window, picked on the overlay — for a shot or for a recording.
+    ///
+    /// The overlay goes up first, over the live screen, and the frames are captured behind it with
+    /// the overlay left out: the dimming appears the instant the hotkey is pressed instead of after
+    /// the capture — 99–140 ms on a MacBook Air's 20-megapixel screen. The overlay never activates
+    /// Pawshot, so an open menu of the app in front is still open when the frame is taken.
+    private func startOverlayCapture(
+        purpose: OverlayPurpose,
         then use: @escaping (SelectionOverlayController.Selection) -> Void
-    ) async {
-        // The window list is taken here, still before the overlay is up: once it is, our own
-        // full-screen window is the one under the cursor.
-        let capturedWindows = ScreenCaptureService.onScreenWindows()
-        Self.logger.notice("\(capturedWindows.count) windows on screen for window mode")
+    ) {
+        let pressed = Date()
+        if ScreenCaptureService.isWarmingUp {
+            Self.logger.notice("capture asked while the launch warm-up is still running")
+        }
+        guard !isCapturing, !overlayController.isActive else {
+            let reason = isCapturing ? "the last capture's frames are still coming" : "the overlay is already up"
+            Self.logger.notice("capture ignored: \(reason, privacy: .public)")
+            return
+        }
+        guard ScreenRecordingPermission.ensureGranted() else {
+            Self.logger.notice("capture refused: no screen recording access")
+            return
+        }
 
-        overlayController.begin(
-            frames: frames,
-            capturedWindows: capturedWindows,
-            purpose: purpose
-        ) { [weak self] selection in
+        isCapturing = true
+        state.isCapturing = true
+        OverlayDiagnostics.pressed(at: pressed)
+        let system = SystemState.now
+        Self.logger.notice("capture on a Mac with \(system, privacy: .public)")
+
+        // The window list is taken before the overlay is up: once it is, our own full-screen
+        // window is the one under the cursor. `CGWindowList` answers in a couple of ms.
+        let capturedWindows = ScreenCaptureService.onScreenWindows()
+        overlayController.begin(capturedWindows: capturedWindows, purpose: purpose) { [weak self] selection in
             guard let self else { return }
             state.isCapturing = false
             guard let selection else {
                 Self.logger.notice("overlay cancelled")
                 return
             }
+            let window = selection.windowID.map { ", window \($0)" } ?? ""
             Self.logger.notice(
-                "selected \(Int(selection.rect.width))×\(Int(selection.rect.height)) pt on display \(selection.displayID)\(selection.windowID.map { ", window \($0)" } ?? "", privacy: .public)"
+                "selected \(Int(selection.rect.width))×\(Int(selection.rect.height)) pt on display \(selection.displayID)\(window, privacy: .public)"
             )
             use(selection)
+        }
+        let shown = OverlayDiagnostics.sincePress()
+        Self.logger.notice("overlay shown live +\(shown, privacy: .public) ms, \(capturedWindows.count) windows for window mode")
+
+        let displayIDs = NSScreen.screens.compactMap(SelectionOverlayController.displayID(of:))
+        let hiding = overlayController.windowNumbers
+        Task {
+            defer { isCapturing = false }
+            let started = OverlayDiagnostics.sincePress()
+            Self.logger.notice("capture task started +\(started, privacy: .public) ms")
+            do {
+                let frames = try await ScreenCaptureService.captureDisplays(displayIDs, hiding: hiding)
+                let frozen = OverlayDiagnostics.sincePress()
+                Self.logger.notice("freeze done +\(frozen, privacy: .public) ms")
+                overlayController.deliver(frames: frames)
+            } catch {
+                Self.logger.error("freeze failed: \(String(describing: error), privacy: .public)")
+                overlayController.fail()
+                state.isCapturing = false
+                presentCaptureFailure(error)
+            }
         }
     }
 
@@ -366,23 +414,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             recordingController.stop()
             return
         }
-        // The overlay activates Pawshot; whatever the user was recording must be back in front
-        // when the recording starts.
+        // Whatever the user was recording must be in front when the recording starts. The overlay
+        // no longer activates Pawshot, but a window picked on it might have.
         let previous = NSWorkspace.shared.frontmostApplication
-        startCapture { [weak self] frames in
-            await self?.selectRegion(in: frames, purpose: .recording) { selection in
-                self?.startRecording(
-                    RecordingTarget(
-                        displayID: selection.displayID,
-                        rect: selection.rect,
-                        screen: selection.screen,
-                        windowID: selection.windowID
-                    ),
-                    returningTo: previous
-                )
-                if selection.windowID == nil {
-                    self?.rememberRecordingArea(of: selection)
-                }
+        startOverlayCapture(purpose: .recording) { [weak self] selection in
+            self?.startRecording(
+                RecordingTarget(
+                    displayID: selection.displayID,
+                    rect: selection.rect,
+                    screen: selection.screen,
+                    windowID: selection.windowID
+                ),
+                returningTo: previous
+            )
+            if selection.windowID == nil {
+                self?.rememberRecordingArea(of: selection)
             }
         }
     }

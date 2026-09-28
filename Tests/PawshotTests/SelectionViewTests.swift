@@ -25,15 +25,14 @@ final class SelectionViewTests: XCTestCase {
         return try XCTUnwrap(context.makeImage())
     }
 
-    /// A trap for the same mine as in `AnnotationRendererTests`: `SelectionView` has
+    /// A trap for the same mine as in `AnnotationRendererTests`: the frame's view has
     /// `isFlipped = true`, and the `draw(in:from:operation:fraction:)` variant draws the picture
-    /// upside down — silently, without a single error. The dimming on top of the frame mutes the
-    /// colours, so the channels are compared against each other rather than against a reference
-    /// red.
+    /// upside down — silently, without a single error. The frame lives in `FrameView` now, under
+    /// the selection layer.
     func testFrozenFrameIsNotUpsideDown() throws {
         let size = CGSize(width: 40, height: 60)
-        let view = SelectionView(frame: CGRect(origin: .zero, size: size))
-        view.background = try NSImage(cgImage: makeFrame(size: size), size: size)
+        let view = FrameView(frame: CGRect(origin: .zero, size: size))
+        view.image = try NSImage(cgImage: makeFrame(size: size), size: size)
 
         let rep = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: rep)
@@ -101,7 +100,6 @@ final class SelectionViewTests: XCTestCase {
         let image = try XCTUnwrap(context.makeImage())
 
         let view = SelectionView(frame: CGRect(origin: .zero, size: size))
-        view.background = NSImage(cgImage: image, size: size)
         view.frameImage = image
         view.scale = 1
 

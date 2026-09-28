@@ -36,6 +36,14 @@ final class OverlayTimelineTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(timeline.received("mouseMoved", at: at(300))).drawnBefore)
     }
 
+    func testTheSummaryNamesTheSlowestDraw() {
+        var timeline = OverlayTimeline(pressed: pressed)
+        _ = timeline.drew(at: at(20))
+        timeline.drawFinished(took: 0.004)
+        timeline.drawFinished(took: 0.019)
+        XCTAssertEqual(timeline.summary(at: at(900)), "overlay closed +900 ms after the hotkey, 1 draw(s), slowest 19 ms")
+    }
+
     func testACheckWithoutADrawIsAnError() {
         var timeline = OverlayTimeline(pressed: pressed)
         let undrawn = timeline.check(at: at(500), visibleWindows: 0, windows: 1, appActive: false, keyWindow: false)

@@ -36,16 +36,17 @@ final class SelectionView: NSView {
     /// coordinates rather than the ones local to the view.
     var screenOrigin: CGPoint = .zero
 
-    /// The frozen screen frame underneath the dimming. A ready-made `NSImage` rather than a
-    /// `CGImage`: the view has `isFlipped = true` and AppKit takes care of flipping the axis — but
-    /// only inside `draw(in:)`, see the drawing below. Built once from the outside, not on every
-    /// redraw.
-    var background: NSImage? {
-        didSet { needsDisplay = true }
+    /// The frozen frame in pixels, for the loupe. The picture itself is drawn under this view by
+    /// `OverlayWindow.frameView`, once — this view draws only the dimming and what is on it, and
+    /// is up before the frame arrives, over the live screen.
+    var frameImage: CGImage? {
+        didSet {
+            if showsLoupe {
+                needsDisplay = true
+            }
+        }
     }
 
-    /// The same frozen frame in pixels, for the loupe and for sizes in pixels of the file.
-    var frameImage: CGImage?
     /// Pixels per point of this display.
     var scale: CGFloat = 1
 
@@ -363,9 +364,17 @@ final class SelectionView: NSView {
         // The key overlay hears the mouse on other screens too; the cursor there is not its call.
         guard bounds.contains(point) else { return }
         cursorPoint = point
+        let highlighted = highlightedWindow
         updateHighlight()
         updateCursor(at: point)
-        needsDisplay = true
+        // Only what the mouse changes is redrawn. With nothing drawn yet in region mode, a move
+        // changes nothing under the dimming — only the glass badge, which is its own view — and
+        // redrawing the whole screen for it was most of what made the crosshair lag.
+        if showsLoupe || highlightedWindow != highlighted {
+            needsDisplay = true
+        } else {
+            layOutHUD()
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -611,11 +620,8 @@ final class SelectionView: NSView {
 
     override func draw(_: CGRect) {
         OverlayDiagnostics.drew()
-        // `draw(in:)` only: the variant with operation and fraction ignores the axis flip and puts
-        // the frame upside down in this flipped view. The editor canvas draws its shot the same
-        // way — its view is flipped too.
-        background?.draw(in: bounds)
-
+        let started = CACurrentMediaTime()
+        defer { OverlayDiagnostics.drawFinished(took: CACurrentMediaTime() - started) }
         dimColor.setFill()
 
         if mode == .window {

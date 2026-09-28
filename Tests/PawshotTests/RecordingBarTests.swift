@@ -75,7 +75,7 @@ final class RecordingBarInOverlayTests: XCTestCase {
         overlay.begin(frames: [displayID: captured], purpose: .recording, completion: onSelect)
 
         let window = try XCTUnwrap(NSApp.windows.first { $0 is OverlayWindow && $0.isVisible })
-        let view = try XCTUnwrap(window.contentView as? SelectionView)
+        let view = try XCTUnwrap((window as? OverlayWindow)?.selectionView)
         let start = view.convert(CGPoint(x: 200, y: 200), to: nil)
         let end = view.convert(CGPoint(x: 600, y: 450), to: nil)
         try click(window, at: start, type: .leftMouseDown)
@@ -120,7 +120,7 @@ final class RecordingBarInOverlayTests: XCTestCase {
         defer { overlay.dismiss() }
 
         let window = try XCTUnwrap(NSApp.windows.first { $0 is OverlayWindow && $0.isVisible })
-        let view = try XCTUnwrap(window.contentView as? SelectionView)
+        let view = try XCTUnwrap((window as? OverlayWindow)?.selectionView)
 
         // Draw a region the way a hand does: press, drag, release — through the window.
         let start = view.convert(CGPoint(x: 200, y: 200), to: nil)

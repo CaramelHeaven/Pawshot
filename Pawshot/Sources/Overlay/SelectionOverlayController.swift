@@ -19,37 +19,80 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         var windowID: CGWindowID?
     }
 
+    /// The windows of the capture on screen now; empty between captures.
     private var windows: [OverlayWindow] = []
+    /// One ready window per display, built ahead of the hotkey and kept between captures: creating
+    /// a window is the part of showing the overlay that costs.
+    private var prepared: [CGDirectDisplayID: OverlayWindow] = [:]
+    private var screenObserver: NSObjectProtocol?
     private var frames: [CGDirectDisplayID: CapturedFrame] = [:]
+    /// Whether the frames have arrived — the overlay goes up before they do.
+    private(set) var hasFrames = false
+    /// A selection made before the frames arrived: it is cut out once they do.
+    private var pendingSelection: (view: SelectionView, rect: CGRect, windowID: CGWindowID?)?
     private var completion: ((Selection?) -> Void)?
     private var purpose: OverlayPurpose = .screenshot
     private var levelMeter: MicrophoneLevelMeter?
-    /// The app that was in front before the overlay took the keyboard. A cancel hands it back:
-    /// otherwise Pawshot stays active with no window, and the app underneath is visible but deaf
-    /// to the keyboard until clicked.
+    /// The app that was in front when the overlay went up. The overlay never activates Pawshot,
+    /// so after a cancel this one is still in front; kept for the log and for safety.
     private var previousApp: NSRunningApplication?
 
     private var selectionViews: [SelectionView] {
-        windows.compactMap { $0.contentView as? SelectionView }
+        windows.compactMap(\.selectionView)
     }
 
     var isActive: Bool {
         !windows.isEmpty
     }
 
-    /// Shows the overlay on top of the already captured frames and waits for a selection.
+    /// The overlay's window numbers — what the frozen frame must not contain.
+    var windowNumbers: [CGWindowID] {
+        windows.map { CGWindowID($0.windowNumber) }
+    }
+
+    /// Builds the overlay windows ahead of the first capture, and again whenever the displays
+    /// change. Called at launch.
+    func prepareWindows() {
+        if screenObserver == nil {
+            screenObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.displaysChanged()
+                }
+            }
+        }
+        var ready: [CGDirectDisplayID: OverlayWindow] = [:]
+        for screen in NSScreen.screens {
+            guard let displayID = Self.displayID(of: screen) else { continue }
+            if let window = prepared[displayID], window.frame == screen.frame {
+                ready[displayID] = window
+            } else {
+                ready[displayID] = OverlayWindow(screen: screen)
+            }
+        }
+        prepared = ready
+        Self.logger.notice("overlay windows ready for \(ready.count, privacy: .public) display(s)")
+    }
+
+    /// New displays, or new sizes: the ready windows no longer fit. Rebuilt between captures only.
+    private func displaysChanged() {
+        guard !isActive else { return }
+        prepared.removeAll()
+        prepareWindows()
+    }
+
+    /// Shows the overlay at once, over the live screen, and waits for a selection. The frozen
+    /// frames follow through `deliver(frames:)` — the dimming does not wait for them.
     ///
-    /// The overlay draws a frozen frame rather than the live screen: while the frame is being
-    /// dragged, the screen underneath has time to change — activating Pawshot closes other apps'
-    /// menus and lists — but in the frame everything stays as it was at the moment of the hotkey.
-    /// The result is cut out of that same frame, so nothing has to be captured after the selection
-    /// and the overlay closes immediately.
+    /// The frame is what the result is cut from and what the loupe magnifies; it is captured the
+    /// moment the hotkey is pressed, with the overlay left out of it, and since the overlay never
+    /// activates Pawshot, the other app's open menu is still open when it is taken.
     ///
-    /// - Parameters:
-    ///   - frames: one frame per display. A screen without a frame gets no overlay.
-    ///   - capturedWindows: the window list frozen at the same moment, for the window mode.
+    /// - Parameter capturedWindows: the window list, taken before the overlay, for the window mode.
     func begin(
-        frames: [CGDirectDisplayID: CapturedFrame],
         capturedWindows: [CapturedWindow] = [],
         purpose: OverlayPurpose = .screenshot,
         completion: @escaping (Selection?) -> Void
@@ -60,12 +103,15 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         }
         let front = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
         Self.logger.notice(
-            "overlay begins: \(String(describing: purpose), privacy: .public), \(frames.count) frame(s), \(capturedWindows.count) window(s), \(front, privacy: .public) in front"
+            "overlay begins: \(String(describing: purpose), privacy: .public), \(capturedWindows.count) window(s), \(front, privacy: .public) in front"
         )
         OverlayDiagnostics.began()
         self.completion = completion
-        self.frames = frames
         self.purpose = purpose
+        frames = [:]
+        hasFrames = false
+        pendingSelection = nil
+        previousApp = NSWorkspace.shared.frontmostApplication
 
         let primaryMaxY = NSScreen.screens.first.map(\.frame.maxY) ?? 0
         let mouseLocation = NSEvent.mouseLocation
@@ -78,22 +124,18 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         if purpose == .recording {
             prepareRecordingBar()
         }
+        if prepared.count != NSScreen.screens.count {
+            prepareWindows()
+        }
 
         for screen in NSScreen.screens {
-            guard
-                let displayID = Self.displayID(of: screen),
-                let frame = frames[displayID]
-            else { continue }
+            guard let displayID = Self.displayID(of: screen), let window = prepared[displayID] else { continue }
 
-            let window = OverlayWindow(screen: screen)
             let view = SelectionView(frame: CGRect(origin: .zero, size: screen.frame.size))
-            view.autoresizingMask = [.width, .height]
             view.delegate = self
             view.screenOrigin = Self.coreGraphicsOrigin(of: screen, primaryMaxY: primaryMaxY)
             view.windows = capturedWindows
-            view.background = NSImage(cgImage: frame.image, size: screen.frame.size)
-            view.frameImage = frame.image
-            view.scale = frame.scale
+            view.scale = screen.backingScaleFactor
             view.showsHints = showsHints
             view.purpose = purpose
             if purpose == .recording {
@@ -102,11 +144,12 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
                     .map { $0.intersection(CGRect(origin: .zero, size: screen.frame.size)) }
                     .flatMap { $0.isEmpty ? nil : $0 }
             }
-            window.contentView = view
+            window.install(view)
             windows.append(window)
 
             window.orderFrontRegardless()
             // The screen under the cursor becomes key — that's where Esc and the first click go.
+            // A non-activating panel takes the keyboard without Pawshot becoming active.
             if screen.frame.contains(mouseLocation) {
                 window.makeKey()
                 window.makeFirstResponder(view)
@@ -114,24 +157,17 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             let number = window.windowNumber
             let visible = window.isVisible
             let onSpace = window.isOnActiveSpace
-            let occlusion = window.occlusionState.contains(.visible)
             let key = window.isKeyWindow
             let described = LogExport.describe(screen)
             Self.logger.notice(
-                "overlay window \(number, privacy: .public) on \(described, privacy: .public): visible \(visible, privacy: .public), on active space \(onSpace, privacy: .public), occlusion-visible \(occlusion, privacy: .public), key \(key, privacy: .public)"
+                "overlay window \(number, privacy: .public) on \(described, privacy: .public): visible \(visible, privacy: .public), on active space \(onSpace, privacy: .public), key \(key, privacy: .public)"
             )
         }
 
-        // Without activation an accessory app gets no keyboard, and Esc stops working.
-        previousApp = NSWorkspace.shared.frontmostApplication
-        let wasActive = NSApp.isActive
-        NSApp.activate()
-        let isNowActive = NSApp.isActive
-        Self.logger.notice("overlay activates the app: active before \(wasActive, privacy: .public), right after \(isNowActive, privacy: .public)")
-        // macOS 14+ activation is cooperative and may be refused; whether it was decides whether
-        // the first click on the overlay's buttons does anything. And whether the overlay was drawn
-        // at all: the first ⇧⌘2 after launch once showed nothing until a click. Looked at a few
-        // times, once the answers are in.
+        // Looked at a few times from the main thread, and watched from another one: the first
+        // capture after launch once showed nothing until a click, with the main thread silent for
+        // four seconds.
+        OverlayDiagnostics.watch(windows: windows)
         Task { @MainActor [weak self] in
             // At about 100 ms, 500 ms and 2 s after the overlay went up.
             for pause in [100, 400, 1500] {
@@ -148,6 +184,53 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         }
     }
 
+    /// The overlay over frames already captured — how the tests and the older path show it.
+    func begin(
+        frames: [CGDirectDisplayID: CapturedFrame],
+        capturedWindows: [CapturedWindow] = [],
+        purpose: OverlayPurpose = .screenshot,
+        completion: @escaping (Selection?) -> Void
+    ) {
+        begin(capturedWindows: capturedWindows, purpose: purpose, completion: completion)
+        deliver(frames: frames)
+    }
+
+    /// The frozen frames arrived: each goes under its overlay, and a selection made meanwhile is
+    /// cut out of them now.
+    func deliver(frames: [CGDirectDisplayID: CapturedFrame]) {
+        guard isActive else {
+            Self.logger.notice("frames arrived after the overlay closed: dropped")
+            return
+        }
+        self.frames = frames
+        hasFrames = true
+        for window in windows {
+            guard
+                let screen = window.screen,
+                let displayID = Self.displayID(of: screen),
+                let frame = frames[displayID]
+            else { continue }
+            window.frameView.image = NSImage(cgImage: frame.image, size: screen.frame.size)
+            window.selectionView?.frameImage = frame.image
+            window.selectionView?.scale = frame.scale
+        }
+        let since = OverlayDiagnostics.sincePress()
+        Self.logger.notice("frames delivered +\(since, privacy: .public) ms")
+
+        if let pending = pendingSelection {
+            pendingSelection = nil
+            Self.logger.notice("cutting the selection made before the frames")
+            selectionView(pending.view, didSelect: pending.rect, windowID: pending.windowID)
+        }
+    }
+
+    /// The frames could not be captured: the overlay goes, and the caller shows why.
+    func fail() {
+        guard isActive else { return }
+        Self.logger.error("overlay closed: the frames never came")
+        finish(with: nil)
+    }
+
     func dismiss() {
         Self.logger.notice("overlay dismissed")
         OverlayDiagnostics.ended()
@@ -156,11 +239,14 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         OverlayHUD.hide()
         for window in windows {
             window.orderOut(nil)
+            window.clear()
         }
         windows.removeAll()
         // A frame of a whole Retina display is tens of megabytes; there is no point holding it
         // until the next capture — the cut-out region already went to the editor as its own copy.
         frames.removeAll()
+        hasFrames = false
+        pendingSelection = nil
         completion = nil
         previousApp = nil
         NSCursor.arrow.set()
@@ -169,6 +255,12 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
     // MARK: - SelectionViewDelegate
 
     func selectionView(_ view: SelectionView, didSelect rect: CGRect, windowID: CGWindowID?) {
+        // Released before the frames arrived — a fast flick. The overlay stays until they do.
+        guard hasFrames else {
+            Self.logger.notice("selection made before the frames: waiting for them")
+            pendingSelection = (view, rect, windowID)
+            return
+        }
         guard
             let window = view.window,
             let screen = window.screen ?? windows.first(where: { $0 === window })?.screen,
@@ -267,7 +359,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         let name = previous?.localizedName ?? "nobody"
         Self.logger.notice("overlay cancelled, focus back to \(name, privacy: .public)")
         finish(with: nil)
-        if let previous, previous.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+        // The overlay never activated Pawshot, so the app in front is normally still in front.
+        // Should anything have activated Pawshot meanwhile, the focus goes back all the same.
+        if NSApp.isActive, let previous, previous.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             previous.activate()
         }
     }

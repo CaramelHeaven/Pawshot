@@ -12,6 +12,9 @@ struct OverlayTimeline {
     private(set) var firstDraw: Date?
     private(set) var firstEvent: Date?
     private(set) var draws = 0
+    /// The longest one draw of the selection layer took, in ms — on a 20-megapixel screen the
+    /// question is whether a mouse move still fits in a frame.
+    private(set) var slowestDraw = 0.0
 
     init(pressed: Date) {
         self.pressed = pressed
@@ -50,8 +53,12 @@ struct OverlayTimeline {
         return (drawn ? message : message + " — NOT DRAWN YET", !drawn)
     }
 
+    mutating func drawFinished(took seconds: TimeInterval) {
+        slowestDraw = max(slowestDraw, seconds * 1000)
+    }
+
     func summary(at date: Date) -> String {
-        "overlay closed +\(milliseconds(date)) ms after the hotkey, \(draws) draw(s)"
+        "overlay closed +\(milliseconds(date)) ms after the hotkey, \(draws) draw(s), slowest \(Int(slowestDraw.rounded())) ms"
     }
 }
 
@@ -82,6 +89,10 @@ enum OverlayDiagnostics {
         logger.notice("\(message, privacy: .public)")
     }
 
+    static func drawFinished(took seconds: TimeInterval) {
+        timeline?.drawFinished(took: seconds)
+    }
+
     static func received(_ event: String) {
         guard let result = timeline?.received(event, at: Date()) else { return }
         if result.drawnBefore {
@@ -109,9 +120,115 @@ enum OverlayDiagnostics {
     }
 
     static func ended() {
+        watchdog?.stop()
+        watchdog = nil
         guard let timeline else { return }
         let summary = timeline.summary(at: Date())
         logger.notice("\(summary, privacy: .public)")
         self.timeline = nil
+    }
+
+    private static var watchdog: MainThreadWatchdog?
+
+    /// Watches the main thread from another one for the first seconds of the overlay: a log from
+    /// a MacBook Air showed it silent for four seconds right after the overlay went up — no queued
+    /// work run, no mouse event delivered — until a click. A stall is logged with the run loop mode
+    /// the main thread sits in, and what the window server says about the overlay windows.
+    static func watch(windows: [NSWindow]) {
+        watchdog?.stop()
+        let watchdog = MainThreadWatchdog(
+            pressed: timeline?.pressed ?? Date(),
+            windowNumbers: windows.map { CGWindowID($0.windowNumber) }
+        )
+        watchdog.start()
+        self.watchdog = watchdog
+    }
+}
+
+/// Pings the main queue every 50 ms from a background queue, for three seconds.
+final class MainThreadWatchdog: Sendable {
+    private struct State {
+        var lastPong = Date()
+        var stalledSince: Date?
+        var stopped = false
+    }
+
+    private let pressed: Date
+    private let windowNumbers: [CGWindowID]
+    private let state = OSAllocatedUnfairLock(initialState: State())
+    private let queue = DispatchQueue(label: "com.caramelheaven.pawshot.watchdog", qos: .userInitiated)
+    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "overlay")
+    /// A main thread this late is stalled, not busy.
+    static let threshold: TimeInterval = 0.25
+
+    init(pressed: Date, windowNumbers: [CGWindowID]) {
+        self.pressed = pressed
+        self.windowNumbers = windowNumbers
+    }
+
+    func start() {
+        let started = Date()
+        queue.async { [self] in
+            while Date().timeIntervalSince(started) < 3 {
+                if state.withLock({ $0.stopped }) {
+                    return
+                }
+                DispatchQueue.main.async { [self] in
+                    let back = state.withLock { state -> TimeInterval? in
+                        let now = Date()
+                        defer {
+                            state.lastPong = now
+                            state.stalledSince = nil
+                        }
+                        return state.stalledSince.map { now.timeIntervalSince($0) + Self.threshold }
+                    }
+                    if let back {
+                        let at = milliseconds(Date())
+                        Self.logger.notice("main thread back after \(Int(back * 1000), privacy: .public) ms, at +\(at, privacy: .public) ms")
+                    }
+                }
+                let now = Date()
+                let stalled = state.withLock { state -> Bool in
+                    guard state.stalledSince == nil, now.timeIntervalSince(state.lastPong) > Self.threshold else { return false }
+                    state.stalledSince = now
+                    return true
+                }
+                if stalled {
+                    report(at: now)
+                }
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+        }
+    }
+
+    func stop() {
+        state.withLock { $0.stopped = true }
+    }
+
+    private func milliseconds(_ date: Date) -> Int {
+        Int((date.timeIntervalSince(pressed) * 1000).rounded())
+    }
+
+    private func report(at date: Date) {
+        let mode = CFRunLoopCopyCurrentMode(CFRunLoopGetMain()).map { $0.rawValue as String } ?? "none"
+        let windows = Self.windowServerState(of: windowNumbers)
+        let message = Self.stallMessage(at: milliseconds(date), mode: mode, windows: windows)
+        Self.logger.error("\(message, privacy: .public)")
+    }
+
+    static func stallMessage(at milliseconds: Int, mode: String, windows: String) -> String {
+        "main thread stalled over \(Int(threshold * 1000)) ms at +\(milliseconds) ms, run loop mode \(mode); window server: \(windows)"
+    }
+
+    /// What the window server says about the overlay windows: on screen or not, and their alpha.
+    static func windowServerState(of numbers: [CGWindowID]) -> String {
+        numbers.map { number in
+            guard
+                let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], number) as? [[String: Any]])?.first
+            else { return "\(number) gone" }
+            let onscreen = (info[kCGWindowIsOnscreen as String] as? Bool) ?? false
+            let alpha = (info[kCGWindowAlpha as String] as? Double) ?? -1
+            return "\(number) onscreen \(onscreen) alpha \(alpha)"
+        }.joined(separator: ", ")
     }
 }

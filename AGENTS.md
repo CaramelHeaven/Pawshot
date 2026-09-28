@@ -13,8 +13,8 @@ right click cancel the capture.
 
 **Space switches the overlay to window mode** — the same gesture the system tool has behind ⇧⌘4:
 the cursor becomes a camera, the window under it is highlighted, a click takes it whole. The window
-list is frozen together with the display frames, *before* the overlay is up — otherwise the window
-under the cursor would be our own overlay. **⇧⌘1 captures the whole screen** with no overlay at
+list is taken *before* the overlay is up — otherwise the window under the cursor would be our own
+overlay. **⇧⌘1 captures the whole screen** with no overlay at
 all: the display frame is already there, so the shot is just its full crop.
 
 **⇧⌘3 records a region, ⇧⌘4 records the whole screen** — the owner's choice, knowing macOS takes
@@ -916,13 +916,52 @@ nobody behind it is an `.error`), every early return of a capture, the overlay's
 cancel and selection, the editor's opening, exports and their failures, ⌘Q's every decision, the
 shortcut fields, settings changes, permission prompts, recording and the video editor.
 
+### The overlay goes up before the capture, and never activates Pawshot
+
+Until 0.4.2 the hotkey first froze every display and only then showed the overlay. On a MacBook
+Air M1 (3008×1692 pt @2x, 20 megapixels) that freeze took 99–140 ms, so the dimming came a
+noticeable beat after the key. A log from that Mac also showed the stall below. Now, in this order:
+
+1. The hotkey puts the overlay up at once, over the live screen (`startOverlayCapture` →
+   `SelectionOverlayController.begin`). Its windows are **built at launch and reused**
+   (`prepareWindows`, rebuilt when the displays change), so no window is created on the hotkey.
+2. The frames are captured behind it with **Pawshot left out**
+   (`SCContentFilter(display:excludingApplications:exceptingWindows:)`). Our other windows — an
+   open editor, the paw — are excepted, so they stay in the frame. `InstantOverlayTests` compares
+   the frame with and without the exclusion; it went red when the exclusion was removed.
+3. `deliver(frames:)` puts each frame under its overlay (`OverlayWindow.frameView`, a layer of its
+   own that is drawn once), and a selection made before that — a fast flick — is cut out then.
+   A failed capture closes the overlay (`fail()`).
+
+Measured in the test host on a 5K screen: hotkey → first draw 9–52 ms (was 99–187), the frame
+catches up at 43–95 ms.
+
+The overlay is a **non-activating `NSPanel`**. It takes Esc, Space, M and ↩ without making
+Pawshot the active app. `NSApp.activate()` is gone from the overlay, and with it the cooperative
+activation of macOS 14+, the Space it may switch to, and the four-second stall in her log. The
+other app stays active, so its open menu is still open when the frame is taken — which is what
+the old "freeze first" order was protecting. The editor that opens afterwards activates Pawshot
+as any window does.
+
+The frame no longer redraws on every mouse move: `FrameView` draws it once, and a move in region
+mode with nothing drawn only moves the badge. The overlay log closes with `slowest N ms`, the
+longest single draw; a redraw measured through `cacheDisplay` is not the real cost (a bare
+full-screen fill measured 25 ms that way), so that number from a real Mac is the one to trust.
+
 ### The first ⇧⌘2 that shows nothing until a click — open
 
 Seen by the owner on 2026-09-28: the first region capture after launch showed no dimming at all;
 a click anywhere, and the screen went dark. Once per launch; later presses fine. Probably the same
 thing as "the first ⇧⌘2 on a new Mac does nothing, the second works".
 
-Not reproduced. A probe called `beginCapture()` first thing in three fresh test-host processes,
+A log from a MacBook Air (0.4.1) caught it: the overlay drawn at +215 ms, the app active at
++164, and then four seconds with no queued work run and no mouse event, until a click — right
+after two Space switches. Which is why 0.4.2 drops the activation (above) and watches the main
+thread from another one: `main thread stalled over 250 ms at +N ms, run loop mode …; window
+server: …` and `main thread back after N ms`. The run loop mode tells a busy main thread
+(default or common mode) from AppKit waiting in a mode of its own.
+
+Before that log: not reproduced. A probe called `beginCapture()` first thing in three fresh test-host processes,
 with no user events at all: `begin` reached at +47–163 ms, the overlay drawn at +124–163 ms,
 `occlusionState` visible 20–40 ms after that. What the probe did show: the app never became
 active within 2 s (the test host is a background process under xcodebuild, where activation is

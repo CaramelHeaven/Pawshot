@@ -35,6 +35,33 @@ final class LogExportTests: XCTestCase {
         XCTAssertTrue(header.contains("Other running copies: none"))
     }
 
+    /// The Mac's own state goes in the header: a throttled or starved Mac lags without Pawshot.
+    func testTheHeaderCarriesTheHardwareAndTheMacsState() {
+        var facts = facts(takenBy: nil)
+        facts.hardware = "Apple M1, 8 GB"
+        facts.system = "thermal nominal, memory pressure normal, low power off, on AC"
+        facts.otherCaptureApps = ["CleanShot X"]
+        let header = LogExport.header(facts, generatedAt: Date())
+
+        XCTAssertTrue(header.contains("Hardware: Apple M1, 8 GB; now: thermal nominal, memory pressure normal, low power off, on AC"))
+        XCTAssertTrue(header.contains("Other capture apps: CleanShot X"))
+    }
+
+    func testOtherCaptureAppsAreFoundWithoutFalseFriends() {
+        XCTAssertEqual(
+            SystemState.matchingCaptureApps(["CleanShot X", "Obsidian", "OBS", "Safari", "Shottr", "Kaleidoscope"]),
+            ["CleanShot X", "OBS", "Shottr"]
+        )
+    }
+
+    /// Read with no permission at all, and never empty.
+    func testTheMacsStateIsReadable() {
+        XCTAssertTrue(SystemState.hardware.contains("GB"))
+        XCTAssertTrue(SystemState.now.hasPrefix("thermal "))
+        XCTAssertNotEqual(SystemState.memoryPressure, "?")
+        XCTAssertNotEqual(SystemState.powerSource, "power ?")
+    }
+
     func testAFreeShortcutIsNotFlagged() {
         let header = LogExport.header(facts(takenBy: nil), generatedAt: Date())
         XCTAssertTrue(header.contains("Capture a region: ⇧⌘4\n"))
