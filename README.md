@@ -23,21 +23,45 @@ So I built my own. Native, free, a few megabytes, no account, no nagging. Grab i
   captions, zooms and a pen that draws into the video.
 - Stop, keep the pieces you want, get HEVC, 1080p or a GIF straight onto the clipboard.
 
-## Build it yourself
+## Install
 
-You need macOS 26, Xcode 26 and [mise](https://mise.jdx.dev) (it pulls the pinned Tuist and
-SwiftFormat on its own).
+Pawshot needs macOS 26 (Tahoe). There is one way in:
+
+1. Download `Pawshot-<version>.dmg` from the
+   [latest release](https://github.com/CaramelHeaven/Pawshot/releases/latest).
+2. Open it and drag Pawshot onto Applications.
+3. Open Pawshot. The build isn't notarised, so macOS stops the first launch: go to System Settings →
+   Privacy & Security, press **Open Anyway** and enter your password. This happens once — updates
+   never ask again.
+4. The welcome window lists everything Pawshot can use, each with its own button: **Screen
+   Recording** is the one it needs; the microphone, Input Monitoring (shortcut captions in videos),
+   freeing ⇧⌘3 / ⇧⌘4 from macOS and launch at login can wait. Press **Get Started**.
+
+The paw in the menu bar means it is running. **⌘S** asks for the Desktop the first time it saves.
+
+## Updates
+
+Pawshot updates itself through [Sparkle](https://sparkle-project.org): it checks the releases here
+once a day, or right away from the paw → **Check for Updates…**, and **Install and Relaunch** swaps
+the app in place. No DMG, no Open Anyway, no password, and the permissions you gave it stay.
+
+## Development
+
+Building from source is for working on Pawshot, not for installing it. You need Xcode 26 and
+[mise](https://mise.jdx.dev), which pulls the pinned Tuist and SwiftFormat on its own.
 
 ```sh
 git clone https://github.com/CaramelHeaven/Pawshot.git && cd Pawshot
-make install
+make run    # build a Debug copy and launch it
+make test   # the unit tests
+make        # every other target
 ```
 
-`make install` builds Release, puts it into `/Applications` and launches it.
+<details>
+<summary>A stable signature, so Screen Recording survives rebuilds</summary>
 
-**Signing.** Without the local file the app is signed ad hoc — it works, but macOS asks for Screen
-Recording again after every rebuild. A stable signature fixes that and needs no Apple account:
-make a self-signed identity once and point the local config at it.
+Out of the box the build is signed ad hoc, and macOS asks for Screen Recording again after every
+rebuild. A self-signed identity fixes that and needs no Apple account:
 
 ```sh
 T=$(mktemp -d)
@@ -53,29 +77,14 @@ cp Config/Signing.local.xcconfig.example Config/Signing.local.xcconfig
 ```
 
 The three `-keypbe/-certpbe/-macalg` flags matter with OpenSSL 3 (Homebrew's): its default `.p12`
-is one macOS's `security import` rejects as "MAC verification failed". Your Apple Development
-certificate and Team ID work too — see `Config/Signing.local.xcconfig.example`.
+is one macOS's `security import` rejects as "MAC verification failed". An Apple Development
+certificate works too — see `Config/Signing.local.xcconfig.example`.
 
-First run asks for **Screen Recording** (⇧⌘2) and **Desktop** access (⌘S). ⇧⌘3 / ⇧⌘4 belong to macOS
-until you untick "Save picture of screen / selected area as a file" in System Settings → Keyboard →
-Keyboard Shortcuts → Screenshots — Pawshot's Settings warns while they're still taken.
+</details>
 
-`make test` runs the tests, `make run` a Debug copy, `make uninstall` removes it, `make` lists
-the rest.
-
-## Hand it to someone
-
-```sh
-make dist
-```
-
-builds Release and packs it into `build/Pawshot-<version>.dmg` — the usual window with the app on
-the left and Applications on the right. Nothing is installed. The first run asks to let Terminal
-control Finder: that is how the window gets its layout.
-
-On the other Mac (macOS 26): open the DMG, drag Pawshot onto Applications. The build isn't
-notarised, so the first launch is blocked — System Settings → Privacy & Security → **Open Anyway**,
-or `xattr -dr com.apple.quarantine /Applications/Pawshot.app`.
+Releases are the owner's: raise the version in `Project.swift`, commit, push, then
+`make release publish` — it builds the DMG, signs the update with the key in the owner's Keychain
+and puts both on GitHub, where every installed copy finds them.
 
 ## For AI agents
 

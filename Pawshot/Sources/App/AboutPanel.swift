@@ -12,4 +12,21 @@ enum AboutPanel {
     static var build: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
     }
+
+    /// "0.4.5" — the build in brackets only when it says something the version doesn't. Since
+    /// Sparkle the build number is the version, and "0.4.5 (0.4.5)" read like a typo.
+    static var versionLine: String {
+        versionLine(version: version, build: build)
+    }
+
+    static func versionLine(version: String, build: String) -> String {
+        build == version ? version : "\(version) (\(build))"
+    }
+
+    /// From Info.plist, where Finder's Get Info reads it too.
+    static var copyright: String {
+        Bundle.main.object(forInfoDictionaryKey: "NSHumanReadableCopyright") as? String ?? ""
+    }
+
+    static let contactEmail = "srg.fominov@gmail.com"
 }

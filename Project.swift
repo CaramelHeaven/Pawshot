@@ -83,7 +83,7 @@ let project = Project(
                 "NSPrincipalClass": "NSApplication",
                 // Without it the first recording with the microphone on doesn't ask — it crashes.
                 "NSMicrophoneUsageDescription": "Pawshot records your voice along with the screen when the microphone is turned on.",
-                "NSHumanReadableCopyright": "Copyright © CaramelHeaven",
+                "NSHumanReadableCopyright": "Copyright © 2026 CaramelHeaven",
                 // Sparkle: the feed is the appcast attached to the latest GitHub release, and every
                 // update is checked against this key — its private half is in the owner's Keychain.
                 // Automatic checks are on from the start, so nobody is asked about them.
@@ -101,7 +101,7 @@ let project = Project(
             settings: .settings(
                 // The build number is the version: Sparkle compares CFBundleVersion, and a constant
                 // "1" would never read as newer.
-                base: ["MARKETING_VERSION": "0.4.5", "CURRENT_PROJECT_VERSION": "$(MARKETING_VERSION)"],
+                base: ["MARKETING_VERSION": "0.4.6", "CURRENT_PROJECT_VERSION": "$(MARKETING_VERSION)"],
                 configurations: [
                     .debug(
                         name: .debug,

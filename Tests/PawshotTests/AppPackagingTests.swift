@@ -38,6 +38,16 @@ final class AboutPanelTests: XCTestCase {
         XCTAssertNotEqual(AboutPanel.version, "—", "the version wasn't read from Info.plist")
     }
 
+    /// Since Sparkle the build number is the version; "0.4.5 (0.4.5)" is not a version line.
+    func testVersionLineShowsTheBuildOnlyWhenItDiffers() {
+        XCTAssertEqual(AboutPanel.versionLine(version: "0.4.5", build: "0.4.5"), "0.4.5")
+        XCTAssertEqual(AboutPanel.versionLine(version: "0.4.5", build: "7"), "0.4.5 (7)")
+    }
+
+    func testCopyrightComesFromInfoPlist() {
+        XCTAssertTrue(AboutPanel.copyright.contains("CaramelHeaven"), AboutPanel.copyright)
+    }
+
     func testCreditsCarryRepositoryLink() {
         XCTAssertTrue(AboutPanel.repositoryURL.hasPrefix("https://"))
         XCTAssertNotNil(URL(string: AboutPanel.repositoryURL))

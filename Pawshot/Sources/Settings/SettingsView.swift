@@ -24,6 +24,7 @@ private struct GeneralSettings: View {
 
     var body: some View {
         Form {
+            about
             Section {
                 Toggle("Launch at Login", isOn: LoginItem.menuBinding)
                     .disabled(!LoginItem.isInApplicationsFolder)
@@ -95,6 +96,36 @@ private struct GeneralSettings: View {
         }
         .formStyle(.grouped)
         .frame(height: 720)
+    }
+
+    /// What is running and whose it is — first, so it is there without scrolling.
+    private var about: some View {
+        Section {
+            HStack(spacing: 12) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 44, height: 44)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Pawshot")
+                        .font(.headline)
+                    Text("Version \(AboutPanel.versionLine)")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+        } footer: {
+            HStack(spacing: 6) {
+                Text(verbatim: AboutPanel.copyright)
+                Text(verbatim: "·")
+                if let mail = URL(string: "mailto:\(AboutPanel.contactEmail)") {
+                    Link(AboutPanel.contactEmail, destination: mail)
+                }
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
     }
 
     @State private var isCollectingLogs = false

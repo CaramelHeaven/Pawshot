@@ -28,7 +28,7 @@ struct AboutView: View {
             VStack(spacing: 4) {
                 Text("Pawshot")
                     .font(.title2.bold())
-                Text("Version \(AboutPanel.version) (\(AboutPanel.build))")
+                Text("Version \(AboutPanel.versionLine)")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()

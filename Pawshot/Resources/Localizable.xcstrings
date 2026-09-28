@@ -2194,12 +2194,12 @@
         }
       }
     },
-    "Version %@ (%@)" : {
+    "Version %@" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Версия %1$@ (%2$@)"
+            "value" : "Версия %@"
           }
         }
       }
