@@ -12,12 +12,58 @@
       },
       "shouldTranslate" : false
     },
+    "%@ for a region, Space for a window, %@ for the whole screen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ for a region, Space for a window, %2$@ for the whole screen."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ — область, пробел — окно, %2$@ — весь экран."
+          }
+        }
+      }
+    },
+    "%@ records a region." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ записывает область."
+          }
+        }
+      }
+    },
+    "%@ starts the take over." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ начинает дубль заново."
+          }
+        }
+      }
+    },
     "%@ · %lld s left" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ · осталось %2$lld с"
+          }
+        }
+      }
+    },
+    "%lld chars" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld зн."
           }
         }
       }
@@ -159,8 +205,28 @@
     "%lld%%" : {
       "shouldTranslate" : false
     },
+    "%lld%% of everything drawn" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld %% всего нарисованного"
+          }
+        }
+      }
+    },
     "1x / 2x" : {
       "shouldTranslate" : false
+    },
+    "1–5 in the editor switch colours." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1–5 в редакторе меняют цвет."
+          }
+        }
+      }
     },
     "A" : {
       "shouldTranslate" : false
@@ -175,6 +241,36 @@
         }
       }
     },
+    "A doctor's handwriting, surely." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Почерк врача, не иначе."
+          }
+        }
+      }
+    },
+    "A in the editor draws an arrow." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A в редакторе рисует стрелку."
+          }
+        }
+      }
+    },
+    "A novel you didn't write." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Роман, который вы не писали."
+          }
+        }
+      }
+    },
     "A tap of ⌘Q closes the window in front; hold ⌘Q to quit Pawshot." : {
       "localizations" : {
         "ru" : {
@@ -185,12 +281,12 @@
         }
       }
     },
-    "A text file with Pawshot's log for the last three days — send it with a bug report." : {
+    "A writer." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Текстовый файл с логом Pawshot за последние три дня — пришлите его вместе с описанием ошибки."
+            "value" : "Писатель."
           }
         }
       }
@@ -265,12 +361,32 @@
         }
       }
     },
+    "Almost quit, let go just in time." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чуть не вышли, но отпустили вовремя."
+          }
+        }
+      }
+    },
     "Already taken" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Уже занято"
+          }
+        }
+      }
+    },
+    "An artist." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Художник."
           }
         }
       }
@@ -285,12 +401,52 @@
         }
       }
     },
+    "Arrows" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стрелки"
+          }
+        }
+      }
+    },
+    "Author of manuals." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автор инструкций."
+          }
+        }
+      }
+    },
     "Available once Pawshot is installed in /Applications." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Доступно, когда Pawshot установлен в /Applications."
+          }
+        }
+      }
+    },
+    "B hides passwords and emails." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "B прячет пароли и почты."
+          }
+        }
+      }
+    },
+    "Black" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чёрный"
           }
         }
       }
@@ -305,12 +461,52 @@
         }
       }
     },
+    "Blurred secrets" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Под блюром"
+          }
+        }
+      }
+    },
+    "Boxes" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рамки"
+          }
+        }
+      }
+    },
+    "Breaks off camera." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перекуры за кадром."
+          }
+        }
+      }
+    },
     "Cancel" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Отмена"
+          }
+        }
+      }
+    },
+    "Cancelled" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отменено"
           }
         }
       }
@@ -415,12 +611,42 @@
         }
       }
     },
+    "Changing your mind is fine." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Передумать — это нормально."
+          }
+        }
+      }
+    },
     "Check for Updates…" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Проверить обновления…"
+          }
+        }
+      }
+    },
+    "Chief archer." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Главный стрелочник."
+          }
+        }
+      }
+    },
+    "Circled everything that wasn't nailed down." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обведено всё, что плохо лежало."
           }
         }
       }
@@ -491,6 +717,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Закрыть скриншот?"
+          }
+        }
+      }
+    },
+    "Collect Logs" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Собирать логи"
           }
         }
       }
@@ -725,12 +961,42 @@
         }
       }
     },
+    "Counted on this Mac only." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Считается только на этом Mac."
+          }
+        }
+      }
+    },
     "Counter" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Счётчик"
+          }
+        }
+      }
+    },
+    "D is the pencil." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "D — карандаш."
+          }
+        }
+      }
+    },
+    "Days in a row" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дней подряд"
           }
         }
       }
@@ -775,6 +1041,26 @@
         }
       }
     },
+    "Draw something and we'll see." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Порисуйте — и узнаем."
+          }
+        }
+      }
+    },
+    "Drawing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рисование"
+          }
+        }
+      }
+    },
     "Drawn in when the video is saved, never while you record. Clicks become orange rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain typing and passwords never appear. Zooms go wherever you pressed %@ while recording. Each can still be switched off for one video in the editor." : {
       "localizations" : {
         "ru" : {
@@ -785,12 +1071,32 @@
         }
       }
     },
+    "Early bird: shots before breakfast." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жаворонок: скрины до завтрака."
+          }
+        }
+      }
+    },
     "Editor" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Редактор"
+          }
+        }
+      }
+    },
+    "Enough for an IKEA wardrobe." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Инструкций хватит на шкаф из IKEA."
           }
         }
       }
@@ -808,6 +1114,26 @@
     "Esc" : {
       "shouldTranslate" : false
     },
+    "Esc or a right click cancels a shot." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esc или правый клик отменяют снимок."
+          }
+        }
+      }
+    },
+    "Every number goes back to zero, and the count starts today." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все цифры обнулятся, счёт начнётся с сегодняшнего дня."
+          }
+        }
+      }
+    },
     "Every shortcut goes back to the one Pawshot came with." : {
       "localizations" : {
         "ru" : {
@@ -824,6 +1150,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Пипетка"
+          }
+        }
+      }
+    },
+    "Favourite colour" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Любимый цвет"
+          }
+        }
+      }
+    },
+    "Favourite mode" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Любимый режим"
+          }
+        }
+      }
+    },
+    "Favourite tool" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Любимый инструмент"
           }
         }
       }
@@ -848,6 +1204,16 @@
         }
       }
     },
+    "Fixed by the window edge" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подогнано краем окна"
+          }
+        }
+      }
+    },
     "Format (P)" : {
       "localizations" : {
         "ru" : {
@@ -864,6 +1230,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Свободны"
+          }
+        }
+      }
+    },
+    "Full screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Весь экран"
           }
         }
       }
@@ -891,6 +1267,36 @@
         }
       }
     },
+    "Got It" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Понятно"
+          }
+        }
+      }
+    },
+    "Got off the hook." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сорвалось с крючка."
+          }
+        }
+      }
+    },
+    "Green" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зелёный"
+          }
+        }
+      }
+    },
     "HEX" : {
       "shouldTranslate" : false
     },
@@ -901,6 +1307,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Удерживайте"
+          }
+        }
+      }
+    },
+    "Hold ⌘Q to quit; let go early to stay." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживайте ⌘Q, чтобы выйти; отпустите раньше — останетесь."
           }
         }
       }
@@ -965,12 +1381,42 @@
         }
       }
     },
+    "Keeper of secrets." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Хранитель секретов."
+          }
+        }
+      }
+    },
+    "Kept on this Mac only, for the last three days. Nothing leaves it until you send it: as a file, or by email to the developer." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Хранятся только на этом Mac, за последние три дня. Никуда не уходят, пока вы сами их не отправите: файлом или письмом разработчику."
+          }
+        }
+      }
+    },
     "Keyboard Shortcuts… → Screenshots, then untick:" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Сочетания клавиш… → Снимки экрана, затем снимите флажки:"
+          }
+        }
+      }
+    },
+    "Labels" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Надписи"
           }
         }
       }
@@ -1058,6 +1504,16 @@
     "M" : {
       "shouldTranslate" : false
     },
+    "Master of boxes." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мастер рамок."
+          }
+        }
+      }
+    },
     "Microphone" : {
       "localizations" : {
         "ru" : {
@@ -1098,6 +1554,46 @@
         }
       }
     },
+    "Missed by a few pixels, pulled the edge." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Промахнулись на пару пикселей — дотянули окном."
+          }
+        }
+      }
+    },
+    "Missed? Drag the editor window's edge." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Промахнулись? Потяните край окна редактора."
+          }
+        }
+      }
+    },
+    "N numbers the steps." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "N ставит номерки шагов."
+          }
+        }
+      }
+    },
+    "Night owl: the best shots come at night." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сова: лучшие скрины — ночью."
+          }
+        }
+      }
+    },
     "No shots yet" : {
       "localizations" : {
         "ru" : {
@@ -1114,6 +1610,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Текст не найден"
+          }
+        }
+      }
+    },
+    "Not a single typo. Probably." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "И ни одной опечатки. Наверное."
           }
         }
       }
@@ -1208,6 +1714,16 @@
         }
       }
     },
+    "Other" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разное"
+          }
+        }
+      }
+    },
     "Over the shot" : {
       "localizations" : {
         "ru" : {
@@ -1220,6 +1736,16 @@
     },
     "P" : {
       "shouldTranslate" : false
+    },
+    "Passwords, emails and strangers' faces." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пароли, почты и чужие лица."
+          }
+        }
+      }
     },
     "Pause" : {
       "localizations" : {
@@ -1237,6 +1763,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Приостановить запись"
+          }
+        }
+      }
+    },
+    "Pauses" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Паузы"
           }
         }
       }
@@ -1264,6 +1800,16 @@
         }
       }
     },
+    "Pawshot writes no log and keeps no stall samples. What macOS has already written stays with it until it clears it, in a few days." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pawshot не пишет лог и не сохраняет снимки зависаний. То, что macOS уже записала, останется у неё, пока она сама не почистит, — несколько дней."
+          }
+        }
+      }
+    },
     "Pawshot, capturing" : {
       "localizations" : {
         "ru" : {
@@ -1280,6 +1826,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pawshot, текст скопирован"
+          }
+        }
+      }
+    },
+    "Peak hour" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Час пик"
           }
         }
       }
@@ -1324,12 +1880,32 @@
         }
       }
     },
+    "Pigeon: shots at the height of the day." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Голубь: скрины в разгар дня."
+          }
+        }
+      }
+    },
     "Play / Pause (Space)" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Воспроизвести / пауза (Пробел)"
+          }
+        }
+      }
+    },
+    "Press %@ and pick a region." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите %@ и выделите область."
           }
         }
       }
@@ -1380,6 +1956,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Завершить Pawshot"
+          }
+        }
+      }
+    },
+    "R draws a box." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "R рисует рамку."
           }
         }
       }
@@ -1474,6 +2060,16 @@
         }
       }
     },
+    "Recorded" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записано"
+          }
+        }
+      }
+    },
     "Recording" : {
       "localizations" : {
         "ru" : {
@@ -1504,6 +2100,16 @@
         }
       }
     },
+    "Red" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Красный"
+          }
+        }
+      }
+    },
     "Redo" : {
       "localizations" : {
         "ru" : {
@@ -1520,6 +2126,32 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Повторить (⇧⌘Z)"
+          }
+        }
+      }
+    },
+    "Region" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Область"
+          }
+        }
+      }
+    },
+    "Region %lld%% · window %lld%% · full screen %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Region %1$lld%% · window %2$lld%% · full screen %3$lld%%"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Область %1$lld %% · окно %2$lld %% · экран %3$lld %%"
           }
         }
       }
@@ -1550,6 +2182,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "обязательно"
+          }
+        }
+      }
+    },
+    "Reset" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить"
+          }
+        }
+      }
+    },
+    "Reset Statistics…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить статистику…"
+          }
+        }
+      }
+    },
+    "Reset the statistics?" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить статистику?"
           }
         }
       }
@@ -1600,6 +2262,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Заново — текущий дубль выбрасывается"
+          }
+        }
+      }
+    },
+    "Restarts" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рестарты"
           }
         }
       }
@@ -1664,6 +2336,16 @@
         }
       }
     },
+    "Robin Hood is getting nervous." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Робин Гуд нервно курит в сторонке."
+          }
+        }
+      }
+    },
     "Rotate Left" : {
       "localizations" : {
         "ru" : {
@@ -1720,16 +2402,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Сохранить"
-          }
-        }
-      }
-    },
-    "Save Logs…" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сохранить логи…"
           }
         }
       }
@@ -1804,6 +2476,16 @@
         }
       }
     },
+    "Save…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить…"
+          }
+        }
+      }
+    },
     "Screen Recording" : {
       "localizations" : {
         "ru" : {
@@ -1864,6 +2546,32 @@
         }
       }
     },
+    "Screenshots · since %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Screenshots · since %1$@ · %2$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снимки экрана · с %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Scribbles" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каракули"
+          }
+        }
+      }
+    },
     "Search fonts" : {
       "localizations" : {
         "ru" : {
@@ -1880,6 +2588,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Выделение"
+          }
+        }
+      }
+    },
+    "Send by Email…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправить почтой…"
+          }
+        }
+      }
+    },
+    "Settings now has a Statistics tab: how many shots you've taken, what you draw with most, how many days in a row. It's all counted on this Mac only.\n\nCollect Logs can now be switched off — in the welcome window and in Settings → General → Diagnostics.\n\nIf something breaks, the logs reach the developer with one button: Send by Email…, in the same place." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В настройках новая вкладка «Статистика»: сколько снимков сделано, чем вы рисуете чаще всего, сколько дней подряд. Всё считается только на этом Mac.\n\n«Собирать логи» теперь можно выключить — в окне приветствия и в Настройки → Основные → Диагностика.\n\nЕсли что-то сломалось, логи уходят разработчику одной кнопкой: «Отправить почтой…» там же."
           }
         }
       }
@@ -1954,6 +2682,36 @@
         }
       }
     },
+    "Statistics" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Статистика"
+          }
+        }
+      }
+    },
+    "Stays on this Mac. If something breaks, Settings → Diagnostics sends them to the developer." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Остаются на этом Mac. Если что-то сломается, «Настройки → Диагностика» отправят их разработчику."
+          }
+        }
+      }
+    },
+    "Step numbers" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Номерки"
+          }
+        }
+      }
+    },
     "Stop" : {
       "localizations" : {
         "ru" : {
@@ -1994,6 +2752,36 @@
         }
       }
     },
+    "T writes a label." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "T — надпись."
+          }
+        }
+      }
+    },
+    "Take a shot every day and we'll count the streak." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снимайте каждый день — посчитаем серию."
+          }
+        }
+      }
+    },
+    "Take two. And three." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дубль два. И три."
+          }
+        }
+      }
+    },
     "Takes effect after a relaunch." : {
       "localizations" : {
         "ru" : {
@@ -2010,6 +2798,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Текст"
+          }
+        }
+      }
+    },
+    "Text read with ⌘D" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст с ⌘D"
           }
         }
       }
@@ -2074,6 +2872,16 @@
         }
       }
     },
+    "The pause button on the pill stops the clock." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пауза на пилюле останавливает запись."
+          }
+        }
+      }
+    },
     "The paw is in the menu bar as soon as the Mac starts." : {
       "localizations" : {
         "ru" : {
@@ -2130,6 +2938,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Выбранная область не попала в снятый кадр."
+          }
+        }
+      }
+    },
+    "The streak holds." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Серия не прерывается."
           }
         }
       }
@@ -2204,12 +3022,68 @@
         }
       }
     },
+    "Video" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Видео"
+          }
+        }
+      }
+    },
+    "Videos: %lld · shorter than an episode of The Simpsons so far" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Видео: %lld · пока короче серии «Симпсонов»"
+          }
+        }
+      }
+    },
+    "Videos: %lld · ≈ The Simpsons × %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Videos: %1$lld · ≈ The Simpsons × %2$lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Видео: %1$lld · ≈ «Симпсоны» × %2$lld"
+          }
+        }
+      }
+    },
     "Warn Before Quitting (⌘Q)" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Предупреждать перед выходом (⌘Q)"
+          }
+        }
+      }
+    },
+    "We'll know after a few shots." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Узнаем после первых снимков."
+          }
+        }
+      }
+    },
+    "What happened, and what did you do just before?" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Что случилось и что вы делали прямо перед этим?"
           }
         }
       }
@@ -2224,12 +3098,42 @@
         }
       }
     },
+    "What's New" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Что нового"
+          }
+        }
+      }
+    },
     "While recording" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Во время записи"
+          }
+        }
+      }
+    },
+    "White" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Белый"
+          }
+        }
+      }
+    },
+    "Window" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окно"
           }
         }
       }
@@ -2273,6 +3177,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Свой цвет (5) — нажмите ещё раз, чтобы выбрать"
+          }
+        }
+      }
+    },
+    "Your own" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свой"
           }
         }
       }
@@ -2567,8 +3481,28 @@
     "⇧⌘C" : {
       "shouldTranslate" : false
     },
+    "≈ %lld pp." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "≈ %lld стр."
+          }
+        }
+      }
+    },
     "⌘C" : {
       "shouldTranslate" : false
+    },
+    "⌘D in the editor copies the text off the shot." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘D в редакторе копирует текст со снимка."
+          }
+        }
+      }
     },
     "⌘Q quits Pawshot at once." : {
       "localizations" : {
@@ -2580,8 +3514,38 @@
         }
       }
     },
+    "⌘Q rescues" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘Q-спасения"
+          }
+        }
+      }
+    },
     "⌘S" : {
       "shouldTranslate" : false
+    },
+    "⌘Z presses" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажатия ⌘Z"
+          }
+        }
+      }
+    },
+    "⌘Z takes a step back. Don't be shy." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘Z отменяет шаг. Не стесняйтесь."
+          }
+        }
+      }
     },
     "⌫" : {
       "shouldTranslate" : false

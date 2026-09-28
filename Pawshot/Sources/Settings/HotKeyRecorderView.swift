@@ -8,7 +8,9 @@ import os
 /// a capture instead of being replaced. `Settings.onHotKeyRecordingChange` is what carries that
 /// news to `AppDelegate`.
 final class HotKeyRecorderView: NSView {
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "settings")
+    private static var logger: Logger {
+        .pawshot("settings")
+    }
 
     var binding: HotKeyBinding {
         didSet { needsDisplay = true }

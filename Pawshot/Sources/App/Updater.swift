@@ -6,7 +6,10 @@ import Sparkle
 /// quarantine and Gatekeeper never asks — the reason it is here at all.
 @MainActor
 enum Updater {
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "updates")
+    private static var logger: Logger {
+        .pawshot("updates")
+    }
+
     private static var controller: SPUStandardUpdaterController?
 
     /// Not under tests: the test host is this app, and it has no business checking a feed.

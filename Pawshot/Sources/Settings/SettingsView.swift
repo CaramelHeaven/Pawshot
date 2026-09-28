@@ -14,6 +14,9 @@ struct SettingsView: View {
             Tab("Shortcuts", systemImage: "keyboard") {
                 ShortcutSettings()
             }
+            Tab("Statistics", systemImage: "chart.bar") {
+                StatsView()
+            }
         }
         .frame(width: 520)
     }
@@ -76,22 +79,28 @@ private struct GeneralSettings: View {
                     .foregroundStyle(.secondary)
             }
             Section {
-                LabeledContent("Logs") {
-                    Button(isCollectingLogs ? "Collecting…" : "Save Logs…") {
-                        isCollectingLogs = true
-                        Task {
-                            await LogExport.saveWithPanel()
-                            isCollectingLogs = false
+                Toggle("Collect Logs", isOn: LogExport.collectingBinding)
+                if settings.collectsLogs {
+                    LabeledContent(isCollectingLogs ? "Collecting…" : "Logs") {
+                        HStack {
+                            Button("Save…") { collectLogs(LogExport.saveWithPanel) }
+                            Button("Send by Email…") { collectLogs(LogExport.sendByEmail) }
                         }
+                        .disabled(isCollectingLogs)
                     }
-                    .disabled(isCollectingLogs)
                 }
             } header: {
                 Text("Diagnostics")
             } footer: {
-                Text("A text file with Pawshot's log for the last three days — send it with a bug report.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                Group {
+                    if settings.collectsLogs {
+                        Text("Kept on this Mac only, for the last three days. Nothing leaves it until you send it: as a file, or by email to the developer.")
+                    } else {
+                        Text("Pawshot writes no log and keeps no stall samples. What macOS has already written stays with it until it clears it, in a few days.")
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -129,6 +138,15 @@ private struct GeneralSettings: View {
     }
 
     @State private var isCollectingLogs = false
+
+    /// Gathering three days of log takes a few seconds; both buttons wait for it.
+    private func collectLogs(_ action: @escaping @MainActor () async -> Void) {
+        isCollectingLogs = true
+        Task {
+            await action()
+            isCollectingLogs = false
+        }
+    }
 }
 
 /// The labels' family: any font installed on the Mac, each name set in its own face, with the

@@ -11,7 +11,9 @@ import SwiftUI
 struct PawshotApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "app")
+    private static var logger: Logger {
+        .pawshot("app")
+    }
 
     /// The paw's menu reaches the same code as the hotkeys; the log tells the two apart.
     private static func menu(_ item: StaticString) {
@@ -51,6 +53,15 @@ struct PawshotApp: App {
         .windowResizability(.contentSize)
         .windowStyle(.hiddenTitleBar)
         .defaultLaunchBehavior(Settings.shared.welcomeCompleted || AppDelegate.isTestHost ? .suppressed : .presented)
+        .restorationBehavior(.disabled)
+
+        // Once per version after an update (`WhatsNew`); never on a fresh install.
+        Window("What's New", id: WindowID.whatsNew) {
+            WhatsNewView()
+        }
+        .windowResizability(.contentSize)
+        .windowStyle(.hiddenTitleBar)
+        .defaultLaunchBehavior(WhatsNew.showsAtLaunch && !AppDelegate.isTestHost ? .presented : .suppressed)
         .restorationBehavior(.disabled)
 
         Window("About Pawshot", id: WindowID.about) {

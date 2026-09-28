@@ -148,5 +148,6 @@ struct MenuBarLabel: View {
 
 enum WindowID {
     static let welcome = "welcome"
+    static let whatsNew = "whatsNew"
     static let about = "about"
 }

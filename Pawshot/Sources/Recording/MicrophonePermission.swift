@@ -36,11 +36,11 @@ enum MicrophonePermission {
             return true
         case .notDetermined:
             let granted = await AVCaptureDevice.requestAccess(for: .audio)
-            Logger(subsystem: "com.caramelheaven.pawshot", category: "permission")
+            Logger.pawshot("permission")
                 .notice("microphone asked for: \(granted ? "granted" : "refused", privacy: .public)")
             return granted
         default:
-            Logger(subsystem: "com.caramelheaven.pawshot", category: "permission")
+            Logger.pawshot("permission")
                 .notice("microphone wanted but not allowed: recording without it")
             return false
         }

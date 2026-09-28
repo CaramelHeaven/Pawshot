@@ -13,7 +13,9 @@ import SwiftUI
 /// delivers — the take is not lost to an impatient ⌘W.
 @MainActor
 final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, ClosesOnQuitKey {
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "video")
+    private static var logger: Logger {
+        .pawshot("video")
+    }
 
     /// Alive until the window is closed and its export, if any, has finished.
     private static var openControllers: Set<VideoEditorWindowController> = []

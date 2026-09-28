@@ -1,3 +1,4 @@
+import os
 @testable import Pawshot
 import XCTest
 
@@ -80,11 +81,27 @@ final class LogExportTests: XCTestCase {
 
     /// The real thing, end to end: `log show` runs from the app and returns Pawshot's lines — the
     /// test host itself has just logged its launch.
-    func testLogShowRunsAndFindsOurLines() async {
+    func testLogShowRunsAndFindsOurLines() async throws {
+        try XCTSkipUnless(Logger.isCollecting, "Collect Logs is off in this Mac's Pawshot settings")
         let text = await LogExport.readLog(arguments: [
             "show", "--predicate", "subsystem == \"com.caramelheaven.pawshot\"", "--last", "10m", "--style", "compact",
         ])
         XCTAssertTrue(text.contains("com.caramelheaven.pawshot"), String(text.prefix(300)))
+    }
+
+    /// "Collect Logs" off is read at every log call, with no relaunch. The test host shares the
+    /// app's defaults, so the owner's own value is put back.
+    func testTheLogGateFollowsTheSwitchAtOnce() {
+        let key = Settings.Key.collectsLogs.rawValue
+        let before = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(before, forKey: key) }
+
+        UserDefaults.standard.removeObject(forKey: key)
+        XCTAssertTrue(Logger.isCollecting, "on by default")
+        UserDefaults.standard.set(false, forKey: key)
+        XCTAssertFalse(Logger.isCollecting)
+        UserDefaults.standard.set(true, forKey: key)
+        XCTAssertTrue(Logger.isCollecting)
     }
 
     /// A stall's sample goes into Save Logs as its header and the main thread's branch only: the

@@ -12,7 +12,9 @@ import os
 final class GlobalHotKey {
     /// The four-letter tag Carbon uses to tell our hotkeys apart from everyone else's.
     private static let signature = OSType(0x5041_5753) // 'PAWS'
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "hotkey")
+    private static var logger: Logger {
+        .pawshot("hotkey")
+    }
 
     /// Every live hotkey by its id — a C callback can't capture context, so the path from an
     /// event to an object goes through this table.
@@ -67,18 +69,18 @@ final class GlobalHotKey {
         guard status == noErr, let ref else {
             // Most of the time this happens because the shortcut is already taken. Staying silent
             // is not an option: from the outside it just looks like "the hotkey doesn't work".
-            let shortcut = binding.displayString
+            let shortcut = binding.logString
             logger.error("RegisterEventHotKey failed for \(shortcut, privacy: .public) with status \(status)")
             throw status == OSStatus(eventHotKeyExistsErr)
                 ? RegistrationError.alreadyTaken
                 : RegistrationError.failed(status)
         }
 
-        let hotKey = GlobalHotKey(id: id, ref: ref, label: binding.displayString, action: action)
+        let hotKey = GlobalHotKey(id: id, ref: ref, label: binding.logString, action: action)
         registry[id] = WeakHotKey(value: hotKey)
         // `.public`: this line is how the owner checks that a hotkey took — by default the logger
         // redacts interpolated strings and prints `<private>` instead.
-        logger.notice("hotkey registered: \(binding.displayString, privacy: .public)")
+        logger.notice("hotkey registered: \(binding.logString, privacy: .public)")
 
         return hotKey
     }

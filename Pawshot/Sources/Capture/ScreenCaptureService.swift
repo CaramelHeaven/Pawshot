@@ -48,7 +48,9 @@ struct CapturedWindow: Sendable, Equatable {
 /// this — every call here is `async` and the work happens inside ScreenCaptureKit.
 @MainActor
 enum ScreenCaptureService {
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "capture")
+    private static var logger: Logger {
+        .pawshot("capture")
+    }
 
     /// The last enumeration of shareable content.
     ///

@@ -6,7 +6,9 @@ import os
 /// instead of a meaningful error, so the check happens upfront.
 @MainActor
 enum ScreenRecordingPermission {
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "permission")
+    private static var logger: Logger {
+        .pawshot("permission")
+    }
 
     static let settingsURL = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"

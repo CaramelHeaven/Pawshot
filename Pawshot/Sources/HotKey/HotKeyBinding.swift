@@ -26,6 +26,17 @@ struct HotKeyBinding: Equatable, Codable {
     /// One entry per key, in the order macOS prints them: `["⇧", "⌘", "2"]`. The recorder and the
     /// welcome window draw each entry as its own key cap.
     var keyCaps: [String] {
+        // Stored as "Space" (it is also the key the menu is matched on), shown in the interface
+        // language.
+        modifierCaps + (label.isEmpty ? [] : [label == "Space" ? String(localized: "Space") : label])
+    }
+
+    /// "⇧⌘Space" whatever the interface speaks — the log stays English.
+    var logString: String {
+        (modifierCaps + [label]).joined()
+    }
+
+    private var modifierCaps: [String] {
         var caps: [String] = []
         if carbonModifiers & UInt32(controlKey) != 0 {
             caps.append("⌃")
@@ -39,12 +50,6 @@ struct HotKeyBinding: Equatable, Codable {
         if carbonModifiers & UInt32(cmdKey) != 0 {
             caps.append("⌘")
         }
-        if !label.isEmpty {
-            // Stored as "Space" (it is also the key the menu is matched on), shown in the
-            // interface language.
-            caps.append(label == "Space" ? String(localized: "Space") : label)
-        }
-
         return caps
     }
 

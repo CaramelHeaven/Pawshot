@@ -54,6 +54,27 @@ final class AboutPanelTests: XCTestCase {
     }
 }
 
+final class WhatsNewTests: XCTestCase {
+    /// The text is rewritten with every version bump (AGENTS.md, Releasing). A raised
+    /// `MARKETING_VERSION` still carrying the last version's words fails here.
+    func testTheTextIsForThisVersion() {
+        XCTAssertEqual(WhatsNew.version, AboutPanel.version, "MARKETING_VERSION was raised: rewrite WhatsNew for it")
+    }
+
+    /// Once after an update — never on a fresh install, where the welcome window speaks first.
+    func testShownOnceAfterAnUpdateOnly() {
+        func shows(_ lastSeen: String?, welcomed: Bool = true, text: String = "News") -> Bool {
+            WhatsNew.shouldShow(lastSeen: lastSeen, welcomeCompleted: welcomed, current: "0.4.7", text: text)
+        }
+
+        XCTAssertFalse(shows(nil, welcomed: false), "a fresh install gets the welcome window")
+        XCTAssertTrue(shows(nil), "an update from 0.4.6, which never stored a version")
+        XCTAssertTrue(shows("0.4.6"))
+        XCTAssertFalse(shows("0.4.7"), "already seen")
+        XCTAssertFalse(shows("0.4.6", text: ""), "a release with nothing to tell")
+    }
+}
+
 final class AppIconTests: XCTestCase {
     /// Catches the "the PNGs never made it into the bundle" case: the icon is in the repository,
     /// but the asset didn't get into the build and Finder shows a grey rectangle.

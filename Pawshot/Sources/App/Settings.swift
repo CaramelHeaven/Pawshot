@@ -39,6 +39,8 @@ final class Settings {
         case language = "app.language"
         case warnsBeforeQuitting = "app.warnsBeforeQuitting"
         case welcomeCompleted = "app.welcomeCompleted"
+        case lastSeenVersion = "app.lastSeenVersion"
+        case collectsLogs = "app.collectsLogs"
         case customColor = "editor.customColor"
         case recentColors = "editor.recentColors"
         case labelFont = "editor.labelFont"
@@ -63,7 +65,10 @@ final class Settings {
     @ObservationIgnored var onHotKeyRecordingChange: ((Bool) -> Void)?
 
     @ObservationIgnored private let defaults: UserDefaults
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "settings")
+    private static var logger: Logger {
+        .pawshot("settings")
+    }
+
     private var revision = 0
 
     /// The language the running process picked its strings in — they are read once, at launch.
@@ -133,6 +138,28 @@ final class Settings {
     var welcomeCompleted: Bool {
         get { flag(.welcomeCompleted, default: false) }
         set { setFlag(newValue, for: .welcomeCompleted) }
+    }
+
+    /// The version whose "What's New" was last shown — or the one "Get Started" was pressed in, so
+    /// a fresh install is not told about changes it never lived through (`WhatsNew`).
+    var lastSeenVersion: String? {
+        get {
+            _ = revision
+            return defaults.string(forKey: Key.lastSeenVersion.rawValue)
+        }
+        set {
+            Self.logger.notice("\(Key.lastSeenVersion.rawValue, privacy: .public) → \(newValue ?? "nil", privacy: .public)")
+            defaults.set(newValue, forKey: Key.lastSeenVersion.rawValue)
+            revision += 1
+        }
+    }
+
+    /// Pawshot writes its log and keeps the stacks of its stalls, for Save Logs to send. On by
+    /// default: a bug met before switching it on would leave nothing behind. Off, every logger
+    /// goes quiet at once (`Logger.pawshot`).
+    var collectsLogs: Bool {
+        get { flag(.collectsLogs, default: true) }
+        set { setFlag(newValue, for: .collectsLogs) }
     }
 
     /// The microphone goes into recordings. Off by default: the app asks for nothing until the
@@ -219,7 +246,9 @@ final class Settings {
     /// The interface language. Kept under a key of our own and mirrored into `AppleLanguages`,
     /// which is what the bundle actually reads — but only at launch, hence `launchLanguage`.
     /// `AppleLanguages` can't be read back for this: through `UserDefaults` it falls through to
-    /// the system's own list whenever the app has none.
+    /// the system's own list whenever the app has none. `AppleLocale` goes along with it: the
+    /// strings follow `AppleLanguages`, but numbers, dates and durations follow the locale, and
+    /// without it a Russian Statistics tab said "41 days".
     var language: AppLanguage {
         get {
             _ = revision
@@ -230,8 +259,10 @@ final class Settings {
             defaults.set(newValue.rawValue, forKey: Key.language.rawValue)
             if newValue == .system {
                 defaults.removeObject(forKey: AppLanguage.appleLanguagesKey)
+                defaults.removeObject(forKey: AppLanguage.appleLocaleKey)
             } else {
                 defaults.set([newValue.rawValue], forKey: AppLanguage.appleLanguagesKey)
+                defaults.set(newValue.localeIdentifier, forKey: AppLanguage.appleLocaleKey)
             }
             revision += 1
         }
@@ -356,7 +387,7 @@ final class Settings {
             Self.logger.error("shortcut \(key.rawValue, privacy: .public) not stored: it doesn't encode")
             return
         }
-        Self.logger.notice("shortcut \(key.rawValue, privacy: .public) → \(binding.displayString, privacy: .public)")
+        Self.logger.notice("shortcut \(key.rawValue, privacy: .public) → \(binding.logString, privacy: .public)")
 
         defaults.set(data, forKey: key.rawValue)
         revision += 1
@@ -382,6 +413,13 @@ enum AppLanguage: String, CaseIterable {
     case russian = "ru"
 
     static let appleLanguagesKey = "AppleLanguages"
+    static let appleLocaleKey = "AppleLocale"
+
+    /// "ru_GB": the interface's language with the Mac's own region, so the units and month names
+    /// match the interface while the region keeps its calendar.
+    var localeIdentifier: String {
+        Locale.current.region.map { "\(rawValue)_\($0.identifier)" } ?? rawValue
+    }
 }
 
 /// Where the editor's capsule of tools and colours sits.

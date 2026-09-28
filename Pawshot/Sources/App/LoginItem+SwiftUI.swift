@@ -10,7 +10,7 @@ extension LoginItem {
         Binding(
             get: { current.isOn },
             set: { enable in
-                let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "settings")
+                let logger = Logger.pawshot("settings")
                 logger.notice("launch at login → \(enable, privacy: .public)")
                 do {
                     try setEnabled(enable)

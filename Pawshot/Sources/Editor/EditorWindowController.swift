@@ -237,7 +237,11 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             clockwise ? self?.rotateRight(nil) : self?.rotateLeft(nil)
             self?.returnFocusToCanvas()
         }
-        chrome.undo = { [weak self] in self?.editorUndoManager.undo() }
+        chrome.undo = { [weak self] in
+            guard let manager = self?.editorUndoManager, manager.canUndo else { return }
+            Stats.shared.add(.undos)
+            manager.undo()
+        }
         chrome.redo = { [weak self] in self?.editorUndoManager.redo() }
         chrome.clearAll = { [weak self] in self?.clearAll() }
         chrome.copy = { [weak self] in self?.copy(nil) }
@@ -267,18 +271,6 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         window?.makeFirstResponder(canvas)
     }
 
-    private static func kind(of annotation: Annotation) -> AnnotationTool {
-        switch annotation {
-        case is TextAnnotation: .text
-        case is ArrowAnnotation: .arrow
-        case is RectangleAnnotation: .rectangle
-        case is PathAnnotation: .pencil
-        case is BlurAnnotation: .blur
-        case is CounterAnnotation: .counter
-        default: .select
-        }
-    }
-
     /// Assigns only what changed: this runs on every document change, a drag included, and each
     /// assignment redraws the toolbar.
     private func syncChrome() {
@@ -287,7 +279,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         if chrome.style != style {
             chrome.style = style
         }
-        let kind = selection.map(Self.kind(of:))
+        let kind = selection.map(AnnotationTool.drawing)
         if chrome.selectedKind != kind {
             chrome.selectedKind = kind
         }
@@ -382,6 +374,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
                 // not for the window, and closing the shot while the reading ran used to throw
                 // away the very thing that was asked for.
                 ExportService.copy(text: text, to: pasteboard)
+                Stats.shared.add(.recognizedCharacters, text.count)
                 // The window is about to go, so the paw in the menu bar is the one thing left to
                 // say the text arrived.
                 AppState.shared.flashTextCopied()
@@ -403,8 +396,13 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
 
     // MARK: - Text recognition
 
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "text")
-    private static let editorLogger = Logger(subsystem: "com.caramelheaven.pawshot", category: "editor")
+    private static var logger: Logger {
+        .pawshot("text")
+    }
+
+    private static var editorLogger: Logger {
+        .pawshot("editor")
+    }
 
     private static func milliseconds(since start: Date) -> Int {
         Int(Date().timeIntervalSince(start) * 1000)

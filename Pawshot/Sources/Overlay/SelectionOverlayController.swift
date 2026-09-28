@@ -4,7 +4,9 @@ import os
 /// Full-screen region selection mode: one window per display.
 @MainActor
 final class SelectionOverlayController: NSObject, SelectionViewDelegate {
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "overlay")
+    private static var logger: Logger {
+        .pawshot("overlay")
+    }
 
     struct Selection {
         /// The display the frame was dragged on.
@@ -355,6 +357,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
     }
 
     func selectionViewDidCancel(_: SelectionView) {
+        if purpose == .screenshot {
+            Stats.shared.add(.cancels)
+        }
         let previous = previousApp
         let name = previous?.localizedName ?? "nobody"
         Self.logger.notice("overlay cancelled, focus back to \(name, privacy: .public)")

@@ -36,7 +36,9 @@ struct SignalWatch {
 /// never triggers the permission prompt. `AVAudioEngine` is created and started on its own queue,
 /// the same reason the recording engine stays off the main thread.
 final class MicrophoneLevelMeter: @unchecked Sendable {
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "recording")
+    private static var logger: Logger {
+        .pawshot("recording")
+    }
 
     private let queue = DispatchQueue(label: "com.caramelheaven.pawshot.level-meter")
     /// Touched only on `queue`.
@@ -84,7 +86,7 @@ final class MicrophoneLevelMeter: @unchecked Sendable {
             try engine.start()
             self.engine = engine
         } catch {
-            Self.logger.error("level meter not started: \(error.localizedDescription, privacy: .public)")
+            Self.logger.error("level meter not started: \(String(describing: error), privacy: .public)")
             input.removeTap(onBus: 0)
             report(level: 0, dead: true)
         }

@@ -43,7 +43,9 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         var capturesMicrophone: Bool
     }
 
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "recording")
+    private static var logger: Logger {
+        .pawshot("recording")
+    }
 
     let outputURL: URL
     private let queue = DispatchQueue(label: "com.caramelheaven.pawshot.recording", qos: .userInitiated)

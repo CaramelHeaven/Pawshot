@@ -71,6 +71,19 @@ enum AnnotationTool: String, CaseIterable {
         allCases.first { $0.hotKey == key.lowercased() }
     }
 
+    /// The tool that draws objects of this kind; `select` for none.
+    static func drawing(_ annotation: Annotation) -> AnnotationTool {
+        switch annotation {
+        case is TextAnnotation: .text
+        case is ArrowAnnotation: .arrow
+        case is RectangleAnnotation: .rectangle
+        case is PathAnnotation: .pencil
+        case is BlurAnnotation: .blur
+        case is CounterAnnotation: .counter
+        default: .select
+        }
+    }
+
     /// Creates an object under the cursor. `nil` means the tool doesn't draw (selection).
     @MainActor
     func makeAnnotation(at point: CGPoint, document: EditorDocument) -> Annotation? {

@@ -41,10 +41,33 @@ paw's "Open Pawshot". The owner picked its layout, W-C, on 2026-09-28 from four 
 the four main shortcuts as they are set right now, on the right every access Pawshot can use — Screen
 Recording (the one that is required, and the only one "Get Started" waits for), the microphone, Input
 Monitoring, whether macOS still keeps any of our shortcuts, launch at login — each read once a second
-with a button to it. It asks for nothing by itself: every system prompt comes from a button press.
+with a button to it — and under them the "Collect Logs" switch (below, `### Logs`). It asks for nothing by itself: every system prompt comes from a button press.
 The shortcuts used only during a take (zoom, pen, restart) are not on it; the pill and Settings show
 them. It replaced the old "Open Pawshot" window rather than sitting next to it. To see it again:
 `defaults delete com.caramelheaven.pawshot app.welcomeCompleted`.
+
+**After an update, a "What's New" window says what changed — once.** The owner picked its look,
+N-A, on 2026-09-28 from four mockups: About's icon in its corner brackets, "What's New", the
+version, a few plain paragraphs and "Got It". It opens by itself at the first launch of a new
+version (`WhatsNew.showsAtLaunch`) and never on a fresh install: "Get Started" records the version
+it was pressed in. Shown means seen, however it is closed. An update from 0.4.6, which stored no
+version, counts as an update. The words are `WhatsNew.text`, rewritten with every version (see
+Releasing, under `### Updates`); an empty text means no window. Only the latest text is kept, so
+a jump from 0.4.5 to 0.4.8 hears about 0.4.8 alone. To see it again:
+`defaults write com.caramelheaven.pawshot app.lastSeenVersion 0`.
+
+**Settings → Statistics counts what the person does, on this Mac only** — the owner picked the
+numbers and the look (L-B) on 2026-09-28 from a page of 28 candidates and four layouts. The count
+of shots sits big on a paw-coloured card with the date counting started; under it tiles of three:
+screenshots (favourite mode, cancelled, text read with ⌘D, fixed by the window edge), drawing (each
+tool, ⌘Z, favourite colour and tool), video (recorded time, restarts, pauses) and the rest (⌘Q let go
+on the toast, the peak hour, days in a row). A tile at zero is muted and says how to get it going,
+with the shortcuts as they are set. Everything started at zero with the build that brought it;
+"Reset Statistics…" starts it again and never touches `captureCount`, which the hints and About
+read. Each count is one line at its choke point (`Stats.shared.add` / `noteShot` / `noteDrawn` /
+`noteRecording`). `Stats` lives apart from `Settings`, so a count doesn't redraw every settings view,
+and in the test host it writes to a suite of its own: the host is the app, and tests that draw
+or capture would otherwise count into the owner's numbers.
 
 **Stop opens the video editor**: the player, a film strip, and a footer with the format, the
 length that comes out and an estimated size. On the strip every kept piece sits inside a pair of
@@ -527,6 +550,12 @@ Paths are given relative to `Pawshot/Sources/`.
 | A translation, a new language                         | `Resources/Localizable.xcstrings`, `defaultKnownRegions` in `Project.swift` |
 | The language picker and how it is applied             | `App/Settings.swift` (`language`), `Settings/SettingsView.swift` |
 | The welcome window, when it opens by itself           | `Welcome/WelcomeView.swift`, `PawshotApp.swift` |
+| "What's New" after an update: its text, when it shows | `App/WhatsNew.swift`                    |
+| The "What's New" window itself                        | `About/WhatsNewView.swift`              |
+| "Collect Logs": the gate every logger goes through    | `App/Log.swift`                         |
+| Statistics: what is counted, favourites, the streak   | `App/Stats.swift`                       |
+| The Statistics tab, its tiles and hints at zero       | `Settings/StatsView.swift`              |
+| Save Logs, Send by Email, what the file holds         | `App/LogExport.swift`                   |
 
 ## Working notes
 
@@ -832,6 +861,18 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
 - **The names of System Settings are Apple's own**, copied out of the system's tables
   (`KeyboardSettings.appex/…/DefaultShortcutsTable.loctable` and friends), so "untick «Сохранить
   изображение экрана как файл»" matches what is on the screen word for word.
+- **The language picker writes `AppleLocale` too** (`ru_GB`: the language with the Mac's own
+  region). The strings follow `AppleLanguages`, but numbers, dates and durations follow the
+  locale. Measured with a script on the owner's Mac: under `-AppleLanguages (ru)` alone
+  `Locale.current` stayed `en_US@rg=gbzzzz` and printed "41 days", "2 hr, 14 min", "21 September"
+  — the Statistics tab in a Russian interface; with `-AppleLocale ru_GB` it printed «41 день»,
+  «2 ч 14 мин», «21 сентября». A script, not the bundle, so whether the app alone would have
+  done better is not known; the key is harmless either way. It is written only when the language
+  is picked: a Mac that picked Russian before 0.4.7 picks it once more.
+- **The log stays English whatever the interface speaks.** Shortcuts go in as
+  `HotKeyBinding.logString` (the stored `Space`, never «Пробел»), errors as
+  `String(describing:)`, a system shortcut the Save Logs header finds taken as its id
+  (`item 30`), and the header's numbers in `en_US_POSIX`.
 
 ### The recording region's handles
 
@@ -914,8 +955,10 @@ diff", it is the norm in this project.
 
 ### Logs: what a shared log has to be
 
-A person with a problem presses **Settings → General → Diagnostics → Save Logs…**, picks where
-the file goes, and sends it (`App/LogExport.swift`). The file is a header — build, macOS, Mac
+A person with a problem presses **Settings → General → Diagnostics → Save…**, picks where
+the file goes, and sends it — or **Send by Email…**, which attaches the same file to a new message
+to `AboutPanel.contactEmail` (`NSSharingService(.composeEmail)`; with no mail account the file is
+shown in the Finder and a plain `mailto:` opens) (`App/LogExport.swift`). The file is a header — build, macOS, Mac
 model, displays, the three permissions, every shortcut and whether macOS still takes it, the main
 settings, other running copies — then Pawshot's log for the last three days (`/usr/bin/log show`
 from the app: there is no sandbox, so no rights are needed), the last three crash reports, and the
@@ -932,6 +975,16 @@ Two rules make that file worth reading, and every new log line follows them:
   failures apart.
 - Read `self` properties into a local before the log call: SwiftFormat strips `self.` inside the
   message's autoclosure, and the build then fails on implicit self.
+
+**"Collect Logs" is a real switch** (`app.collectsLogs`, on by default, the owner's call on
+2026-09-28; in Settings → Diagnostics and in the welcome window). Off, every logger is
+`Logger(.disabled)`, no stall is sampled, both buttons hide, and the stall samples and the last
+mailed file are deleted. That is why no file declares `static let logger = Logger(…)`: each one is
+`static var logger: Logger { .pawshot("category") }` (`App/Log.swift`), made at every use, so the
+switch works at once — a stored logger would keep writing until a relaunch. A new logger follows
+the same line. What macOS already wrote stays in the system log until it rotates it; removing it
+takes root. The test host shares the app's defaults, so with the switch off on the owner's Mac
+`testLogShowRunsAndFindsOurLines` skips itself.
 
 What is covered: launch facts, every hotkey registration, unregistration and press (a press with
 nobody behind it is an `.error`), every early return of a capture, the overlay's begin, mode,
@@ -1241,8 +1294,19 @@ stays when it comes).
   `SUPublicEDKey`. `generate_appcast` signs with it (macOS asks for Keychain access the first
   time). Lose it and every installed copy refuses all updates — the backup, `generate_keys -x`,
   is kept with the signing `.p12`.
-- **Releasing:** raise `MARKETING_VERSION`, commit, push, `make release publish`. The tag goes on
-  the remote's default branch, so push first, or the tag lands on the previous commit.
+- **Releasing:** raise `MARKETING_VERSION`, write its "What's New" (next point), commit, push,
+  `make release publish`. The tag goes on the remote's default branch, so push first, or the tag
+  lands on the previous commit.
+- **Every raised version gets its "What's New" text — the agent writes it, in the same change
+  as the raise.** In `App/WhatsNew.swift`: `version` becomes the new `MARKETING_VERSION`, `text`
+  is rewritten in English, and its Russian goes into `Localizable.xcstrings` (the English is the
+  key, so the old entry stops being extracted and leaves on the next sync). It is written for the
+  person who just updated, not for the log: what they can do now, or what stopped getting in
+  their way — a few short paragraphs, the names exactly as on screen (Settings → General →
+  Diagnostics / Настройки → Основные → Диагностика), no class names, no measurements, no
+  "refactored". Only what changed since the last released version. A release with nothing a
+  person would notice gets an empty text, and then no window. `WhatsNewTests` stays red until
+  `version` matches the bundle's — that is the reminder.
 - **Sparkle's tools** (`generate_keys`, `generate_appcast`) come with the package under
   `Tuist/.build/…/Sparkle/bin/`; the Makefile finds them rather than naming the path, which moved
   between SwiftPM versions.

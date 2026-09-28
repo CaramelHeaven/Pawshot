@@ -1130,7 +1130,9 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     /// first in the responder chain, so it catches the action before the window does. While text is
     /// being typed, the text field's own undo manager takes the typing back instead.
     @objc func undo(_: Any?) {
-        activeUndoManager?.undo()
+        guard let manager = activeUndoManager, manager.canUndo else { return }
+        Stats.shared.add(.undos)
+        manager.undo()
     }
 
     @objc func redo(_: Any?) {

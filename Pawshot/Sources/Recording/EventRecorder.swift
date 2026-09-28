@@ -13,7 +13,9 @@ import os
 /// happens then isn't in the video, so it isn't in the timeline either.
 @MainActor
 final class EventRecorder {
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "recording")
+    private static var logger: Logger {
+        .pawshot("recording")
+    }
 
     /// The recorded area in AppKit screen coordinates, where `NSEvent.mouseLocation` lives.
     private let area: CGRect

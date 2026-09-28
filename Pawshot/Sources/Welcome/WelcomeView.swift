@@ -151,6 +151,16 @@ struct WelcomeView: View {
                         .labelsHidden()
                         .disabled(!LoginItem.isInApplicationsFolder)
                 }
+                Divider()
+                AccessRow(
+                    title: Text("Collect Logs"),
+                    detail: Text("Stays on this Mac. If something breaks, Settings → Diagnostics sends them to the developer."),
+                    isGranted: false
+                ) {
+                    Toggle("Collect Logs", isOn: LogExport.collectingBinding)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                }
             }
 
             Spacer(minLength: 0)
@@ -162,6 +172,8 @@ struct WelcomeView: View {
                 Spacer()
                 Button("Get Started") {
                     settings.welcomeCompleted = true
+                    // A fresh install has nothing to be told about on its next launch.
+                    settings.lastSeenVersion = AboutPanel.version
                     dismissWindow(id: WindowID.welcome)
                 }
                 .buttonStyle(.glassProminent)

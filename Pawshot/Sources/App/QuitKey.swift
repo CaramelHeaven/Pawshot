@@ -20,7 +20,9 @@ protocol ClosesOnQuitKey: AnyObject {
 /// key is held — only repeats — so the key state is polled, as the canvas polls Space.
 @MainActor
 enum QuitKey {
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "quit")
+    private static var logger: Logger {
+        .pawshot("quit")
+    }
 
     /// Let go before this and it was a tap.
     static let tapLimit: Duration = .milliseconds(300)
@@ -84,6 +86,7 @@ enum QuitKey {
                 case .warning:
                     guard isHeld else {
                         logger.notice("⌘Q: let go on the toast, staying")
+                        Stats.shared.add(.quitsCalledOff)
                         QuitToast.hide()
                         return
                     }

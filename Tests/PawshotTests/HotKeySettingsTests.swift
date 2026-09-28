@@ -163,6 +163,22 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(Settings(defaults: defaults).welcomeCompleted)
     }
 
+    /// Numbers, dates and durations follow `AppleLocale`, not `AppleLanguages`: with only the
+    /// latter, a Russian interface said "41 days" and "21 September". Read from the suite's own
+    /// domain — `string(forKey:)` would fall through to the Mac's global locale.
+    func testTheLanguageTakesTheFormatsAlong() {
+        let settings = Settings(defaults: defaults)
+        func stored() -> String? {
+            defaults.persistentDomain(forName: suiteName)?[AppLanguage.appleLocaleKey] as? String
+        }
+
+        settings.language = .russian
+        XCTAssertEqual(stored()?.prefix(2), "ru")
+
+        settings.language = .system
+        XCTAssertNil(stored(), "System follows the Mac's own formats again")
+    }
+
     func testTheOverlayToolsScaleStartsAtOneAndIsRemembered() {
         XCTAssertEqual(Settings(defaults: defaults).overlayToolsScale, 1)
         Settings(defaults: defaults).overlayToolsScale = 1.25
@@ -273,6 +289,17 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings.recordRegionHotKey, .recordRegionDefault)
         XCTAssertEqual(settings.penHotKey, .penDefault)
         XCTAssertEqual(settings.restartHotKey, .restartDefault)
+    }
+
+    /// Logs are collected unless switched off: a bug met before switching them on would leave
+    /// nothing to send.
+    func testLogsAreCollectedUntilSwitchedOff() {
+        let settings = Settings(defaults: defaults)
+        XCTAssertTrue(settings.collectsLogs)
+
+        settings.collectsLogs = false
+
+        XCTAssertFalse(Settings(defaults: defaults).collectsLogs)
     }
 
     func testCaptureCountGrowsByOnePerShot() {

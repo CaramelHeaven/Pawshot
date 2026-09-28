@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import IOKit.ps
 import os
+import SwiftUI
 
 /// Settings → General → "Save Logs…": one text file a person can send with a bug report.
 ///
@@ -13,8 +14,10 @@ import os
 /// `.info` never reaches the disk, and a redacted `<private>` tells nobody anything.
 @MainActor
 enum LogExport {
-    static let subsystem = "com.caramelheaven.pawshot"
-    private static let logger = Logger(subsystem: subsystem, category: "app")
+    static let subsystem = Logger.pawshotSubsystem
+    private static var logger: Logger {
+        .pawshot("app")
+    }
 
     /// How far back the log goes.
     static let period = "3d"
@@ -109,7 +112,7 @@ enum LogExport {
             microphone: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
             inputMonitoring: CGPreflightListenEventAccess(),
             hotKeys: named.map { name, binding in
-                (name, binding.displayString, system.conflict(with: binding)?.name)
+                (name, binding.logString, system.conflict(with: binding).map { "item \($0.id)" })
             },
             settings: [
                 ("Warn before quitting (⌘Q)", "\(settings.warnsBeforeQuitting)"),
@@ -188,7 +191,7 @@ enum LogExport {
             do {
                 try process.run()
             } catch {
-                return "log show could not start: \(error.localizedDescription)"
+                return "log show could not start: \(String(describing: error))"
             }
             // Read before waiting: a full pipe would otherwise stall the child for good.
             let data = output.fileHandleForReading.readDataToEndOfFile()
@@ -243,13 +246,82 @@ enum LogExport {
             logger.notice("save logs: wrote \(text.utf8.count) bytes")
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } catch {
-            logger.error("save logs: write failed: \(error.localizedDescription, privacy: .public)")
-            let alert = NSAlert()
-            alert.messageText = String(localized: "Couldn't save the logs")
-            alert.informativeText = error.localizedDescription
-            alert.alertStyle = .warning
-            alert.runModal()
+            presentWriteFailure(error)
         }
+    }
+
+    /// Where "Send by Email…" puts the file: the draft reads it after the call returns, so it
+    /// can't be a temporary one. Only the latest is kept.
+    static var mailFolder: URL? {
+        try? FileManager.default
+            .url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("com.caramelheaven.pawshot/Logs", isDirectory: true)
+    }
+
+    /// The same file as Save Logs, attached to a new message to the developer. Without a mail
+    /// account the file is shown in the Finder and a plain `mailto:` opens, to drag it into.
+    static func sendByEmail() async {
+        guard let folder = mailFolder else { return }
+        let url = folder.appendingPathComponent(suggestedFileName)
+        logger.notice("send logs: collecting into \(url.path, privacy: .public)")
+        let text = await report()
+        do {
+            try? FileManager.default.removeItem(at: folder)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            presentWriteFailure(error)
+            return
+        }
+
+        let subject = "Pawshot \(AboutPanel.versionLine) logs"
+        let items: [Any] = [String(localized: "What happened, and what did you do just before?"), url]
+        NSApp.activate()
+        if let mail = NSSharingService(named: .composeEmail), mail.canPerform(withItems: items) {
+            mail.recipients = [AboutPanel.contactEmail]
+            mail.subject = subject
+            mail.perform(withItems: items)
+            logger.notice("send logs: mail opened with \(text.utf8.count) bytes attached")
+        } else {
+            logger.notice("send logs: no mail account, showing the file and a mailto")
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+            var mailto = URLComponents()
+            mailto.scheme = "mailto"
+            mailto.path = AboutPanel.contactEmail
+            mailto.queryItems = [URLQueryItem(name: "subject", value: subject)]
+            if let link = mailto.url {
+                NSWorkspace.shared.open(link)
+            }
+        }
+    }
+
+    /// Switched off, what Pawshot itself kept goes too: the stall stacks and the last mailed file.
+    /// The lines macOS already holds stay with it until it rotates them — that takes root.
+    static func forgetCollected() {
+        for folder in [StallSamples.folder, mailFolder].compactMap(\.self) {
+            try? FileManager.default.removeItem(at: folder)
+        }
+    }
+
+    /// The "Collect Logs" switch, the same in Settings and in the welcome window.
+    static var collectingBinding: Binding<Bool> {
+        Binding {
+            Settings.shared.collectsLogs
+        } set: { isOn in
+            Settings.shared.collectsLogs = isOn
+            if !isOn {
+                forgetCollected()
+            }
+        }
+    }
+
+    private static func presentWriteFailure(_ error: Error) {
+        logger.error("logs: write failed: \(String(describing: error), privacy: .public)")
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Couldn't save the logs")
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.runModal()
     }
 }
 
@@ -281,7 +353,7 @@ enum SystemState {
     static var loadAverage: String {
         var loads = [Double](repeating: 0, count: 1)
         guard getloadavg(&loads, 1) == 1 else { return "load ?" }
-        return "load \(loads[0].formatted(.number.precision(.fractionLength(1))))"
+        return "load \(loads[0].formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "en_US_POSIX"))))"
     }
 
     /// "waiting, priority 31 (base 47)" for a thread — the main thread, in practice. `running`

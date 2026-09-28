@@ -65,7 +65,10 @@ struct OverlayTimeline {
 /// The one timeline of the capture in progress, and the log it writes to.
 @MainActor
 enum OverlayDiagnostics {
-    static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "overlay")
+    static var logger: Logger {
+        .pawshot("overlay")
+    }
+
     private(set) static var timeline: OverlayTimeline?
 
     /// The hotkey — or the menu — asked for a capture.
@@ -170,7 +173,10 @@ final class MainThreadWatchdog: Sendable {
     private let mainThread = pthread_mach_thread_np(pthread_self())
     private let state = OSAllocatedUnfairLock(initialState: State())
     private let queue = DispatchQueue(label: "com.caramelheaven.pawshot.watchdog", qos: .userInitiated)
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "overlay")
+    private static var logger: Logger {
+        .pawshot("overlay")
+    }
+
     /// A main thread this late is stalled, not busy.
     static let threshold: TimeInterval = 0.25
 
@@ -290,7 +296,10 @@ final class MainThreadWatchdog: Sendable {
 /// runtime, and Pawshot has none. Measured on a running copy: a one-second sample takes 1.4 s and
 /// 0.37 s of CPU, and writes some 230 KB, of which Save Logs keeps the main thread's part.
 enum StallSamples {
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "overlay")
+    private static var logger: Logger {
+        .pawshot("overlay")
+    }
+
     static let prefix = "stall-"
     /// Samples kept on disk; the oldest goes when a new one is taken.
     static let kept = 5
@@ -302,8 +311,9 @@ enum StallSamples {
     }
 
     /// Samples this process for one second, in the background; the report lands in `folder`.
+    /// Nothing while "Collect Logs" is off.
     static func record() {
-        guard let folder else { return }
+        guard Logger.isCollecting, let folder else { return }
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         } catch {

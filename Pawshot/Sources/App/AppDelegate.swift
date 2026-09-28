@@ -4,7 +4,9 @@ import os
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "app")
+    private static var logger: Logger {
+        .pawshot("app")
+    }
 
     private let overlayController = SelectionOverlayController()
     let recordingController = RecordingController()
@@ -163,10 +165,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func registerHotKeys() {
         unregisterHotKeys()
         let shortcuts = [
-            "region \(settings.regionHotKey.displayString)",
-            "full screen \(settings.fullScreenHotKey.displayString)",
-            "record region \(settings.recordRegionHotKey.displayString)",
-            "record full screen \(settings.recordFullScreenHotKey.displayString)",
+            "region \(settings.regionHotKey.logString)",
+            "full screen \(settings.fullScreenHotKey.logString)",
+            "record region \(settings.recordRegionHotKey.logString)",
+            "record full screen \(settings.recordFullScreenHotKey.logString)",
         ].joined(separator: ", ")
         Self.logger.notice("registering hotkeys: \(shortcuts, privacy: .public)")
         regionHotKey = Self.register(settings.regionHotKey) { [weak self] in
@@ -203,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return try GlobalHotKey.register(binding, action: action)
         } catch {
             // The settings window explains this to the user; here it is only worth a log line.
-            logger.error("hotkey \(binding.displayString, privacy: .public) not registered: \(String(describing: error), privacy: .public)")
+            logger.error("hotkey \(binding.logString, privacy: .public) not registered: \(String(describing: error), privacy: .public)")
             return nil
         }
     }
@@ -379,7 +381,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openEditor(
             frame: frame,
             crop: CGRect(origin: .zero, size: frame.displayFrame.size),
-            on: screen
+            on: screen,
+            mode: .fullScreen
         )
     }
 
@@ -393,13 +396,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sourceRect(displayRect: selection.rect, displayFrame: frame.displayFrame)
             .intersection(CGRect(origin: .zero, size: frame.displayFrame.size))
 
-        openEditor(frame: frame, crop: crop, on: selection.screen)
+        openEditor(frame: frame, crop: crop, on: selection.screen, mode: selection.windowID == nil ? .region : .window)
     }
 
     private func openEditor(
         frame: CapturedFrame,
         crop: CGRect,
-        on screen: NSScreen
+        on screen: NSScreen,
+        mode: Stats.Mode
     ) {
         guard
             !crop.isEmpty,
@@ -415,6 +419,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         EditorWindowController(document: document, on: screen).show()
         settings.recordCapture()
+        Stats.shared.noteShot(mode)
     }
 
     // MARK: - Recording
@@ -505,7 +510,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 try await recordingController.start(target)
             } catch {
-                Self.logger.error("recording not started: \(error.localizedDescription, privacy: .public)")
+                Self.logger.error("recording not started: \(String(describing: error), privacy: .public)")
                 presentFailure(error, title: String(localized: "Couldn't start recording"))
             }
         }

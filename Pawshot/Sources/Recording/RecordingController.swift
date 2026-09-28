@@ -22,7 +22,9 @@ struct RecordingTarget {
 /// the same target and the same sound settings; stop hands the file on.
 @MainActor
 final class RecordingController {
-    private nonisolated static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "recording")
+    private nonisolated static var logger: Logger {
+        .pawshot("recording")
+    }
 
     private let settings = Settings.shared
     private let state = AppState.shared
@@ -201,6 +203,9 @@ final class RecordingController {
         guard let engine else { return }
         let resumes = engine.isPaused
         Self.logger.notice("recording \(resumes ? "resumed" : "paused", privacy: .public)")
+        if !resumes {
+            Stats.shared.add(.pauses)
+        }
         if engine.isPaused {
             engine.resume()
         } else {
@@ -213,6 +218,7 @@ final class RecordingController {
     func restart() {
         guard let engine, let target else { return }
         Self.logger.notice("recording restarts")
+        Stats.shared.add(.restarts)
         self.engine = nil
         // Still "active" while the old take winds down, so ⇧⌘3 in between stops rather than
         // opening a second overlay.
@@ -260,6 +266,7 @@ final class RecordingController {
         if let error {
             Self.logger.error("the stream ended on its own: \(String(describing: error), privacy: .public)")
         }
+        let seconds = engine.duration
         self.engine = nil
         let size = recordedSize
         let timeline = events?.stop() ?? EventTimeline()
@@ -272,6 +279,7 @@ final class RecordingController {
                 try? timeline.save(nextTo: movie)
                 Self.logger.notice("recording finished: \(movie.lastPathComponent, privacy: .public)")
                 onRecorded?(movie, size, screen)
+                Stats.shared.noteRecording(seconds: seconds)
                 if let error {
                     onFailure?(error)
                 }
@@ -293,7 +301,7 @@ final class RecordingController {
         do {
             return try GlobalHotKey.register(binding, action: action)
         } catch {
-            let shortcut = binding.displayString
+            let shortcut = binding.logString
             logger.error("recording shortcut \(shortcut, privacy: .public) not registered: \(String(describing: error), privacy: .public)")
             return nil
         }

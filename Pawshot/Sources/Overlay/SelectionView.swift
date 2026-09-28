@@ -90,7 +90,9 @@ final class SelectionView: NSView {
     private var highlightedWindow: CGRect?
 
     private let dimColor = NSColor.black.withAlphaComponent(0.35)
-    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "overlay")
+    private static var logger: Logger {
+        .pawshot("overlay")
+    }
 
     /// Windows in Tahoe have strongly rounded corners, and the system gives no way to read another
     /// app's radius. A square hole around a rounded window left bright wedges of wallpaper in its

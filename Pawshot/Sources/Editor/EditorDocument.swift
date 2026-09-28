@@ -94,6 +94,7 @@ final class EditorDocument {
     /// goes through `setCrop`, which registers the way back.
     func registerCropUndo(from previous: CGRect) {
         guard previous != cropRect else { return }
+        Stats.shared.add(.edgeFits)
 
         registerUndo { document in
             document.setCrop(previous)
@@ -213,6 +214,7 @@ final class EditorDocument {
 
     func add(_ annotation: Annotation) {
         annotations.append(annotation)
+        Stats.shared.noteDrawn(annotation)
         registerUndo { document in
             document.remove(annotation)
         }
