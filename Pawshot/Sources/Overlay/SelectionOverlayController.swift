@@ -24,6 +24,10 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
     private var completion: ((Selection?) -> Void)?
     private var purpose: OverlayPurpose = .screenshot
     private var levelMeter: MicrophoneLevelMeter?
+    /// The app that was in front before the overlay took the keyboard. A cancel hands it back:
+    /// otherwise Pawshot stays active with no window, and the app underneath is visible but deaf
+    /// to the keyboard until clicked.
+    private var previousApp: NSRunningApplication?
 
     private var selectionViews: [SelectionView] {
         windows.compactMap { $0.contentView as? SelectionView }
@@ -102,6 +106,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         }
 
         // Without activation an accessory app gets no keyboard, and Esc stops working.
+        previousApp = NSWorkspace.shared.frontmostApplication
         NSApp.activate()
         // macOS 14+ activation is cooperative and may be refused; whether it was decides whether
         // the first click on the overlay's buttons does anything. Logged a moment later, once
@@ -132,6 +137,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         // until the next capture — the cut-out region already went to the editor as its own copy.
         frames.removeAll()
         completion = nil
+        previousApp = nil
         NSCursor.arrow.set()
     }
 
@@ -231,7 +237,11 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
     }
 
     func selectionViewDidCancel(_: SelectionView) {
+        let previous = previousApp
         finish(with: nil)
+        if let previous, previous.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            previous.activate()
+        }
     }
 
     /// One screen switched modes — the rest follow, otherwise moving the cursor to another display

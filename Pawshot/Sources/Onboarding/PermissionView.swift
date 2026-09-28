@@ -15,8 +15,11 @@ final class PermissionWindowController: NSWindowController, NSWindowDelegate {
         let controller = current ?? PermissionWindowController()
         current = controller
         controller.window?.center()
-        controller.showWindow(nil)
         NSApp.activate()
+        controller.showWindow(nil)
+        // Activation of a background utility may be refused (macOS 14+ is cooperative), and the
+        // window then opens behind the app in front — the hotkey looks like it did nothing.
+        controller.window?.orderFrontRegardless()
     }
 
     private convenience init() {

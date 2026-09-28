@@ -148,7 +148,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startCapture(then handle: @escaping ([CGDirectDisplayID: CapturedFrame]) async -> Void) {
         guard !isCapturing, !overlayController.isActive else { return }
         // Check the permission before the overlay: otherwise the region is selected for nothing.
-        guard ScreenRecordingPermission.ensureGranted() else { return }
+        guard ScreenRecordingPermission.ensureGranted() else {
+            Self.logger.info("capture refused: no screen recording access")
+            return
+        }
 
         isCapturing = true
         state.isCapturing = true
