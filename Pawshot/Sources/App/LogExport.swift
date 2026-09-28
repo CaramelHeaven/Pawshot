@@ -273,7 +273,52 @@ enum SystemState {
         @unknown default: "unknown"
         }
         let lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled ? "ON" : "off"
-        return "thermal \(thermal), memory pressure \(memoryPressure), low power \(lowPower), \(powerSource)"
+        return "thermal \(thermal), memory pressure \(memoryPressure), low power \(lowPower), \(powerSource), \(loadAverage)"
+    }
+
+    /// "load 3.4" — the one-minute load average: how many threads wanted a core. On an 8-core M1
+    /// anything near 8 means a busy Mac, whatever Pawshot does.
+    static var loadAverage: String {
+        var loads = [Double](repeating: 0, count: 1)
+        guard getloadavg(&loads, 1) == 1 else { return "load ?" }
+        return "load \(loads[0].formatted(.number.precision(.fractionLength(1))))"
+    }
+
+    /// "waiting, priority 31 (base 47)" for a thread — the main thread, in practice. `running`
+    /// means runnable: on a core or queued for one.
+    static func threadState(_ thread: thread_act_t) -> String {
+        var info = thread_extended_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<thread_extended_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                thread_info(thread, thread_flavor_t(THREAD_EXTENDED_INFO), $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return "state ?" }
+        return describeThread(runState: info.pth_run_state, current: info.pth_curpri, base: info.pth_priority)
+    }
+
+    static func describeThread(runState: Int32, current: Int32, base: Int32) -> String {
+        let state = switch runState {
+        case TH_STATE_RUNNING: "running"
+        case TH_STATE_WAITING: "waiting"
+        case TH_STATE_UNINTERRUPTIBLE: "in an uninterruptible wait"
+        case TH_STATE_STOPPED: "stopped"
+        case TH_STATE_HALTED: "halted"
+        default: "in state \(runState)"
+        }
+        return "\(state), priority \(current) (base \(base))"
+    }
+
+    /// When the kernel started this process. The gap to `didFinishLaunching` is how long macOS
+    /// held the launch: a tester's freshly replaced build took 9 s to get there.
+    static var processStart: Date? {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+        guard sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0) == 0 else { return nil }
+        let start = info.kp_proc.p_un.__p_starttime
+        return Date(timeIntervalSince1970: TimeInterval(start.tv_sec) + TimeInterval(start.tv_usec) / 1_000_000)
     }
 
     /// The kernel's own verdict: 1 normal, 2 warn, 4 critical.

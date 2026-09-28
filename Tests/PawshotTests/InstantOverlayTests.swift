@@ -162,10 +162,15 @@ final class InstantOverlayTests: XCTestCase {
     func testAStallMessageSaysWhereTheMainThreadWas() {
         XCTAssertEqual(
             MainThreadWatchdog.stallMessage(
-                at: 400, mode: "kCFRunLoopDefaultMode", windows: "12 onscreen true alpha 1.0", memory: "WARN"
+                at: 400,
+                mode: "kCFRunLoopDefaultMode",
+                windows: "12 onscreen true alpha 1.0",
+                mainThread: "running, priority 4 (base 47)",
+                system: "memory pressure WARN, load 7.9"
             ),
             "main thread stalled over 250 ms at +400 ms, run loop mode kCFRunLoopDefaultMode; "
-                + "window server: 12 onscreen true alpha 1.0; memory pressure WARN"
+                + "window server: 12 onscreen true alpha 1.0; main thread running, priority 4 (base 47); "
+                + "memory pressure WARN, load 7.9"
         )
     }
 }

@@ -112,4 +112,18 @@ final class LogExportTests: XCTestCase {
         XCTAssertFalse(part.contains("NSEventThread"))
         XCTAssertFalse(part.contains("Total number"))
     }
+
+    /// Whether a stalled main thread was asleep or starved is the whole question a stall asks.
+    func testAThreadStateSaysRunningOrWaitingAndItsPriority() {
+        XCTAssertEqual(SystemState.describeThread(runState: TH_STATE_WAITING, current: 31, base: 47), "waiting, priority 31 (base 47)")
+        XCTAssertEqual(SystemState.describeThread(runState: TH_STATE_RUNNING, current: 4, base: 47), "running, priority 4 (base 47)")
+        XCTAssertTrue(SystemState.threadState(pthread_mach_thread_np(pthread_self())).hasPrefix("running, priority "))
+    }
+
+    /// The process start is what the launch is measured from: in the past, and not long ago.
+    func testTheProcessStartedAMomentAgo() throws {
+        let started = try XCTUnwrap(SystemState.processStart)
+        XCTAssertLessThan(started, Date())
+        XCTAssertGreaterThan(started, Date(timeIntervalSinceNow: -24 * 60 * 60))
+    }
 }

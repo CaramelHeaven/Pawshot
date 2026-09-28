@@ -1010,6 +1010,28 @@ allocation of 6016×3384 surfaces on an 8 GB Mac under pressure. `sample` needs 
 process of the same user without hardened runtime; measured, a one-second sample takes 1.4 s and
 0.37 s of CPU, and it starts some 250 ms into the stall, so it sees the rest of it.
 
+**0.4.3, the stack: the main thread was asleep.** The first ⇧⌘2 4.5 s after the tester replaced
+the app: drawn at +24 ms, the window still `gone` at +286, the main thread silent 947 ms — and in
+all 84 samples it sat in `__CFRunLoopServiceMachPort → mach_msg2_trap`, the run loop waiting. No
+code of ours ran; the thread was either never woken or woken and given no core. The Mac was
+plainly busy: `didFinishLaunching` came 9 s after the process started (System Settings in front —
+most likely Gatekeeper's "Open Anyway" for the self-signed build), and the one-second sample took
+20 s to write, against 3 s half an hour later. Three guesses, none proven: the Mac checking the
+new build right after the replace; App Nap on a menu bar agent with no windows (a 330 ms stall
+also came on the first ⇧⌘3 after 35 idle minutes); the window server slow to bring a long-hidden
+6016×3384 window back. The log now tells them apart:
+
+- `overlay on screen +N ms (window server)` — watched from the watchdog's thread, so a stalled
+  main thread can't delay it: when the dimming was really there, where "first draw" is only
+  AppKit's (24–43 ms in the test host); an `.error` if not within 3 s;
+- the stall line carries `main thread running|waiting, priority N (base M)` (`thread_info`):
+  `running` with a stack asleep in the run loop is a thread starved of a core, a low priority is
+  App Nap, `waiting` is a thread nobody woke; the same priority is logged at the hotkey;
+- `load N.N` (the one-minute load average) in every `capture on a Mac with …` and stall line;
+- `launch: finished N ms after the process started` — how long macOS held the launch.
+
+Disabling App Nap waits for a log that shows the low priority.
+
 The editor that opens after a capture usually finds another app active now (the overlay no longer
 activates Pawshot), and activation from a background app can come late or not at all — the video
 editor once opened behind other windows that way. In the tester's log it came 150–190 ms later

@@ -151,17 +151,23 @@ enum OverlayDiagnostics {
     }
 }
 
-/// Pings the main queue every 50 ms from a background queue, for three seconds.
+/// Pings the main queue every 10 ms from a background queue, for three seconds, and watches for
+/// the moment the window server puts the overlay on screen — from its own thread, so a stalled
+/// main thread can't hold the measurement back. "First draw" is AppKit's; a tester's 0.4.3 log
+/// had it at +24 ms and the window still unknown to the window server at +286.
 final class MainThreadWatchdog: Sendable {
     private struct State {
         var lastPong = Date()
         var stalledSince: Date?
         var stopped = false
         var sampled = false
+        var seenOnScreen = false
     }
 
     private let pressed: Date
     private let windowNumbers: [CGWindowID]
+    /// Created on the main thread (`OverlayDiagnostics.watch`), so this is the main thread's port.
+    private let mainThread = pthread_mach_thread_np(pthread_self())
     private let state = OSAllocatedUnfairLock(initialState: State())
     private let queue = DispatchQueue(label: "com.caramelheaven.pawshot.watchdog", qos: .userInitiated)
     private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "overlay")
@@ -203,9 +209,28 @@ final class MainThreadWatchdog: Sendable {
                 if stalled {
                     report(at: now)
                 }
-                Thread.sleep(forTimeInterval: 0.05)
+                watchForTheOverlayOnScreen()
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+            if !state.withLock({ $0.seenOnScreen || $0.stopped }) {
+                let windows = Self.windowServerState(of: windowNumbers)
+                Self.logger.error("overlay NOT on screen 3 s after the hotkey (window server: \(windows, privacy: .public))")
             }
         }
+    }
+
+    /// The first moment any overlay window is on screen as far as the window server knows: when
+    /// the dimming was actually there to see.
+    private func watchForTheOverlayOnScreen() {
+        guard !state.withLock({ $0.seenOnScreen }) else { return }
+        let onScreen = windowNumbers.contains { number in
+            let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], number) as? [[String: Any]])?.first
+            return info?[kCGWindowIsOnscreen as String] as? Bool == true
+        }
+        guard onScreen else { return }
+        state.withLock { $0.seenOnScreen = true }
+        let at = milliseconds(Date())
+        Self.logger.notice("overlay on screen +\(at, privacy: .public) ms (window server)")
     }
 
     func stop() {
@@ -219,7 +244,13 @@ final class MainThreadWatchdog: Sendable {
     private func report(at date: Date) {
         let mode = CFRunLoopCopyCurrentMode(CFRunLoopGetMain()).map { $0.rawValue as String } ?? "none"
         let windows = Self.windowServerState(of: windowNumbers)
-        let message = Self.stallMessage(at: milliseconds(date), mode: mode, windows: windows, memory: SystemState.memoryPressure)
+        let message = Self.stallMessage(
+            at: milliseconds(date),
+            mode: mode,
+            windows: windows,
+            mainThread: SystemState.threadState(mainThread),
+            system: "memory pressure \(SystemState.memoryPressure), \(SystemState.loadAverage)"
+        )
         Self.logger.error("\(message, privacy: .public)")
         // One stack per overlay: a sample takes 1.4 s, and the first stall is the one reported.
         let first = state.withLock { state in
@@ -231,9 +262,11 @@ final class MainThreadWatchdog: Sendable {
         }
     }
 
-    static func stallMessage(at milliseconds: Int, mode: String, windows: String, memory: String) -> String {
+    /// `mainThread` tells a stall apart: a stack asleep in the run loop with the thread `running`
+    /// was woken and not given a core (a busy or napping Mac); `waiting` was never woken.
+    static func stallMessage(at milliseconds: Int, mode: String, windows: String, mainThread: String, system: String) -> String {
         "main thread stalled over \(Int(threshold * 1000)) ms at +\(milliseconds) ms, run loop mode \(mode); "
-            + "window server: \(windows); memory pressure \(memory)"
+            + "window server: \(windows); main thread \(mainThread); \(system)"
     }
 
     /// What the window server says about the overlay windows: on screen or not, and their alpha.

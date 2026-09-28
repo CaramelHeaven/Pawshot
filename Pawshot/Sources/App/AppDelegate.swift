@@ -92,6 +92,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// What a saved log has to open with: which build, on what, allowed to do what.
     private func logLaunch() {
         let facts = LogExport.currentFacts()
+        if let started = SystemState.processStart {
+            let held = Int(Date().timeIntervalSince(started) * 1000)
+            Self.logger.notice("launch: finished \(held, privacy: .public) ms after the process started")
+        }
         Self.logger.notice(
             "launch: Pawshot \(facts.version, privacy: .public) (\(facts.build, privacy: .public)), macOS \(facts.macOS, privacy: .public), \(facts.model, privacy: .public), at \(facts.bundlePath, privacy: .public)"
         )
@@ -306,7 +310,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state.isCapturing = true
         OverlayDiagnostics.pressed(at: pressed)
         let system = SystemState.now
-        Self.logger.notice("capture on a Mac with \(system, privacy: .public)")
+        let mainThread = SystemState.threadState(pthread_mach_thread_np(pthread_self()))
+        Self.logger.notice("capture on a Mac with \(system, privacy: .public); main thread \(mainThread, privacy: .public)")
 
         // The window list is taken before the overlay is up: once it is, our own full-screen
         // window is the one under the cursor. `CGWindowList` answers in a couple of ms.
