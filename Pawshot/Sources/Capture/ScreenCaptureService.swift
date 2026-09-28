@@ -74,7 +74,8 @@ enum ScreenCaptureService {
         ) { _ in
             MainActor.assumeIsolated {
                 cachedContent = nil
-                logger.info("display setup changed, shareable content dropped")
+                let displays = NSScreen.screens.map(LogExport.describe).joined(separator: "; ")
+                logger.notice("display setup changed: \(displays, privacy: .public)")
             }
         }
     }
@@ -146,9 +147,17 @@ enum ScreenCaptureService {
     ///
     /// Silent by design: without the screen recording permission this would fail, and the app must
     /// not nag about a permission before the user has asked for anything.
-    static func warmUp() async {
-        guard CGPreflightScreenCaptureAccess() else { return }
+    /// Whether the launch warm-up is still capturing — a hotkey then shares ScreenCaptureKit with it.
+    private(set) static var isWarmingUp = false
 
+    static func warmUp() async {
+        guard CGPreflightScreenCaptureAccess() else {
+            logger.notice("warm-up skipped: no screen recording access yet")
+            return
+        }
+
+        isWarmingUp = true
+        defer { isWarmingUp = false }
         do {
             let started = Date()
             let content = try await shareableContent(including: [])
@@ -157,9 +166,9 @@ enum ScreenCaptureService {
             _ = try await capture(display)
 
             let elapsed = Int(Date().timeIntervalSince(started) * 1000)
-            logger.info("warm-up took \(elapsed, privacy: .public) ms")
+            logger.notice("warm-up took \(elapsed, privacy: .public) ms")
         } catch {
-            logger.error("warm-up failed: \(error.localizedDescription)")
+            logger.error("warm-up failed: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -186,16 +195,22 @@ enum ScreenCaptureService {
         // on several.
         for displayID in displayIDs {
             guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
+                let known = content.displays.map { String($0.displayID) }.joined(separator: ", ")
+                logger.error("display \(displayID) not in shareable content (has \(known, privacy: .public))")
                 throw ScreenCaptureError.displayNotFound(displayID)
             }
 
+            let shotStarted = Date()
             frames[displayID] = try await capture(display)
+            let shotElapsed = Int(Date().timeIntervalSince(shotStarted) * 1000)
+            let size = "\(Int(display.frame.width))×\(Int(display.frame.height))"
+            logger.notice("display \(displayID, privacy: .public) (\(size, privacy: .public) pt) captured in \(shotElapsed, privacy: .public) ms")
         }
 
         // Split on purpose: these two numbers say whether the wait is the enumeration or the
         // screenshot itself, and only one of them is worth optimising.
         let captureElapsed = Int(Date().timeIntervalSince(captureStarted) * 1000)
-        logger.info("content \(contentElapsed, privacy: .public) ms, shot \(captureElapsed, privacy: .public) ms")
+        logger.notice("content \(contentElapsed, privacy: .public) ms, shot \(captureElapsed, privacy: .public) ms")
 
         return frames
     }

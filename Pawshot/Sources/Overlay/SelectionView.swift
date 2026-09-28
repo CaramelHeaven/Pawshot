@@ -358,6 +358,7 @@ final class SelectionView: NSView {
     // MARK: - Mouse
 
     override func mouseMoved(with event: NSEvent) {
+        OverlayDiagnostics.received("mouseMoved")
         let point = convert(event.locationInWindow, from: nil)
         // The key overlay hears the mouse on other screens too; the cursor there is not its call.
         guard bounds.contains(point) else { return }
@@ -368,6 +369,7 @@ final class SelectionView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        OverlayDiagnostics.received("mouseDown")
         let point = convert(event.locationInWindow, from: nil)
         // A click on the sound bar belongs to its buttons. If one ever falls through to here it
         // must not start a new region and wipe the one drawn — and it is worth a log line, since
@@ -494,6 +496,7 @@ final class SelectionView: NSView {
     }
 
     override func rightMouseDown(with _: NSEvent) {
+        OverlayDiagnostics.received("rightMouseDown")
         reset()
         delegate?.selectionViewDidCancel(self)
     }
@@ -503,6 +506,7 @@ final class SelectionView: NSView {
     /// Space toggles region ↔ window, the way it does in the system screenshot tool. Every other
     /// key is passed on, so Esc keeps reaching `cancelOperation`.
     override func keyDown(with event: NSEvent) {
+        OverlayDiagnostics.received("keyDown")
         if purpose == .recording, handleRecordingKey(event) {
             return
         }
@@ -606,6 +610,7 @@ final class SelectionView: NSView {
     // MARK: - Drawing
 
     override func draw(_: CGRect) {
+        OverlayDiagnostics.drew()
         // `draw(in:)` only: the variant with operation and fraction ignores the axis flip and puts
         // the frame upside down in this flipped view. The editor canvas draws its shot the same
         // way — its view is flipped too.

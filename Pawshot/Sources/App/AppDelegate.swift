@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A background utility: it lives in the menu bar and shows windows on demand. The menu
         // bar item, the main menu and the small windows are SwiftUI scenes in `PawshotApp`.
         NSApp.setActivationPolicy(.accessory)
+        logLaunch()
         replaceOlderInstances()
 
         settings.onHotKeysChange = { [weak self] in self?.registerHotKeys() }
@@ -36,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.onHotKeyRecordingChange = { [weak self] isRecording in
             // Carbon hands a registered hotkey to us before any view sees the key press, so while
             // the user is typing a new combination the old ones must not exist.
+            Self.logger.notice("shortcut field \(isRecording ? "started" : "stopped", privacy: .public) recording")
             if isRecording {
                 self?.unregisterHotKeys()
             } else {
@@ -50,10 +52,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.presentFailure(error, title: String(localized: "The recording ran into a problem"))
         }
 
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                let since = OverlayDiagnostics.sincePress()
+                Self.logger.notice("active space changed (+\(since, privacy: .public) ms since the hotkey)")
+            }
+        }
+
         // The first capture of a session is the slow one; pay for it now, while nobody waits.
         ScreenCaptureService.beginObservingDisplayChanges()
         Task { await ScreenCaptureService.warmUp() }
         SelectionView.prepareCursors()
+    }
+
+    func applicationWillTerminate(_: Notification) {
+        Self.logger.notice("quitting")
+    }
+
+    // Whether activation arrives, and when relative to the hotkey: the overlay asks for it, and
+    // macOS 14+ may grant it late or not at all. `+N ms` is from the last capture's hotkey.
+
+    func applicationDidBecomeActive(_: Notification) {
+        let since = OverlayDiagnostics.sincePress()
+        Self.logger.notice("app became active (+\(since, privacy: .public) ms since the hotkey)")
+    }
+
+    func applicationDidResignActive(_: Notification) {
+        let since = OverlayDiagnostics.sincePress()
+        Self.logger.notice("app resigned active (+\(since, privacy: .public) ms since the hotkey)")
+    }
+
+    private var spaceObserver: NSObjectProtocol?
+
+    /// What a saved log has to open with: which build, on what, allowed to do what.
+    private func logLaunch() {
+        let facts = LogExport.currentFacts()
+        Self.logger.notice(
+            "launch: Pawshot \(facts.version, privacy: .public) (\(facts.build, privacy: .public)), macOS \(facts.macOS, privacy: .public), \(facts.model, privacy: .public), at \(facts.bundlePath, privacy: .public)"
+        )
+        Self.logger.notice(
+            "launch: displays \(facts.displays.joined(separator: "; "), privacy: .public); screen recording \(facts.screenRecording, privacy: .public), microphone \(facts.microphone, privacy: .public), input monitoring \(facts.inputMonitoring, privacy: .public)"
+        )
+        for hotKey in facts.hotKeys where hotKey.takenBy != nil {
+            Self.logger.error(
+                "launch: \(hotKey.name, privacy: .public) \(hotKey.shortcut, privacy: .public) is taken by macOS (\(hotKey.takenBy ?? "", privacy: .public)) — Pawshot never sees it"
+            )
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
@@ -69,13 +117,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let environment = ProcessInfo.processInfo.environment
         let isTestHost = ["XCTestConfigurationFilePath", "XCTestBundlePath", "XCTestSessionIdentifier"]
             .contains { environment[$0] != nil }
-        guard !isTestHost, let bundleID = Bundle.main.bundleIdentifier else { return }
+        guard !isTestHost, let bundleID = Bundle.main.bundleIdentifier else {
+            Self.logger.notice("older copies: not checked (test host)")
+            return
+        }
 
         let ownPID = ProcessInfo.processInfo.processIdentifier
         for other in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
             where other.processIdentifier != ownPID
         {
-            Self.logger.info("asking an older Pawshot (pid \(other.processIdentifier, privacy: .public)) to quit")
+            Self.logger.notice("asking an older Pawshot (pid \(other.processIdentifier, privacy: .public)) to quit")
             other.terminate()
         }
     }
@@ -90,21 +141,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// — would fail against itself and be lost.
     private func registerHotKeys() {
         unregisterHotKeys()
+        let shortcuts = [
+            "region \(settings.regionHotKey.displayString)",
+            "full screen \(settings.fullScreenHotKey.displayString)",
+            "record region \(settings.recordRegionHotKey.displayString)",
+            "record full screen \(settings.recordFullScreenHotKey.displayString)",
+        ].joined(separator: ", ")
+        Self.logger.notice("registering hotkeys: \(shortcuts, privacy: .public)")
         regionHotKey = Self.register(settings.regionHotKey) { [weak self] in
+            Self.logger.notice("hotkey pressed: capture a region")
             self?.beginCapture()
         }
         fullScreenHotKey = Self.register(settings.fullScreenHotKey) { [weak self] in
+            Self.logger.notice("hotkey pressed: capture the full screen")
             self?.beginFullScreenCapture()
         }
         recordRegionHotKey = Self.register(settings.recordRegionHotKey) { [weak self] in
+            Self.logger.notice("hotkey pressed: record a region")
             self?.beginRegionRecording()
         }
         recordFullScreenHotKey = Self.register(settings.recordFullScreenHotKey) { [weak self] in
+            Self.logger.notice("hotkey pressed: record the full screen")
             self?.beginFullScreenRecording()
         }
     }
 
     private func unregisterHotKeys() {
+        Self.logger.notice("unregistering hotkeys")
         regionHotKey = nil
         fullScreenHotKey = nil
         recordRegionHotKey = nil
@@ -119,7 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return try GlobalHotKey.register(binding, action: action)
         } catch {
             // The settings window explains this to the user; here it is only worth a log line.
-            logger.error("hotkey \(binding.displayString) not registered: \(error)")
+            logger.error("hotkey \(binding.displayString, privacy: .public) not registered: \(String(describing: error), privacy: .public)")
             return nil
         }
     }
@@ -146,22 +209,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Everything both capture paths share: the guard against a second run, the permission check
     /// and freezing every display before anything appears on screen.
     private func startCapture(then handle: @escaping ([CGDirectDisplayID: CapturedFrame]) async -> Void) {
-        guard !isCapturing, !overlayController.isActive else { return }
+        let pressed = Date()
+        let warmingUp = ScreenCaptureService.isWarmingUp
+        if warmingUp {
+            Self.logger.notice("capture asked while the launch warm-up is still running")
+        }
+        guard !isCapturing, !overlayController.isActive else {
+            let reason = isCapturing ? "a capture is still freezing the screen" : "the overlay is already up"
+            Self.logger.notice("capture ignored: \(reason, privacy: .public)")
+            return
+        }
         // Check the permission before the overlay: otherwise the region is selected for nothing.
         guard ScreenRecordingPermission.ensureGranted() else {
-            Self.logger.info("capture refused: no screen recording access")
+            Self.logger.notice("capture refused: no screen recording access")
             return
         }
 
         isCapturing = true
         state.isCapturing = true
-        let pressed = Date()
+        OverlayDiagnostics.pressed(at: pressed)
         Task {
+            let started = OverlayDiagnostics.sincePress()
+            Self.logger.notice("capture task started +\(started, privacy: .public) ms")
             if let frames = await freezeDisplays() {
+                let frozen = OverlayDiagnostics.sincePress()
+                Self.logger.notice("freeze done +\(frozen, privacy: .public) ms")
                 await handle(frames)
                 // The number that matters: everything between the hotkey and something visible.
                 let elapsed = Int(Date().timeIntervalSince(pressed) * 1000)
-                Self.logger.info("ready \(elapsed, privacy: .public) ms after the hotkey")
+                Self.logger.notice("ready \(elapsed, privacy: .public) ms after the hotkey")
             } else {
                 state.isCapturing = false
             }
@@ -182,14 +258,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let frames = try await ScreenCaptureService.captureDisplays(displayIDs)
             // This pause sits between the hotkey and the crosshair, so the hand can feel it.
             let elapsed = Int(Date().timeIntervalSince(started) * 1000)
-            Self.logger.info(
+            Self.logger.notice(
                 "freeze took \(elapsed, privacy: .public) ms for \(frames.count) display(s)"
             )
 
             return frames
         } catch {
             // Failures used to surface after the region was selected — now they surface before it.
-            Self.logger.error("freeze failed: \(error.localizedDescription)")
+            Self.logger.error("freeze failed: \(String(describing: error), privacy: .public)")
             presentCaptureFailure(error)
             return nil
         }
@@ -203,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The window list is taken here, still before the overlay is up: once it is, our own
         // full-screen window is the one under the cursor.
         let capturedWindows = ScreenCaptureService.onScreenWindows()
+        Self.logger.notice("\(capturedWindows.count) windows on screen for window mode")
 
         overlayController.begin(
             frames: frames,
@@ -211,7 +288,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] selection in
             guard let self else { return }
             state.isCapturing = false
-            guard let selection else { return }
+            guard let selection else {
+                Self.logger.notice("overlay cancelled")
+                return
+            }
+            Self.logger.notice(
+                "selected \(Int(selection.rect.width))×\(Int(selection.rect.height)) pt on display \(selection.displayID)\(selection.windowID.map { ", window \($0)" } ?? "", privacy: .public)"
+            )
             use(selection)
         }
     }
@@ -266,6 +349,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        Self.logger.notice(
+            "editor opens: crop \(Int(crop.width))×\(Int(crop.height)) pt at \(Int(crop.minX)),\(Int(crop.minY)), scale \(frame.scale, privacy: .public)"
+        )
         EditorWindowController(document: document, on: screen).show()
         settings.recordCapture()
     }
@@ -276,6 +362,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the same key starts and ends a take.
     func beginRegionRecording() {
         guard !recordingController.isActive else {
+            Self.logger.notice("record-region shortcut while recording: stop")
             recordingController.stop()
             return
         }
@@ -313,16 +400,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// ⇧⌘4: the display under the cursor, at once — no overlay, the way ⇧⌘1 takes a shot.
     func beginFullScreenRecording() {
         guard !recordingController.isActive else {
+            Self.logger.notice("record-full-screen shortcut while recording: stop")
             recordingController.stop()
             return
         }
-        guard !isCapturing, !overlayController.isActive, ScreenRecordingPermission.ensureGranted() else { return }
+        guard !isCapturing, !overlayController.isActive else {
+            Self.logger.notice("full screen recording ignored: a capture or the overlay is in the way")
+            return
+        }
+        guard ScreenRecordingPermission.ensureGranted() else {
+            Self.logger.notice("full screen recording refused: no screen recording access")
+            return
+        }
 
         let mouse = NSEvent.mouseLocation
         guard
             let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main,
             let displayID = SelectionOverlayController.displayID(of: screen)
-        else { return }
+        else {
+            Self.logger.error("full screen recording: no display under the cursor")
+            return
+        }
 
         startRecording(RecordingTarget(displayID: displayID, rect: nil, screen: screen), returningTo: nil)
     }
@@ -341,6 +439,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startRecording(_ target: RecordingTarget, returningTo previous: NSRunningApplication?) {
         if let previous, previous.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            Self.logger.notice("recording: back to \(previous.localizedName ?? "?", privacy: .public) first")
             previous.activate()
         }
         Task {
@@ -358,6 +457,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func presentFailure(_ error: Error, title: String) {
+        Self.logger.error("alert: \(title, privacy: .public) — \(String(describing: error), privacy: .public)")
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = error.localizedDescription

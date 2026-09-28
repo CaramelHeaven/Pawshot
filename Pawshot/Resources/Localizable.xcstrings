@@ -175,6 +175,16 @@
         }
       }
     },
+    "A text file with Pawshot's log for the last three days — send it with a bug report." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текстовый файл с логом Pawshot за последние три дня — пришлите его вместе с описанием ошибки."
+          }
+        }
+      }
+    },
     "About Pawshot" : {
       "localizations" : {
         "ru" : {
@@ -455,6 +465,16 @@
         }
       }
     },
+    "Collecting…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Собираю…"
+          }
+        }
+      }
+    },
     "Colour %lld" : {
       "localizations" : {
         "ru" : {
@@ -645,6 +665,16 @@
         }
       }
     },
+    "Couldn't save the logs" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить логи"
+          }
+        }
+      }
+    },
     "Couldn't start recording" : {
       "localizations" : {
         "ru" : {
@@ -671,6 +701,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Счётчик"
+          }
+        }
+      }
+    },
+    "Diagnostics" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диагностика"
           }
         }
       }
@@ -941,6 +981,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Толщина линии %lld ([ и ])"
+          }
+        }
+      }
+    },
+    "Logs" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Логи"
           }
         }
       }
@@ -1630,6 +1680,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Сохранить"
+          }
+        }
+      }
+    },
+    "Save Logs…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить логи…"
           }
         }
       }

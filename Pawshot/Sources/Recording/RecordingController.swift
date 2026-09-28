@@ -71,7 +71,12 @@ final class RecordingController {
     // MARK: - Control
 
     func start(_ target: RecordingTarget) async throws {
-        guard !isActive else { return }
+        guard !isActive else {
+            Self.logger.notice("recording not started: one is already running")
+            return
+        }
+        let kind = target.windowID != nil ? "window" : (target.rect == nil ? "full screen" : "region")
+        Self.logger.notice("recording starts: \(kind, privacy: .public) on display \(target.displayID)")
         isStarting = true
         defer {
             isStarting = false
@@ -127,7 +132,7 @@ final class RecordingController {
         self.engine = engine
         self.target = target
         recordedSize = CGSize(width: size.width, height: size.height)
-        Self.logger.info("recording \(size.width, privacy: .public)×\(size.height, privacy: .public), mic \(microphone, privacy: .public)")
+        Self.logger.notice("recording \(size.width, privacy: .public)×\(size.height, privacy: .public), mic \(microphone, privacy: .public)")
 
         let events = EventRecorder(area: Self.appKitRect(of: target)) { [weak engine] in
             guard let engine, !engine.isPaused else { return nil }
@@ -138,14 +143,14 @@ final class RecordingController {
         // Dropped first: Carbon refuses a combination the app has already registered, so on a
         // restart the new ones would fail while the old ones were still alive.
         unregisterRecordingHotKeys()
-        zoomHotKey = try? GlobalHotKey.register(settings.zoomMarkHotKey) { [weak self] in
+        zoomHotKey = Self.registerDuringTake(settings.zoomMarkHotKey) { [weak self] in
             self?.markZoom()
         }
-        restartHotKey = try? GlobalHotKey.register(settings.restartHotKey) { [weak self] in
+        restartHotKey = Self.registerDuringTake(settings.restartHotKey) { [weak self] in
             self?.restart()
         }
         if ink != nil {
-            penHotKey = try? GlobalHotKey.register(settings.penHotKey) { [weak self] in
+            penHotKey = Self.registerDuringTake(settings.penHotKey) { [weak self] in
                 self?.togglePen()
             }
         }
@@ -194,6 +199,8 @@ final class RecordingController {
 
     func togglePause() {
         guard let engine else { return }
+        let resumes = engine.isPaused
+        Self.logger.notice("recording \(resumes ? "resumed" : "paused", privacy: .public)")
         if engine.isPaused {
             engine.resume()
         } else {
@@ -205,6 +212,7 @@ final class RecordingController {
     /// Throws the take away and starts again at once, with the same region and sound.
     func restart() {
         guard let engine, let target else { return }
+        Self.logger.notice("recording restarts")
         self.engine = nil
         // Still "active" while the old take winds down, so ⇧⌘3 in between stops rather than
         // opening a second overlay.
@@ -225,6 +233,7 @@ final class RecordingController {
             do {
                 try await start(target)
             } catch {
+                Self.logger.error("restart failed: \(String(describing: error), privacy: .public)")
                 teardown()
                 onFailure?(error)
             }
@@ -233,16 +242,24 @@ final class RecordingController {
 
     func stop() {
         if engine == nil, isStarting {
+            Self.logger.notice("recording stop asked while starting: stops once started")
             stopWhenStarted = true
             return
         }
+        Self.logger.notice("recording stops")
         finish(reporting: nil)
     }
 
     /// Ends the recording and keeps what was written — also when the system ended the stream on
     /// its own, where `error` says why.
     private func finish(reporting error: Error?) {
-        guard let engine, let screen = target?.screen else { return }
+        guard let engine, let screen = target?.screen else {
+            Self.logger.notice("recording finish: nothing running")
+            return
+        }
+        if let error {
+            Self.logger.error("the stream ended on its own: \(String(describing: error), privacy: .public)")
+        }
         self.engine = nil
         let size = recordedSize
         let timeline = events?.stop() ?? EventTimeline()
@@ -253,13 +270,13 @@ final class RecordingController {
             do {
                 let movie = try await engine.stop()
                 try? timeline.save(nextTo: movie)
-                Self.logger.info("recording finished: \(movie.lastPathComponent, privacy: .public)")
+                Self.logger.notice("recording finished: \(movie.lastPathComponent, privacy: .public)")
                 onRecorded?(movie, size, screen)
                 if let error {
                     onFailure?(error)
                 }
             } catch {
-                Self.logger.error("recording not saved: \(error.localizedDescription, privacy: .public)")
+                Self.logger.error("recording not saved: \(String(describing: error), privacy: .public)")
                 onFailure?(error)
             }
         }
@@ -268,6 +285,18 @@ final class RecordingController {
     private func closeInk() {
         ink?.close()
         ink = nil
+    }
+
+    /// A shortcut that only exists while a take runs. A failure used to vanish into `try?`; now it
+    /// is in the log, with the combination.
+    private static func registerDuringTake(_ binding: HotKeyBinding, action: @escaping () -> Void) -> GlobalHotKey? {
+        do {
+            return try GlobalHotKey.register(binding, action: action)
+        } catch {
+            let shortcut = binding.displayString
+            logger.error("recording shortcut \(shortcut, privacy: .public) not registered: \(String(describing: error), privacy: .public)")
+            return nil
+        }
     }
 
     /// The shortcuts that only exist while a take runs.

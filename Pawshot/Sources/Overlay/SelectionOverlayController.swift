@@ -54,7 +54,15 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         purpose: OverlayPurpose = .screenshot,
         completion: @escaping (Selection?) -> Void
     ) {
-        guard !isActive else { return }
+        guard !isActive else {
+            Self.logger.notice("overlay not started: one is already up")
+            return
+        }
+        let front = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
+        Self.logger.notice(
+            "overlay begins: \(String(describing: purpose), privacy: .public), \(frames.count) frame(s), \(capturedWindows.count) window(s), \(front, privacy: .public) in front"
+        )
+        OverlayDiagnostics.began()
         self.completion = completion
         self.frames = frames
         self.purpose = purpose
@@ -103,19 +111,34 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
                 window.makeKey()
                 window.makeFirstResponder(view)
             }
+            let number = window.windowNumber
+            let visible = window.isVisible
+            let onSpace = window.isOnActiveSpace
+            let occlusion = window.occlusionState.contains(.visible)
+            let key = window.isKeyWindow
+            let described = LogExport.describe(screen)
+            Self.logger.notice(
+                "overlay window \(number, privacy: .public) on \(described, privacy: .public): visible \(visible, privacy: .public), on active space \(onSpace, privacy: .public), occlusion-visible \(occlusion, privacy: .public), key \(key, privacy: .public)"
+            )
         }
 
         // Without activation an accessory app gets no keyboard, and Esc stops working.
         previousApp = NSWorkspace.shared.frontmostApplication
+        let wasActive = NSApp.isActive
         NSApp.activate()
+        let isNowActive = NSApp.isActive
+        Self.logger.notice("overlay activates the app: active before \(wasActive, privacy: .public), right after \(isNowActive, privacy: .public)")
         // macOS 14+ activation is cooperative and may be refused; whether it was decides whether
-        // the first click on the overlay's buttons does anything. Logged a moment later, once
-        // the answer is in.
+        // the first click on the overlay's buttons does anything. And whether the overlay was drawn
+        // at all: the first ⇧⌘2 after launch once showed nothing until a click. Looked at a few
+        // times, once the answers are in.
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard let self, isActive else { return }
-            let key = windows.contains(where: \.isKeyWindow)
-            Self.logger.info("overlay up: app active \(NSApp.isActive, privacy: .public), key window \(key, privacy: .public)")
+            // At about 100 ms, 500 ms and 2 s after the overlay went up.
+            for pause in [100, 400, 1500] {
+                try? await Task.sleep(for: .milliseconds(pause))
+                guard let self, isActive else { return }
+                OverlayDiagnostics.check(windows: windows)
+            }
         }
 
         // The overlay has to be alive the moment it appears: badge, highlight and cursor come
@@ -126,6 +149,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
     }
 
     func dismiss() {
+        Self.logger.notice("overlay dismissed")
+        OverlayDiagnostics.ended()
         levelMeter?.stop()
         levelMeter = nil
         OverlayHUD.hide()
@@ -150,6 +175,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             let displayID = Self.displayID(of: screen),
             let frame = frames[displayID]
         else {
+            Self.logger.error("selection dropped: no screen or frame for the overlay it was made on")
             finish(with: nil)
             return
         }
@@ -199,14 +225,14 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         bar.toggleSystemAudio = { [weak self] in self?.toggleFromBar(.systemAudio) }
         // The bar lives inside the overlay that has the region; that one records.
         bar.start = {
-            Self.logger.info("sound bar: Record pressed")
+            Self.logger.notice("sound bar: Record pressed")
             (OverlayHUD.recordingBarHost.superview as? SelectionView)?.commitRecording()
         }
         syncRecordingBar()
     }
 
     private func toggleFromBar(_ option: RecordingOverlayKey) {
-        Self.logger.info("sound bar: \(String(describing: option), privacy: .public) pressed")
+        Self.logger.notice("sound bar: \(String(describing: option), privacy: .public) pressed")
         guard let view = OverlayHUD.recordingBarHost.superview as? SelectionView else { return }
         selectionView(view, didToggle: option)
     }
@@ -238,6 +264,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
 
     func selectionViewDidCancel(_: SelectionView) {
         let previous = previousApp
+        let name = previous?.localizedName ?? "nobody"
+        Self.logger.notice("overlay cancelled, focus back to \(name, privacy: .public)")
         finish(with: nil)
         if let previous, previous.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             previous.activate()
@@ -247,6 +275,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
     /// One screen switched modes — the rest follow, otherwise moving the cursor to another display
     /// would silently change what a click does.
     func selectionView(_ view: SelectionView, didSwitchTo mode: SelectionView.Mode) {
+        Self.logger.notice("overlay mode → \(String(describing: mode), privacy: .public)")
         for other in selectionViews where other !== view {
             other.apply(mode: mode)
         }

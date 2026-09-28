@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 /// A field that records a key combination: click it, press the keys, done.
 ///
@@ -7,6 +8,8 @@ import AppKit
 /// a capture instead of being replaced. `Settings.onHotKeyRecordingChange` is what carries that
 /// news to `AppDelegate`.
 final class HotKeyRecorderView: NSView {
+    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "settings")
+
     var binding: HotKeyBinding {
         didSet { needsDisplay = true }
     }
@@ -59,6 +62,8 @@ final class HotKeyRecorderView: NSView {
     // MARK: - Recording
 
     override func mouseDown(with _: NSEvent) {
+        let current = binding.displayString
+        Self.logger.notice("shortcut field: recording, was \(current, privacy: .public)")
         window?.makeFirstResponder(self)
         hint = nil
         isRecording = true
@@ -69,8 +74,43 @@ final class HotKeyRecorderView: NSView {
         return true
     }
 
+    private var windowCloseObserver: NSObjectProtocol?
+
+    /// Closing the window or leaving it — another Settings tab — ends a recording too. Neither
+    /// sends `resignFirstResponder`, and a recording that never ended left every global hotkey
+    /// unregistered until a relaunch: a click on a field, the window closed, and Pawshot answered
+    /// no shortcut at all. `HotKeyRecorderViewTests` pins both.
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if let windowCloseObserver {
+            NotificationCenter.default.removeObserver(windowCloseObserver)
+        }
+        windowCloseObserver = nil
+        guard let newWindow else {
+            if isRecording {
+                Self.logger.notice("shortcut field: left its window mid-recording")
+            }
+            stopRecording()
+            return
+        }
+        windowCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: newWindow,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                if self?.isRecording == true {
+                    Self.logger.notice("shortcut field: window closed mid-recording")
+                }
+                self?.stopRecording()
+            }
+        }
+    }
+
     private func stopRecording() {
         pendingFlags = []
+        // Only an actual recording ends: every "ended" re-registers all the hotkeys.
+        guard isRecording else { return }
         isRecording = false
     }
 
@@ -86,20 +126,25 @@ final class HotKeyRecorderView: NSView {
 
         // Esc leaves the old combination alone — the same escape hatch every macOS recorder has.
         if event.keyCode == 53 {
+            Self.logger.notice("shortcut field: Esc, kept the old one")
             stopRecording()
             return
         }
 
         guard let recorded = HotKeyBinding.from(event: event) else {
+            Self.logger.notice("shortcut field: key without ⌘, ⌥ or ⌃ refused")
             hint = String(localized: "Add ⌘, ⌥ or ⌃")
             needsDisplay = true
             return
         }
 
+        let shortcut = recorded.displayString
         if onRecord?(recorded) ?? false {
+            Self.logger.notice("shortcut field: recorded \(shortcut, privacy: .public)")
             binding = recorded
             hint = nil
         } else {
+            Self.logger.notice("shortcut field: \(shortcut, privacy: .public) already taken by another action")
             hint = String(localized: "Already taken")
         }
         stopRecording()

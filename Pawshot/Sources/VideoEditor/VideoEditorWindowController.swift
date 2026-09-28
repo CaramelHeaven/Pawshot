@@ -82,6 +82,8 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
 
     func show() {
         Self.openControllers.insert(self)
+        let file = movieURL.lastPathComponent
+        Self.logger.notice("video editor opens: \(file, privacy: .public)")
         Settings.shared.recordVideoEditorOpen()
         guard let window else { return }
         window.setFrameOrigin(Self.origin(for: window, on: openingScreen))
@@ -117,7 +119,11 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
 
     private func load() async {
         let asset = AVURLAsset(url: movieURL)
-        guard let duration = try? await asset.load(.duration).seconds, duration > 0 else { return }
+        guard let duration = try? await asset.load(.duration).seconds, duration > 0 else {
+            Self.logger.error("video editor: the recording has no duration")
+            return
+        }
+        Self.logger.notice("video editor: \(duration, privacy: .public) s loaded")
         model.keep = KeepRanges(duration: duration)
         window?.title = String(localized: "Recording · \(VideoEditing.durationText(duration))")
         refreshEstimate()
@@ -308,6 +314,8 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
 
     private func cyclePreset() {
         model.preset = model.preset.next
+        let preset = model.preset.rawValue
+        Self.logger.notice("video format → \(preset, privacy: .public)")
         Settings.shared.videoPreset = model.preset
         refreshEstimate()
     }
@@ -375,13 +383,17 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
     }
 
     private func export(_ preset: VideoPreset, to destination: Destination) {
-        guard exportTask == nil, !isClosing, model.keep.duration > 0 else { return }
+        guard exportTask == nil, !isClosing, model.keep.duration > 0 else {
+            Self.logger.notice("video export ignored: one is running, the window is closing, or nothing is kept")
+            return
+        }
         stopPlayback()
 
         let url: URL
         do {
             url = try destination == .desktop ? VideoHandOff.desktopURL(for: preset) : VideoHandOff.clipURL(for: preset)
         } catch {
+            Self.logger.error("video export: no file to write to: \(String(describing: error), privacy: .public)")
             presentFailure(error)
             return
         }
@@ -404,7 +416,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
                     VideoHandOff.copy(url)
                 }
                 let elapsed = Int(Date().timeIntervalSince(started) * 1000)
-                Self.logger.info("exported \(preset.rawValue, privacy: .public) in \(elapsed, privacy: .public) ms")
+                Self.logger.notice("exported \(preset.rawValue, privacy: .public) in \(elapsed, privacy: .public) ms")
                 self?.exportDidFinish(nil)
             } catch {
                 self?.exportDidFinish(error)
@@ -418,7 +430,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         model.exportStarted = nil
 
         if let error {
-            Self.logger.error("export failed: \(error.localizedDescription, privacy: .public)")
+            Self.logger.error("export failed: \(String(describing: error), privacy: .public)")
             presentFailure(error)
             if windowIsClosed {
                 discard()
@@ -469,9 +481,11 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
     /// running, which delivers the file whether the window stays or not.
     func closeForQuitKey() {
         guard exportTask == nil, let window else {
+            Self.logger.notice("⌘Q tap: export running, closing without asking")
             close()
             return
         }
+        Self.logger.notice("⌘Q tap: asking before throwing the recording away")
         let alert = NSAlert()
         alert.messageText = String(localized: "Close the recording?")
         alert.informativeText = String(localized: "The recording will be deleted.")
@@ -479,12 +493,16 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         close.hasDestructiveAction = true
         alert.addButton(withTitle: String(localized: "Cancel"))
         alert.beginSheetModal(for: window) { [weak self] response in
-            guard response == .alertFirstButtonReturn else { return }
+            let closes = response == .alertFirstButtonReturn
+            Self.logger.notice("⌘Q tap: \(closes ? "close" : "cancel", privacy: .public) chosen")
+            guard closes else { return }
             self?.close()
         }
     }
 
     func windowWillClose(_: Notification) {
+        let exporting = exportTask != nil
+        Self.logger.notice("video editor closed, export running: \(exporting, privacy: .public)")
         windowIsClosed = true
         stopPlayback()
         if let timeObserver {
@@ -506,6 +524,8 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
     /// The raw recording goes: it was either exported or thrown away — the owner's rule, the same
     /// as for a screenshot closed without ⌘C or ⌘S.
     private func discard() {
+        let file = movieURL.lastPathComponent
+        Self.logger.notice("recording discarded: \(file, privacy: .public)")
         try? FileManager.default.removeItem(at: movieURL)
         try? FileManager.default.removeItem(at: EventTimeline.url(forMovie: movieURL))
         Self.openControllers.remove(self)

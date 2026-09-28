@@ -1,4 +1,5 @@
 import AVFoundation
+import os
 
 /// Microphone access (TCC). Asked for only when the user turns the microphone on — never at launch
 /// and never for a recording that doesn't use it.
@@ -20,8 +21,13 @@ enum MicrophonePermission {
         case .authorized:
             return true
         case .notDetermined:
-            return await AVCaptureDevice.requestAccess(for: .audio)
+            let granted = await AVCaptureDevice.requestAccess(for: .audio)
+            Logger(subsystem: "com.caramelheaven.pawshot", category: "permission")
+                .notice("microphone asked for: \(granted ? "granted" : "refused", privacy: .public)")
+            return granted
         default:
+            Logger(subsystem: "com.caramelheaven.pawshot", category: "permission")
+                .notice("microphone wanted but not allowed: recording without it")
             return false
         }
     }

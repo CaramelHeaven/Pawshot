@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import os
 
 /// A window whose short ⌘Q has something to lose: it asks before closing, or closes at once when
 /// there is nothing to lose.
@@ -19,6 +20,8 @@ protocol ClosesOnQuitKey: AnyObject {
 /// key is held — only repeats — so the key state is polled, as the canvas polls Space.
 @MainActor
 enum QuitKey {
+    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "quit")
+
     /// Let go before this and it was a tap.
     static let tapLimit: Duration = .milliseconds(300)
     /// Held this long, from the press, Pawshot quits.
@@ -50,12 +53,16 @@ enum QuitKey {
     static func pressed() {
         // The key state as well as the event: if SwiftUI ever runs the action a beat after the
         // key press, the press must still not read as a click on the menu.
-        guard NSApp.currentEvent?.type == .keyDown || isHeld, Settings.shared.warnsBeforeQuitting else {
+        let fromKeyboard = NSApp.currentEvent?.type == .keyDown || isHeld
+        let warns = Settings.shared.warnsBeforeQuitting
+        guard fromKeyboard, warns else {
+            logger.notice("Quit: at once (from keyboard \(fromKeyboard, privacy: .public), warn before quitting \(warns, privacy: .public))")
             NSApp.terminate(nil)
             return
         }
         // Key repeats of a held ⌘Q arrive while the first press is still being timed.
         guard !isWaitingForRelease else { return }
+        logger.notice("⌘Q pressed, timing the hold")
         isWaitingForRelease = true
 
         Task { @MainActor in
@@ -67,20 +74,24 @@ enum QuitKey {
                 switch phase(heldFor: held) {
                 case .tap:
                     guard isHeld else {
+                        logger.notice("⌘Q: tap")
                         closeFrontWindow()
                         return
                     }
                 case .warning:
                     guard isHeld else {
+                        logger.notice("⌘Q: let go on the toast, staying")
                         QuitToast.hide()
                         return
                     }
                     if !isWarning {
+                        logger.notice("⌘Q: held, toast up")
                         QuitToast.show()
                         isWarning = true
                     }
                     QuitToast.setProgress(progress(heldFor: held))
                 case .quit:
+                    logger.notice("⌘Q: held to the end, quitting")
                     QuitToast.setProgress(1)
                     fadeOutAndQuit()
                     return
@@ -126,8 +137,14 @@ enum QuitKey {
 
     /// A tap of ⌘Q: the key window goes, the way ⌘W would take it — unless it has work to lose.
     static func closeFrontWindow() {
-        guard let window = NSApp.keyWindow else { return }
-        switch action(for: window) {
+        guard let window = NSApp.keyWindow else {
+            logger.notice("⌘Q tap: no key window, nothing to close")
+            return
+        }
+        let chosen = action(for: window)
+        let title = window.title
+        logger.notice("⌘Q tap: \(String(describing: chosen), privacy: .public) for \(title, privacy: .public)")
+        switch chosen {
         case .askController:
             (window.delegate as? ClosesOnQuitKey)?.closeForQuitKey()
         case .performClose:

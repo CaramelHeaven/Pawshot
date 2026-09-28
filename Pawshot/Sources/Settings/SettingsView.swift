@@ -74,10 +74,30 @@ private struct GeneralSettings: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+            Section {
+                LabeledContent("Logs") {
+                    Button(isCollectingLogs ? "Collecting…" : "Save Logs…") {
+                        isCollectingLogs = true
+                        Task {
+                            await LogExport.saveWithPanel()
+                            isCollectingLogs = false
+                        }
+                    }
+                    .disabled(isCollectingLogs)
+                }
+            } header: {
+                Text("Diagnostics")
+            } footer: {
+                Text("A text file with Pawshot's log for the last three days — send it with a bug report.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .frame(height: 620)
+        .frame(height: 720)
     }
+
+    @State private var isCollectingLogs = false
 }
 
 /// The labels' family: any font installed on the Mac, each name set in its own face, with the

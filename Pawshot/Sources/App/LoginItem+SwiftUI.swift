@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 extension LoginItem {
@@ -9,9 +10,12 @@ extension LoginItem {
         Binding(
             get: { current.isOn },
             set: { enable in
+                let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "settings")
+                logger.notice("launch at login → \(enable, privacy: .public)")
                 do {
                     try setEnabled(enable)
                 } catch {
+                    logger.error("launch at login not changed: \(String(describing: error), privacy: .public)")
                     presentFailure(error, enabling: enable)
                 }
             }

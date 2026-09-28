@@ -43,6 +43,8 @@ final class EventRecorder {
 
         if recordingKeys, CGPreflightListenEventAccess() {
             startKeyTap()
+        } else if recordingKeys {
+            Self.logger.notice("shortcut captions skipped: no Input Monitoring access")
         }
     }
 

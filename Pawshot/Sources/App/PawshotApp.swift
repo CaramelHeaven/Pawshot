@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// The entry point. The capture pipeline, the hotkeys and the editor windows stay with
@@ -10,16 +11,23 @@ import SwiftUI
 struct PawshotApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
+    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "app")
+
+    /// The paw's menu reaches the same code as the hotkeys; the log tells the two apart.
+    private static func menu(_ item: StaticString) {
+        logger.notice("paw menu: \(item, privacy: .public)")
+    }
+
     var body: some Scene {
         MenuBarExtra {
             CaptureMenu(actions: CaptureActions(
-                captureRegion: { delegate.beginCapture() },
-                captureFullScreen: { delegate.beginFullScreenCapture() },
-                recordRegion: { delegate.beginRegionRecording() },
-                recordFullScreen: { delegate.beginFullScreenRecording() },
-                stopRecording: { delegate.stopRecording() },
-                togglePause: { delegate.toggleRecordingPause() },
-                restartRecording: { delegate.restartRecording() }
+                captureRegion: { Self.menu("capture a region"); delegate.beginCapture() },
+                captureFullScreen: { Self.menu("capture the full screen"); delegate.beginFullScreenCapture() },
+                recordRegion: { Self.menu("record a region"); delegate.beginRegionRecording() },
+                recordFullScreen: { Self.menu("record the full screen"); delegate.beginFullScreenRecording() },
+                stopRecording: { Self.menu("stop recording"); delegate.stopRecording() },
+                togglePause: { Self.menu("pause or resume"); delegate.toggleRecordingPause() },
+                restartRecording: { Self.menu("restart recording"); delegate.restartRecording() }
             ))
         } label: {
             MenuBarLabel()

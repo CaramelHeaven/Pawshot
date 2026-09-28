@@ -96,6 +96,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         NSApp.activate()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
+        let active = NSApp.isActive
+        let key = window?.isKeyWindow ?? false
+        Self.editorLogger.notice("editor shown: app active \(active, privacy: .public), window key \(key, privacy: .public), \(Self.openControllers.count) open")
         window?.makeFirstResponder(canvas)
 
         syncChrome()
@@ -343,7 +346,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             let started = Date()
             do {
                 let text = try await recognizedText()
-                Self.logger.info("read \(Self.milliseconds(since: started)) ms, \(text.count) chars")
+                Self.logger.notice("read \(Self.milliseconds(since: started)) ms, \(text.count) chars")
 
                 guard !text.isEmpty else {
                     // Nothing to hand over, so nothing is taken away either: the clipboard keeps
@@ -351,7 +354,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
                     if isStillOpen {
                         presentNoTextFound()
                     } else {
-                        Self.logger.info("nothing readable, and the window had already gone")
+                        Self.logger.notice("nothing readable, and the window had already gone")
                     }
                     return
                 }
@@ -365,7 +368,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
                 AppState.shared.flashTextCopied()
                 dissolveAndClose()
             } catch {
-                Self.logger.error("read failed after \(Self.milliseconds(since: started)) ms: \(error.localizedDescription)")
+                Self.logger.error("read failed after \(Self.milliseconds(since: started)) ms: \(String(describing: error), privacy: .public)")
                 // An alert needs a window to hang off; a closed one gets the log line above.
                 guard isStillOpen else { return }
                 presentExportFailure(error)
@@ -382,6 +385,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     // MARK: - Text recognition
 
     private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "text")
+    private static let editorLogger = Logger(subsystem: "com.caramelheaven.pawshot", category: "editor")
 
     private static func milliseconds(since start: Date) -> Int {
         Int(Date().timeIntervalSince(start) * 1000)
@@ -396,7 +400,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         warmUpTask = Task {
             let started = Date()
             let text = try await recognizeText(image)
-            Self.logger.info("warm-up took \(Self.milliseconds(since: started)) ms")
+            Self.logger.notice("warm-up took \(Self.milliseconds(since: started)) ms")
             return text
         }
     }
@@ -442,10 +446,15 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     }
 
     private func export(to destination: ExportDestination) {
-        guard !isClosing else { return }
+        guard !isClosing else {
+            Self.editorLogger.notice("export ignored: the window is already closing")
+            return
+        }
         canvas.finishTextEditing()
 
+        let started = Date()
         guard let image = AnnotationRenderer.render(editorDocument) else {
+            Self.editorLogger.error("export: rendering the shot failed")
             presentExportFailure(ExportError.encodingFailed)
             return
         }
@@ -454,14 +463,17 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             switch destination {
             case .clipboard:
                 try ExportService.copy(image)
+                Self.editorLogger.notice("copied \(image.width)×\(image.height) px in \(Self.milliseconds(since: started)) ms")
             case .desktop:
-                try ExportService.saveToDesktop(image)
+                let url = try ExportService.saveToDesktop(image)
+                Self.editorLogger.notice("saved \(image.width)×\(image.height) px to \(url.path, privacy: .public) in \(Self.milliseconds(since: started)) ms")
             }
 
             // No confirmation banner: the window dissolving is the confirmation. The shot is already
             // on the clipboard or on disk by now, so the fade costs the hand nothing.
             dissolveAndClose()
         } catch {
+            Self.editorLogger.error("export failed: \(String(describing: error), privacy: .public)")
             presentExportFailure(error)
         }
     }
@@ -515,9 +527,11 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// drawn, cropped or turned, which is exactly what undo remembers — asks first.
     func closeForQuitKey() {
         guard hasWork, let window else {
+            Self.editorLogger.notice("⌘Q tap: bare shot, closing")
             close()
             return
         }
+        Self.editorLogger.notice("⌘Q tap: the shot has work, asking")
         let alert = NSAlert()
         alert.messageText = String(localized: "Close the screenshot?")
         alert.informativeText = String(localized: "What is drawn on it will be lost.")
@@ -525,7 +539,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         close.hasDestructiveAction = true
         alert.addButton(withTitle: String(localized: "Cancel"))
         alert.beginSheetModal(for: window) { [weak self] response in
-            guard response == .alertFirstButtonReturn else { return }
+            let closes = response == .alertFirstButtonReturn
+            Self.editorLogger.notice("⌘Q tap: \(closes ? "close" : "cancel", privacy: .public) chosen")
+            guard closes else { return }
             self?.close()
         }
     }
@@ -567,6 +583,8 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     }
 
     func windowWillClose(_: Notification) {
+        let work = hasWork
+        Self.editorLogger.notice("editor closed, had work: \(work, privacy: .public)")
         canvas.finishTextEditing()
 
         // The warm-up is speculative, and the shot it holds is worth tens of megabytes on a 5K

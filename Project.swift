@@ -92,7 +92,7 @@ let project = Project(
             // a copy from DerivedData can't pass for the one in /Applications — launch at login
             // remembers the bundle path, and mixing them up starts a stale build.
             settings: .settings(
-                base: ["MARKETING_VERSION": "0.4.0", "CURRENT_PROJECT_VERSION": "1"],
+                base: ["MARKETING_VERSION": "0.4.1", "CURRENT_PROJECT_VERSION": "1"],
                 configurations: [
                     .debug(
                         name: .debug,

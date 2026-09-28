@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import Foundation
 import Observation
+import os
 
 /// What the app remembers between launches. Deliberately thin: only the values that are really
 /// stored, each with a default, so a fresh install and a broken value behave the same way.
@@ -61,6 +62,7 @@ final class Settings {
     @ObservationIgnored var onHotKeyRecordingChange: ((Bool) -> Void)?
 
     @ObservationIgnored private let defaults: UserDefaults
+    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "settings")
     private var revision = 0
 
     /// The language the running process picked its strings in — they are read once, at launch.
@@ -216,6 +218,7 @@ final class Settings {
             return defaults.string(forKey: Key.language.rawValue).flatMap(AppLanguage.init(rawValue:)) ?? .system
         }
         set {
+            Self.logger.notice("language → \(newValue.rawValue, privacy: .public)")
             defaults.set(newValue.rawValue, forKey: Key.language.rawValue)
             if newValue == .system {
                 defaults.removeObject(forKey: AppLanguage.appleLanguagesKey)
@@ -251,6 +254,7 @@ final class Settings {
             return stored
         }
         set {
+            Self.logger.notice("label font → \(newValue ?? "system", privacy: .public)")
             if let newValue {
                 defaults.set(newValue, forKey: Key.labelFont.rawValue)
             } else {
@@ -269,6 +273,7 @@ final class Settings {
             return defaults.string(forKey: Key.toolsPlacement.rawValue).flatMap(ToolsPlacement.init(rawValue:)) ?? .below
         }
         set {
+            Self.logger.notice("tools placement → \(newValue.rawValue, privacy: .public)")
             defaults.set(newValue.rawValue, forKey: Key.toolsPlacement.rawValue)
             revision += 1
             onToolsPlacementChange?()
@@ -316,6 +321,7 @@ final class Settings {
     }
 
     func resetHotKeysToDefaults() {
+        Self.logger.notice("shortcuts reset to defaults")
         defaults.removeObject(forKey: Key.regionHotKey.rawValue)
         defaults.removeObject(forKey: Key.fullScreenHotKey.rawValue)
         defaults.removeObject(forKey: Key.recordRegionHotKey.rawValue)
@@ -338,7 +344,11 @@ final class Settings {
     }
 
     private func store(_ binding: HotKeyBinding, for key: Key) {
-        guard let data = try? JSONEncoder().encode(binding) else { return }
+        guard let data = try? JSONEncoder().encode(binding) else {
+            Self.logger.error("shortcut \(key.rawValue, privacy: .public) not stored: it doesn't encode")
+            return
+        }
+        Self.logger.notice("shortcut \(key.rawValue, privacy: .public) → \(binding.displayString, privacy: .public)")
 
         defaults.set(data, forKey: key.rawValue)
         revision += 1
@@ -351,6 +361,7 @@ final class Settings {
     }
 
     private func setFlag(_ value: Bool, for key: Key) {
+        Self.logger.notice("\(key.rawValue, privacy: .public) → \(value, privacy: .public)")
         defaults.set(value, forKey: key.rawValue)
         revision += 1
     }

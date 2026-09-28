@@ -669,7 +669,12 @@ enabled entry warns. The ids are Apple's usual ones, not checked on a Touch Bar 
 
 Second thing the code doesn't show: while the settings window records a new combination, the app's
 own hotkeys are **unregistered** (`Settings.onHotKeyRecordingChange` → `AppDelegate`). Without it,
-pressing the current shortcut to replace it would fire a capture instead.
+pressing the current shortcut to replace it would fire a capture instead. The flip side: whatever
+ends a recording must say so. Closing the window or switching the Settings tab with a field still
+recording sent nothing — measured — and every hotkey stayed unregistered until a relaunch, so the
+recorder also ends on `NSWindow.willCloseNotification` and on leaving its window
+(`HotKeyRecorderViewTests`). Losing key focus mid-recording is not covered: a test host has no key
+windows to prove it with.
 
 Logging a registration uses `privacy: .public` on purpose — the default redacts interpolated
 strings to `<private>`, and this log line is exactly how a hotkey is verified from the outside.
@@ -886,6 +891,58 @@ diff", it is the norm in this project.
 - In this shell `tr` is shadowed by an alias to `tuist`, and `ls` doesn't accept a bare path —
   call `/bin/ls`, and don't build pipelines on `tr`.
 
+### Logs: what a shared log has to be
+
+A person with a problem presses **Settings → General → Diagnostics → Save Logs…**, picks where
+the file goes, and sends it (`App/LogExport.swift`). The file is a header — build, macOS, Mac
+model, displays, the three permissions, every shortcut and whether macOS still takes it, the main
+settings, other running copies — then Pawshot's log for the last three days (`/usr/bin/log show`
+from the app: there is no sandbox, so no rights are needed) and the last three crash reports.
+
+Two rules make that file worth reading, and every new log line follows them:
+
+- **Milestones are `.notice`, failures `.error` — never `.info`.** macOS keeps `.info` in memory
+  only; an hour later it is gone, and a log saved the next day was empty exactly where it
+  mattered.
+- **Every interpolated string, error and flag is `privacy: .public`.** The default turns them into
+  `<private>`, and a line that says `hotkey <private> not registered: <private>` says nothing.
+  Log `String(describing: error)`, not `localizedDescription` — the case name is what tells two
+  failures apart.
+- Read `self` properties into a local before the log call: SwiftFormat strips `self.` inside the
+  message's autoclosure, and the build then fails on implicit self.
+
+What is covered: launch facts, every hotkey registration, unregistration and press (a press with
+nobody behind it is an `.error`), every early return of a capture, the overlay's begin, mode,
+cancel and selection, the editor's opening, exports and their failures, ⌘Q's every decision, the
+shortcut fields, settings changes, permission prompts, recording and the video editor.
+
+### The first ⇧⌘2 that shows nothing until a click — open
+
+Seen by the owner on 2026-09-28: the first region capture after launch showed no dimming at all;
+a click anywhere, and the screen went dark. Once per launch; later presses fine. Probably the same
+thing as "the first ⇧⌘2 on a new Mac does nothing, the second works".
+
+Not reproduced. A probe called `beginCapture()` first thing in three fresh test-host processes,
+with no user events at all: `begin` reached at +47–163 ms, the overlay drawn at +124–163 ms,
+`occlusionState` visible 20–40 ms after that. What the probe did show: the app never became
+active within 2 s (the test host is a background process under xcodebuild, where activation is
+refused), and the launch warm-up was still running when the capture started. So the production
+code is unchanged, and the path is logged instead (`OverlayDiagnostics`, `OverlayTimeline`), every
+line `+N ms` from the hotkey:
+
+- `capture task started`, `display … captured in`, `freeze done`, `overlay begin` — the steps up to
+  the overlay; a gap here means the capture itself or the task hop stalled;
+- `overlay window N … visible, on active space, occlusion-visible, key` per window, and
+  `active before / right after` around `NSApp.activate()`;
+- `overlay first draw +N ms` — the frame reached the screen;
+- `overlay check` at ~100 ms, 500 ms and 2 s — an `.error` `NOT DRAWN YET` if it still hasn't;
+- `overlay first event … drawn before it: false` — an `.error`, and exactly the report: the first
+  click arrived before anything was drawn;
+- `app became active / resigned active / active space changed (+N ms since the hotkey)`;
+- `capture asked while the launch warm-up is still running`.
+
+A "Save Logs…" file from a Mac where it happens tells which step never came.
+
 ### What can't be verified automatically here
 
 Capturing means the mouse and a global hotkey, and synthesising input (`osascript`,
@@ -896,8 +953,8 @@ limits for it too. Which means:
 - launching and the absence of a Dock icon are verified through `CGWindowList` and
   `lsappinfo info -only ApplicationType <pid>` (it must be `UIElement`);
 - hotkey registration — from the log: `/usr/bin/log show --predicate 'subsystem ==
-  "com.caramelheaven.pawshot"' --last 5m --info`. **The `--info` flag is mandatory**, otherwise
-  `Logger.info` doesn't show up and it looks like there are no logs at all;
+  "com.caramelheaven.pawshot"' --last 5m`. The app logs at `.notice` and `.error` only (see
+  `### Logs` below), so `--info` is no longer needed;
 - everything else (the crosshair, the dimming, the badge, the capture result) — only with the
   owner's eyes. Writing "checked, works" about any of that is not allowed.
 
