@@ -23,6 +23,7 @@ struct WelcomeView: View {
         }
         .padding(12)
         .frame(width: 860)
+        .background(ComesForward("welcome"))
     }
 
     // MARK: - Shortcuts

@@ -1,6 +1,7 @@
 import AppKit
 @testable import Pawshot
 import ServiceManagement
+import SwiftUI
 import XCTest
 
 final class LoginItemTests: XCTestCase {
@@ -72,6 +73,29 @@ final class WhatsNewTests: XCTestCase {
         XCTAssertTrue(shows("0.4.6"))
         XCTAssertFalse(shows("0.4.7"), "already seen")
         XCTAssertFalse(shows("0.4.6", text: ""), "a release with nothing to tell")
+    }
+
+    /// After Sparkle's relaunch nobody activates Pawshot, and 0.4.7's What's New opened behind
+    /// the app in front. The test host is a background app too: a window nobody ordered in has
+    /// to come up by itself.
+    @MainActor
+    func testTheWindowComesForwardByItself() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.contentView = NSHostingView(rootView: Color.clear.background(ComesForward("test")))
+        window.contentView?.layoutSubtreeIfNeeded()
+
+        let deadline = Date().addingTimeInterval(1)
+        while !window.isVisible, Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertTrue(window.isVisible)
     }
 }
 

@@ -50,7 +50,10 @@ them. It replaced the old "Open Pawshot" window rather than sitting next to it. 
 N-A, on 2026-09-28 from four mockups: About's icon in its corner brackets, "What's New", the
 version, a few plain paragraphs and "Got It". It opens by itself at the first launch of a new
 version (`WhatsNew.showsAtLaunch`) and never on a fresh install: "Get Started" records the version
-it was pressed in. Shown means seen, however it is closed. An update from 0.4.6, which stored no
+it was pressed in. Shown means seen, however it is closed. It and the welcome window put
+themselves above every other app (`ComesForward`): Sparkle relaunches Pawshot from a background
+helper, as a login item does, macOS doesn't activate it, and SwiftUI then orders a window front
+among Pawshot's own only — 0.4.7's What's New opened behind the app in front. An update from 0.4.6, which stored no
 version, counts as an update. The words are `WhatsNew.text`, rewritten with every version (see
 Releasing, under `### Updates`); an empty text means no window. Only the latest text is kept, so
 a jump from 0.4.5 to 0.4.8 hears about 0.4.8 alone. To see it again:
@@ -550,6 +553,7 @@ Paths are given relative to `Pawshot/Sources/`.
 | A translation, a new language                         | `Resources/Localizable.xcstrings`, `defaultKnownRegions` in `Project.swift` |
 | The language picker and how it is applied             | `App/Settings.swift` (`language`), `Settings/SettingsView.swift` |
 | The welcome window, when it opens by itself           | `Welcome/WelcomeView.swift`, `PawshotApp.swift` |
+| A window opened at launch coming above other apps     | `App/ComesForward.swift`                |
 | "What's New" after an update: its text, when it shows | `App/WhatsNew.swift`                    |
 | The "What's New" window itself                        | `About/WhatsNewView.swift`              |
 | "Collect Logs": the gate every logger goes through    | `App/Log.swift`                         |
@@ -1300,7 +1304,7 @@ stays when it comes).
 - **Every raised version gets its "What's New" text — the agent writes it, in the same change
   as the raise.** In `App/WhatsNew.swift`: `version` becomes the new `MARKETING_VERSION`, `text`
   is rewritten in English, and its Russian goes into `Localizable.xcstrings` (the English is the
-  key, so the old entry stops being extracted and leaves on the next sync). It is written for the
+  key, so the sync marks the old entry `stale` — delete it by hand). It is written for the
   person who just updated, not for the log: what they can do now, or what stopped getting in
   their way — a few short paragraphs, the names exactly as on screen (Settings → General →
   Diagnostics / Настройки → Основные → Диагностика), no class names, no measurements, no

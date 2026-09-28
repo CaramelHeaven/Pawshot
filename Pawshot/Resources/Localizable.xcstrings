@@ -2602,16 +2602,6 @@
         }
       }
     },
-    "Settings now has a Statistics tab: how many shots you've taken, what you draw with most, how many days in a row. It's all counted on this Mac only.\n\nCollect Logs can now be switched off — in the welcome window and in Settings → General → Diagnostics.\n\nIf something breaks, the logs reach the developer with one button: Send by Email…, in the same place." : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "В настройках новая вкладка «Статистика»: сколько снимков сделано, чем вы рисуете чаще всего, сколько дней подряд. Всё считается только на этом Mac.\n\n«Собирать логи» теперь можно выключить — в окне приветствия и в Настройки → Основные → Диагностика.\n\nЕсли что-то сломалось, логи уходят разработчику одной кнопкой: «Отправить почтой…» там же."
-          }
-        }
-      }
-    },
     "Settings…" : {
       "localizations" : {
         "ru" : {
@@ -2968,6 +2958,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Эту запись нельзя экспортировать в этом формате."
+          }
+        }
+      }
+    },
+    "This window now opens in front of your other windows. After the last update it could hide behind them." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это окно теперь открывается поверх остальных окон. После прошлого обновления оно могло спрятаться под ними."
           }
         }
       }

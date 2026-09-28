@@ -48,6 +48,7 @@ struct WhatsNewView: View {
         .padding(.top, 28)
         .padding(.bottom, 24)
         .frame(width: 440)
+        .background(ComesForward("what's new"))
         .onAppear {
             settings.lastSeenVersion = AboutPanel.version
         }
