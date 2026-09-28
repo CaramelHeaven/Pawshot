@@ -39,6 +39,7 @@ final class EditorDocument {
     var selection: Annotation? {
         didSet {
             if selection !== oldValue {
+                settlePreview()
                 onChange?()
             }
         }
@@ -330,6 +331,18 @@ final class EditorDocument {
             selection.style = changed
         }
         onChange?()
+    }
+
+    /// A slider drag that never let go — the selection changed under it, the slider went away —
+    /// keeps what it showed as one step of undo. Left standing, its base used to be restored by
+    /// the next unrelated `updateStyle`, silently, onto an object no longer selected.
+    private func settlePreview() {
+        guard let base = previewBase else { return }
+        previewBase = nil
+        guard let annotation = base.selection, let previous = base.selectionStyle, annotation.style != previous else { return }
+        registerUndo { document in
+            document.apply(style: previous, to: annotation)
+        }
     }
 
     private struct PreviewBase {

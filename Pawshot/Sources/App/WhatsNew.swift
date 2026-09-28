@@ -14,6 +14,19 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.4.10", text: String(localized: """
+            A shortcut you change or remove in Settings during a recording now takes effect at \
+            once. Until now the old one kept working until the recording ended, so pressing \
+            Restart from habit could still throw the take away.
+
+            The R button now shows the shape it will draw, even when a line is selected.
+
+            When the region recording shortcut is removed, Stop Recording in the paw's menu \
+            shows the full-screen one instead.
+
+            A shortcut field says "Didn't reach Pawshot" even when you first pressed a key without \
+            ⌘, ⌥ or ⌃ — until now it stayed silent then.
+            """)),
             Entry(version: "0.4.9", text: String(localized: """
             R now draws a circle, a triangle and a diamond as well: pick one next to the line \
             widths, or press R again. A drawn shape switches the same way.
@@ -51,9 +64,15 @@ enum WhatsNew {
     /// so 0.4.10 comes after 0.4.9.
     static func entries(in history: [Entry], since: String?) -> [Entry] {
         history.filter { entry in
-            !entry.text.isEmpty
-                && since.map { entry.version.compare($0, options: .numeric) == .orderedDescending } ?? true
+            !entry.text.isEmpty && isNewer(entry.version, than: since)
         }
+    }
+
+    /// As numbers, so 0.4.10 comes after 0.4.9; anything is newer than no stored version. Also
+    /// what keeps an older build run after a newer one from lowering the version seen — going
+    /// back up would then tell the same news twice.
+    static func isNewer(_ version: String, than seen: String?) -> Bool {
+        seen.map { version.compare($0, options: .numeric) == .orderedDescending } ?? true
     }
 
     /// Once per version, and only after an update: a fresh install hasn't pressed "Get Started"

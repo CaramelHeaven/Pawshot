@@ -82,6 +82,15 @@ final class WhatsNewTests: XCTestCase {
         XCTAssertEqual(versions(since: "0.4.10"), [])
     }
 
+    /// What the launch records as seen only ever goes up: a 0.4.8 build run after 0.4.9 used to
+    /// write 0.4.8 back, and 0.4.9's news showed a second time.
+    func testAnOlderBuildIsNotNewerThanTheVersionSeen() {
+        XCTAssertFalse(WhatsNew.isNewer("0.4.8", than: "0.4.9"))
+        XCTAssertFalse(WhatsNew.isNewer("0.4.9", than: "0.4.9"))
+        XCTAssertTrue(WhatsNew.isNewer("0.4.10", than: "0.4.9"))
+        XCTAssertTrue(WhatsNew.isNewer("0.4.9", than: nil))
+    }
+
     /// Once after an update — never on a fresh install, where the welcome window speaks first.
     func testShownOnceAfterAnUpdateOnly() {
         func shows(_ lastSeen: String?, welcomed: Bool = true) -> Bool {

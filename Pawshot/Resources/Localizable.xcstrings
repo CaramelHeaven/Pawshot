@@ -291,6 +291,16 @@
         }
       }
     },
+    "A shortcut you change or remove in Settings during a recording now takes effect at once. Until now the old one kept working until the recording ended, so pressing Restart from habit could still throw the take away.\n\nThe R button now shows the shape it will draw, even when a line is selected.\n\nWhen the region recording shortcut is removed, Stop Recording in the paw's menu shows the full-screen one instead.\n\nA shortcut field says \"Didn't reach Pawshot\" even when you first pressed a key without ⌘, ⌥ or ⌃ — until now it stayed silent then." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сочетание, изменённое или удалённое в настройках во время записи, теперь действует сразу. Раньше старое работало до конца записи, и нажатый по привычке перезапуск мог выбросить дубль.\n\nКнопка R теперь показывает фигуру, которую нарисует, даже когда выделена линия.\n\nЕсли сочетание для записи области удалено, пункт «Остановить запись» в меню лапы показывает сочетание записи всего экрана.\n\nПоле сочетания говорит «Не дошло до Pawshot», даже если перед этим была нажата клавиша без ⌘, ⌥ или ⌃ — раньше в этом случае оно молчало."
+          }
+        }
+      }
+    },
     "A tap of ⌘Q closes the window in front; hold ⌘Q to quit Pawshot." : {
       "localizations" : {
         "ru" : {
@@ -1111,22 +1121,12 @@
         }
       }
     },
-    "Drawn in when the video is saved, never while you record. Clicks become orange rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain typing and passwords never appear. Zooms go wherever you pressed %@ while recording. Each can still be switched off for one video in the editor." : {
+    "Drawn in when the video is saved, never while you record. Clicks become orange rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain typing and passwords never appear. %@ Each can still be switched off for one video in the editor." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Рисуется при сохранении видео, а не во время записи. Клики становятся оранжевыми кольцами. Сочетания показываются подписью — только с ⌘, ⌥ или ⌃, так что обычный набор текста и пароли не попадают в кадр. Зум ставится там, где во время записи было нажато %@. Для отдельного видео любое из этого можно выключить в редакторе."
-          }
-        }
-      }
-    },
-    "Drawn in when the video is saved, never while you record. Clicks become orange rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain typing and passwords never appear. Zooms go wherever you pressed the magnifier on the pill while recording. Each can still be switched off for one video in the editor." : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Рисуется при сохранении видео, а не во время записи. Клики становятся оранжевыми кольцами. Сочетания показываются подписью — только с ⌘, ⌥ или ⌃, так что обычный набор текста и пароли не попадают в кадр. Зум ставится там, где во время записи была нажата лупа на пилюле. Для отдельного видео любое из этого можно выключить в редакторе."
+            "value" : "Рисуется при сохранении видео, а не во время записи. Клики становятся оранжевыми кольцами. Сочетания показываются подписью — только с ⌘, ⌥ или ⌃, так что обычный набор текста и пароли не попадают в кадр. %@ Для отдельного видео любое из этого можно выключить в редакторе."
           }
         }
       }
@@ -1650,6 +1650,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Сова: лучшие скрины — ночью."
+          }
+        }
+      }
+    },
+    "No key reached Pawshot. If you pressed one, macOS or another app takes this combination first: pick another one, or free it there." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ни одна клавиша не дошла до Pawshot. Если вы её нажимали, это сочетание раньше забирает macOS или другое приложение: выберите другое или освободите его там."
           }
         }
       }
@@ -3036,16 +3046,6 @@
         }
       }
     },
-    "The keys never reached Pawshot: macOS or another app takes this combination first. Pick another one, or free it there." : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сочетание не дошло до Pawshot: его раньше забирает macOS или другое приложение. Выберите другое или освободите его там."
-          }
-        }
-      }
-    },
     "The pause button on the pill stops the clock." : {
       "localizations" : {
         "ru" : {
@@ -3431,6 +3431,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Зум"
+          }
+        }
+      }
+    },
+    "Zooms go wherever you pressed %@ while recording." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зум ставится там, где во время записи было нажато %@."
+          }
+        }
+      }
+    },
+    "Zooms go wherever you pressed the magnifier on the pill while recording." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зум ставится там, где во время записи была нажата лупа на пилюле."
           }
         }
       }

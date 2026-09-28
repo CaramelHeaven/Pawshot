@@ -554,6 +554,14 @@ enum SelectionGeometry {
         )
     }
 
+    /// Where the far corner of an even shape goes — a square, an equilateral triangle's box —
+    /// drawn from `start` towards `point`, as a square drawn with ⇧ is in any editor: from the
+    /// corner the drag began at, whichever way it went.
+    static func evenEnd(from start: CGPoint, to point: CGPoint, aspect: CGFloat) -> CGPoint {
+        let even = rect(from: start, to: point, aspect: aspect, within: .infinite)
+        return CGPoint(x: point.x < start.x ? even.minX : even.maxX, y: point.y < start.y ? even.minY : even.maxY)
+    }
+
     /// `rect` with the grabbed handle dragged to `point`, inside `bounds`.
     ///
     /// A corner keeps the opposite corner in place. An edge moves only itself — and with a fixed

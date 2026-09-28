@@ -83,7 +83,9 @@ struct WelcomeView: View {
         let screenRecording = ScreenRecordingPermission.isGranted
         let microphone = MicrophonePermission.isGranted
         let inputMonitoring = InputMonitoringPermission.isGranted
-        let takenBySystem = takenBySystem
+        // One read of the system's preferences per refresh, for the row and its detail.
+        let system = SystemScreenshotShortcuts.current()
+        let takenBySystem = takenBySystem(in: system)
         let allowed = [screenRecording, microphone, inputMonitoring, takenBySystem.isEmpty].count(where: \.self)
 
         return VStack(alignment: .leading, spacing: 14) {
@@ -134,7 +136,7 @@ struct WelcomeView: View {
                 Divider()
                 AccessRow(
                     title: Text("Shortcuts \(takenShortcutNames(takenBySystem))"),
-                    detail: takenDetail,
+                    detail: takenDetail(in: system),
                     isGranted: takenBySystem.isEmpty,
                     grantedLabel: "Free"
                 ) {
@@ -196,12 +198,8 @@ struct WelcomeView: View {
 
     /// Where to untick what macOS holds — "Screenshots → Save picture of screen as a file" —
     /// or, with nothing held, what the row is about.
-    private var takenDetail: Text {
-        let system = SystemScreenshotShortcuts.current()
-        var items: [String] = []
-        for item in settings.allHotKeys.compactMap(system.conflict(with:)) where !items.contains("\(item.section) → \(item.name)") {
-            items.append("\(item.section) → \(item.name)")
-        }
+    private func takenDetail(in system: SystemScreenshotShortcuts) -> Text {
+        let items = system.conflicts(with: settings.allHotKeys).map { "\($0.section) → \($0.name)" }
         guard !items.isEmpty else {
             return Text("macOS keeps them for its own screenshots. Untick them in Keyboard Shortcuts → Screenshots.")
         }
@@ -210,9 +208,8 @@ struct WelcomeView: View {
 
     /// Our shortcuts that macOS still takes for itself, read from the live preferences — the row
     /// turns "Free" the moment the system item is unticked.
-    private var takenBySystem: [HotKeyBinding] {
-        let system = SystemScreenshotShortcuts.current()
-        return settings.allHotKeys.filter { system.conflict(with: $0) != nil }
+    private func takenBySystem(in system: SystemScreenshotShortcuts) -> [HotKeyBinding] {
+        settings.allHotKeys.filter { system.conflict(with: $0) != nil }
     }
 
     /// The taken ones, or — once they are free — the two recording shortcuts the row is about.

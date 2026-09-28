@@ -53,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A release with nothing to tell opens no window, so nothing would record it as seen, and
         // the next What's New would name a "version before the update" the person had long left.
         // Not in the test host: it shares the owner's defaults.
-        if !Self.isTestHost, settings.welcomeCompleted, settings.lastSeenVersion != AboutPanel.version, !WhatsNew.showsAtLaunch {
+        if !Self.isTestHost, settings.welcomeCompleted, WhatsNew.isNewer(AboutPanel.version, than: settings.lastSeenVersion), !WhatsNew.showsAtLaunch {
             settings.lastSeenVersion = AboutPanel.version
         }
         recordingController.onRecorded = { movie, size, screen in
@@ -116,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Self.logger.notice(
             "launch: \(facts.hardware, privacy: .public); \(facts.system, privacy: .public); other capture apps: \(facts.otherCaptureAppsText, privacy: .public)"
         )
-        let systemShortcuts = facts.systemShortcuts.isEmpty ? "none listed" : facts.systemShortcuts.joined(separator: ", ")
+        let systemShortcuts = facts.systemShortcutsText
         Self.logger.notice(
             "launch: keyboard layout \(facts.keyboardLayout, privacy: .public); macOS shortcuts on, with ⌘, ⌥ or ⌃: \(systemShortcuts, privacy: .public)"
         )
@@ -197,6 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Self.logger.notice("hotkey pressed: record the full screen")
             self?.beginFullScreenRecording()
         }
+        recordingController.registerRecordingHotKeys()
     }
 
     private func unregisterHotKeys() {
@@ -205,6 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fullScreenHotKey = nil
         recordRegionHotKey = nil
         recordFullScreenHotKey = nil
+        recordingController.unregisterRecordingHotKeys()
     }
 
     // MARK: - Capture

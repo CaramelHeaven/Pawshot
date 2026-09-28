@@ -199,6 +199,11 @@ final class HotKeyRecorderView: NSView {
             if hint != nil {
                 setHint(nil)
             }
+            // A new chord starts clean: a plain key pressed before it (refused, no chord running)
+            // left "reached the field" set, and the next chord macOS took went unreported.
+            if chordFlags.isEmpty {
+                endChord()
+            }
             chordFlags.formUnion(flags)
         }
         needsDisplay = true
@@ -321,7 +326,9 @@ final class HotKeyRecorderView: NSView {
 
     private func showNotDelivered() {
         setHint(String(localized: "Didn't reach Pawshot"))
-        toolTip = String(localized: "The keys never reached Pawshot: macOS or another app takes this combination first. Pick another one, or free it there.")
+        // Holding modifiers and letting go with no key looks exactly the same, so the words hold
+        // for both.
+        toolTip = String(localized: "No key reached Pawshot. If you pressed one, macOS or another app takes this combination first: pick another one, or free it there.")
     }
 
     // MARK: - Drawing

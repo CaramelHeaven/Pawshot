@@ -294,6 +294,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         if chrome.selectedKind != kind {
             chrome.selectedKind = kind
         }
+        let shapeKind = editorDocument.style.shapeKind
+        if chrome.drawingShapeKind != shapeKind {
+            chrome.drawingShapeKind = shapeKind
+        }
         let weights = LabelFont.weights(of: LabelFont.family)
         if chrome.textWeights != weights {
             chrome.textWeights = weights

@@ -36,8 +36,8 @@ struct CaptureMenu: View {
                 Button("Stop Recording", systemImage: "stop.fill") {
                     actions.stopRecording()
                 }
-                // The shortcut that started a take stops it; ⇧⌘3 is the one shown.
-                .keyboardShortcut(settings.recordRegionHotKey?.keyboardShortcut)
+                // Either record shortcut stops any take; ⇧⌘3 is the one shown, ⇧⌘4 if it was cleared.
+                .keyboardShortcut((settings.recordRegionHotKey ?? settings.recordFullScreenHotKey)?.keyboardShortcut)
 
                 Button("Restart Recording", systemImage: "arrow.counterclockwise") {
                     actions.restartRecording()

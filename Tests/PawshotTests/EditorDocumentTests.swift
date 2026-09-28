@@ -171,6 +171,25 @@ final class EditorDocumentTests: XCTestCase {
         XCTAssertEqual(document.style.fillOpacity, 0.7, "the current style keeps the last choice, as any style change does")
     }
 
+    /// A drag that never let go — the selection went away under the slider. What it showed stays,
+    /// as one step of ⌘Z, and the next style change no longer quietly puts the old fill back.
+    func testASliderDragCutShortByTheSelectionStaysAsOneStep() {
+        let document = makeDocument()
+        let undoManager = makeUndoManager(for: document)
+        let rectangle = RectangleAnnotation(start: .zero, style: .default)
+        rectangle.update(to: CGPoint(x: 60, y: 40))
+        step(undoManager) { document.add(rectangle) }
+        document.selection = rectangle
+
+        document.previewStyle { $0.fillOpacity = 0.6 }
+        step(undoManager) { document.selection = nil }
+        document.updateStyle { $0.color = .systemGreen }
+        XCTAssertEqual(rectangle.style.fillOpacity, 0.6, "the next change leaves the unselected shape alone")
+
+        undoManager.undo()
+        XCTAssertEqual(rectangle.style.fillOpacity, 0, "one step back to before the drag")
+    }
+
     /// Turning the blue double arrow into a single one must leave it blue, whatever colour is
     /// current: the change goes to the selection, not the whole current style.
     func testChangingTheEndsOfASelectedLineKeepsItsColour() {

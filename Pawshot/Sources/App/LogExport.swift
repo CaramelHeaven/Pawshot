@@ -57,6 +57,10 @@ enum LogExport {
         var otherCaptureAppsText: String {
             otherCaptureApps.isEmpty ? "none" : otherCaptureApps.joined(separator: ", ")
         }
+
+        var systemShortcutsText: String {
+            systemShortcuts.isEmpty ? "none listed" : systemShortcuts.joined(separator: ", ")
+        }
     }
 
     static func header(_ facts: Facts, generatedAt date: Date) -> String {
@@ -79,7 +83,7 @@ enum LogExport {
             lines.append("  \(hotKey.name): \(hotKey.shortcut)\(taken)")
         }
         lines.append("Keyboard layout: \(facts.keyboardLayout)")
-        lines.append("macOS shortcuts on, with ⌘, ⌥ or ⌃: \(facts.systemShortcuts.isEmpty ? "none listed" : facts.systemShortcuts.joined(separator: ", "))")
+        lines.append("macOS shortcuts on, with ⌘, ⌥ or ⌃: \(facts.systemShortcutsText)")
         lines.append("")
         lines.append("Settings:")
         for setting in facts.settings {
@@ -93,8 +97,10 @@ enum LogExport {
 
     static func currentFacts() -> Facts {
         let settings = Settings.shared
-        let system = SystemScreenshotShortcuts.current()
-        let enabled = SystemScreenshotShortcuts.currentEnabledShortcuts()
+        // One read for both: two syncs cost twice, and the two could disagree in between.
+        let symbolicHotKeys = SystemScreenshotShortcuts.liveSymbolicHotKeys()
+        let system = SystemScreenshotShortcuts(symbolicHotKeys: symbolicHotKeys)
+        let enabled = SystemScreenshotShortcuts.enabledShortcuts(in: symbolicHotKeys)
         /// A screenshot item first — it has a name and a factory default — then any item at all.
         func takenBy(_ binding: HotKeyBinding) -> String? {
             let id = system.conflict(with: binding)?.id

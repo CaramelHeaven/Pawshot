@@ -142,20 +142,7 @@ final class RecordingController {
         }
         events.start(recordingKeys: settings.showsKeystrokes)
         self.events = events
-        // Dropped first: Carbon refuses a combination the app has already registered, so on a
-        // restart the new ones would fail while the old ones were still alive.
-        unregisterRecordingHotKeys()
-        zoomHotKey = GlobalHotKey.register(settings.zoomMarkHotKey, for: "mark a zoom") { [weak self] in
-            self?.markZoom()
-        }
-        restartHotKey = GlobalHotKey.register(settings.restartHotKey, for: "restart the take") { [weak self] in
-            self?.restart()
-        }
-        if ink != nil {
-            penHotKey = GlobalHotKey.register(settings.penHotKey, for: "switch the pen") { [weak self] in
-                self?.togglePen()
-            }
-        }
+        registerRecordingHotKeys()
 
         state.recording = AppState.RecordingStatus(elapsed: 0, isPaused: false)
         // A full-screen take was started by ⇧⌘4, a region or a window by ⇧⌘3 — and stops the same way.
@@ -295,8 +282,29 @@ final class RecordingController {
         ink = nil
     }
 
-    /// The shortcuts that only exist while a take runs.
-    private func unregisterRecordingHotKeys() {
+    /// The shortcuts that only exist while a take runs, as Settings has them now. `AppDelegate`
+    /// calls it with its own on every shortcut change: one cleared with × mid-take used to stay
+    /// live — and ⇧⌘5 pressed from habit threw the take away.
+    func registerRecordingHotKeys() {
+        // Dropped first: Carbon refuses a combination the app has already registered, so on a
+        // restart the new ones would fail while the old ones were still alive.
+        unregisterRecordingHotKeys()
+        guard engine != nil else { return }
+        zoomHotKey = GlobalHotKey.register(settings.zoomMarkHotKey, for: "mark a zoom") { [weak self] in
+            self?.markZoom()
+        }
+        restartHotKey = GlobalHotKey.register(settings.restartHotKey, for: "restart the take") { [weak self] in
+            self?.restart()
+        }
+        if ink != nil {
+            penHotKey = GlobalHotKey.register(settings.penHotKey, for: "switch the pen") { [weak self] in
+                self?.togglePen()
+            }
+        }
+    }
+
+    /// Also while a shortcut field records, so the old combination can be pressed to replace it.
+    func unregisterRecordingHotKeys() {
         zoomHotKey = nil
         penHotKey = nil
         restartHotKey = nil

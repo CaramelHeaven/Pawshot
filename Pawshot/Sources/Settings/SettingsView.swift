@@ -304,22 +304,16 @@ private struct RecordingSettings: View {
         } header: {
             Text("Shown in the video")
         } footer: {
-            if let zoomMark = settings.zoomMarkHotKey {
-                explanation("""
-                Drawn in when the video is saved, never while you record. Clicks become orange \
-                rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain \
-                typing and passwords never appear. Zooms go wherever you pressed \
-                \(zoomMark.displayString) while recording. Each can still be switched \
-                off for one video in the editor.
-                """)
-            } else {
-                explanation("""
-                Drawn in when the video is saved, never while you record. Clicks become orange \
-                rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain \
-                typing and passwords never appear. Zooms go wherever you pressed the magnifier on \
-                the pill while recording. Each can still be switched off for one video in the editor.
-                """)
-            }
+            // Only the zoom sentence depends on the shortcut; the rest is written once.
+            let zooms = settings.zoomMarkHotKey.map {
+                String(localized: "Zooms go wherever you pressed \($0.displayString) while recording.")
+            } ?? String(localized: "Zooms go wherever you pressed the magnifier on the pill while recording.")
+            explanation("""
+            Drawn in when the video is saved, never while you record. Clicks become orange \
+            rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain \
+            typing and passwords never appear. \(zooms) Each can still be switched off for one \
+            video in the editor.
+            """)
         }
     }
 
@@ -519,12 +513,7 @@ private struct ShortcutSettings: View {
                 Text("Pick another shortcut, or untick in Keyboard Shortcuts…:")
                 // One line per system item: "Move focus to next window" can hold two of ours, ⌘1
                 // and ⇧⌘1.
-                let items = conflicts.map(\.system).reduce(into: [SystemScreenshotShortcuts.Shortcut]()) { items, item in
-                    if !items.contains(where: { $0.id == item.id }) {
-                        items.append(item)
-                    }
-                }
-                ForEach(items, id: \.id) { item in
+                ForEach(SystemScreenshotShortcuts.unique(conflicts.map(\.system)), id: \.id) { item in
                     Text("• \(item.section) → \(item.name)")
                 }
             }

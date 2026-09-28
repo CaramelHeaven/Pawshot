@@ -467,7 +467,7 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
 
         case let (rectangle as RectangleAnnotation, .box(side)):
             // A circle stays one: its corners always keep the proportions.
-            return boxReshaping(rectangle, side: side, grabbedAt: grab, alwaysKeepsAspect: rectangle.style.shapeKind == .circle)
+            return boxReshaping(rectangle, side: side, grabbedAt: grab, alwaysKeepsAspect: rectangle.style.shapeKind.isRound)
 
         case let (blur as BlurAnnotation, .box(side)):
             return boxReshaping(blur, side: side, grabbedAt: grab)

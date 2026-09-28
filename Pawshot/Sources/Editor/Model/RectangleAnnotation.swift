@@ -21,7 +21,7 @@ final class RectangleAnnotation: Reshapable {
     /// rectangle again.
     var rect: CGRect {
         let drawn = SelectionGeometry.rect(from: start, to: end)
-        return style.shapeKind == .circle ? SelectionGeometry.centredSquare(in: drawn) : drawn
+        return style.shapeKind.isRound ? SelectionGeometry.centredSquare(in: drawn) : drawn
     }
 
     init(start: CGPoint, style: AnnotationStyle) {
@@ -53,13 +53,11 @@ final class RectangleAnnotation: Reshapable {
     }
 
     func update(to point: CGPoint) {
-        guard drawsEven || style.shapeKind == .circle else {
+        guard drawsEven || style.shapeKind.isRound else {
             end = point
             return
         }
-        // From the corner where the drag began, as a square drawn with ⇧ is in any editor.
-        let even = SelectionGeometry.rect(from: start, to: point, aspect: style.shapeKind.evenAspect, within: .infinite)
-        end = CGPoint(x: point.x < start.x ? even.minX : even.maxX, y: point.y < start.y ? even.minY : even.maxY)
+        end = SelectionGeometry.evenEnd(from: start, to: point, aspect: style.shapeKind.evenAspect)
     }
 
     func move(by delta: CGVector) {

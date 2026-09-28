@@ -139,6 +139,22 @@ final class HotKeyRecorderViewTests: XCTestCase {
         XCTAssertNil(recorder.hint, "⇧ alone is not a shortcut, nothing went missing")
     }
 
+    /// A plain key refused first ("Add ⌘, ⌥ or ⌃") ran no chord, and its "reached the field" used
+    /// to stay set: the next chord macOS took was silently taken for one that arrived.
+    func testAPlainKeyBeforeAChordDoesNotHideTheMissingKey() throws {
+        let (window, recorder, _) = try recordingRecorder()
+        defer { window.orderOut(nil) }
+
+        let one = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(kVK_ANSI_1), keyDown: true))
+        try recorder.keyDown(with: XCTUnwrap(NSEvent(cgEvent: one)))
+        XCTAssertEqual(recorder.hint, "Add ⌘, ⌥ or ⌃")
+
+        try modifiers([.maskShift, .maskCommand], in: recorder)
+        try modifiers([], in: recorder)
+
+        XCTAssertEqual(recorder.hint, "Didn't reach Pawshot")
+    }
+
     /// The same chord taking the focus away — a switcher bringing up another app's window.
     func testTheWindowLosingFocusMidChordSaysTheKeyNeverArrived() throws {
         let (window, recorder, changes) = try recordingRecorder()

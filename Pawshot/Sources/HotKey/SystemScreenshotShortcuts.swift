@@ -89,7 +89,8 @@ struct SystemScreenshotShortcuts: Equatable {
         SystemScreenshotShortcuts(symbolicHotKeys: liveSymbolicHotKeys())
     }
 
-    private static func liveSymbolicHotKeys() -> [String: Any]? {
+    /// The raw table, read once where both it and `enabledShortcuts(in:)` are wanted.
+    static func liveSymbolicHotKeys() -> [String: Any]? {
         // Another app's domain is cached per process; without the sync an unticked item would
         // keep reading as enabled until Pawshot restarts.
         CFPreferencesAppSynchronize("com.apple.symbolichotkeys" as CFString)
@@ -132,16 +133,27 @@ struct SystemScreenshotShortcuts: Equatable {
         .sorted { $0.id < $1.id }
     }
 
-    static func currentEnabledShortcuts() -> [(id: Int, binding: HotKeyBinding)] {
-        enabledShortcuts(in: liveSymbolicHotKeys())
-    }
-
     /// The enabled system shortcut that takes this combination before Pawshot sees it, if any.
     func conflict(with binding: HotKeyBinding) -> Shortcut? {
         let flags = binding.modifierFlags.intersection([.shift, .control, .option, .command])
         return shortcuts.first { shortcut in
             shortcut.isEnabled && shortcut.keyCode == binding.keyCode
                 && (shortcut.modifiers == flags || shortcut.reversesWithShift && shortcut.modifiers.union(.shift) == flags)
+        }
+    }
+
+    /// Each system item any of `bindings` runs into, once: "Move focus to next window" can hold
+    /// two of ours, ⌘1 and ⇧⌘1, and is still one item to untick.
+    func conflicts(with bindings: [HotKeyBinding]) -> [Shortcut] {
+        Self.unique(bindings.compactMap(conflict(with:)))
+    }
+
+    /// In order, each item once.
+    static func unique(_ items: [Shortcut]) -> [Shortcut] {
+        items.reduce(into: []) { unique, item in
+            if !unique.contains(where: { $0.id == item.id }) {
+                unique.append(item)
+            }
         }
     }
 }

@@ -95,8 +95,10 @@ struct WhatsNewContent: View {
 
     private var timeline: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(entries.enumerated()), id: \.element.version) { index, entry in
-                version(entry, isCurrent: index == 0)
+            // By version, not by place: a current release with nothing to tell is left out, and
+            // the one on top is then an older version.
+            ForEach(entries, id: \.version) { entry in
+                version(entry, isCurrent: entry.version == current)
             }
             if let from {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {

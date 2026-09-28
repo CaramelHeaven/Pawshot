@@ -586,4 +586,13 @@ final class SelectionGeometryTests: XCTestCase {
             [CGPoint(x: 110, y: 20), CGPoint(x: 210, y: 70), CGPoint(x: 110, y: 120), CGPoint(x: 10, y: 70)]
         )
     }
+
+    /// A square drawn with ⇧ grows from where the drag began, in whichever direction it went,
+    /// and takes the shorter side of the drag.
+    func testAnEvenShapeGrowsFromTheCornerTheDragBeganAt() {
+        let start = CGPoint(x: 100, y: 100)
+        XCTAssertEqual(SelectionGeometry.evenEnd(from: start, to: CGPoint(x: 160, y: 140), aspect: 1), CGPoint(x: 140, y: 140))
+        XCTAssertEqual(SelectionGeometry.evenEnd(from: start, to: CGPoint(x: 40, y: 70), aspect: 1), CGPoint(x: 70, y: 70))
+        XCTAssertEqual(SelectionGeometry.evenEnd(from: start, to: CGPoint(x: 150, y: 20), aspect: 1), CGPoint(x: 150, y: 50))
+    }
 }

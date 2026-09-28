@@ -97,6 +97,12 @@ struct AnnotationStyle: Equatable {
         var evenAspect: CGFloat {
             self == .triangle ? 2 / sqrt(3) : 1
         }
+
+        /// Always even, no sides to drag and no turning — any of them would make it an oval or
+        /// change nothing. Every rule the circle has apart from the others goes by this.
+        var isRound: Bool {
+            self == .circle
+        }
     }
 
     /// `[` and `]` on a label.

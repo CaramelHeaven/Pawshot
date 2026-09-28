@@ -592,7 +592,7 @@ private struct ToolButton: View {
             model.selectTool(tool)
         } label: {
             // R shows the shape it draws now.
-            Image(systemName: tool == .rectangle ? model.style.shapeKind.symbolName : tool.symbolName)
+            Image(systemName: tool == .rectangle ? model.drawingShapeKind.symbolName : tool.symbolName)
                 .symbolVariant(isSelected ? .fill : .none)
                 .contentTransition(.symbolEffect(.replace))
                 .foregroundStyle(isSelected ? Tokens.paw : .primary)

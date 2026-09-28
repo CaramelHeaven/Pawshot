@@ -51,7 +51,7 @@ enum CanvasHandles {
     /// A turned circle looks the same, so a circle has no turning.
     static func canTurn(_ annotation: Annotation) -> Bool {
         if let shape = annotation as? RectangleAnnotation {
-            return shape.style.shapeKind != .circle
+            return !shape.style.shapeKind.isRound
         }
         return annotation is TextAnnotation
     }
@@ -63,7 +63,7 @@ enum CanvasHandles {
         if annotation is TextAnnotation {
             return handle != .top && handle != .bottom
         }
-        if let shape = annotation as? RectangleAnnotation, shape.style.shapeKind == .circle {
+        if let shape = annotation as? RectangleAnnotation, shape.style.shapeKind.isRound {
             return ![.top, .bottom, .left, .right].contains(handle)
         }
         return true
