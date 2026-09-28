@@ -91,6 +91,24 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         fatalError("init(coder:) is unused — the UI is built in code")
     }
 
+    /// Since 0.4.2 the overlay no longer activates Pawshot, so the editor usually opens while
+    /// another app is active, and activation asked for by a background app may come late or never
+    /// — the video editor's window once turned up behind other apps that way. In a tester's log it
+    /// came 150–190 ms later every time, so this only looks, half a second on.
+    private func checkActivation() {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard let window = self?.window, window.isVisible else { return }
+            let active = NSApp.isActive
+            let key = window.isKeyWindow
+            if key {
+                Self.editorLogger.notice("editor after 500 ms: app active \(active, privacy: .public), window key true")
+            } else {
+                Self.editorLogger.error("editor after 500 ms: app active \(active, privacy: .public), window key false — not in front?")
+            }
+        }
+    }
+
     func show() {
         Self.openControllers.insert(self)
         NSApp.activate()
@@ -100,6 +118,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         let key = window?.isKeyWindow ?? false
         Self.editorLogger.notice("editor shown: app active \(active, privacy: .public), window key \(key, privacy: .public), \(Self.openControllers.count) open")
         window?.makeFirstResponder(canvas)
+        checkActivation()
 
         syncChrome()
         startTextRecognitionWarmUp()

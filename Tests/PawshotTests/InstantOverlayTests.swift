@@ -124,29 +124,48 @@ final class InstantOverlayTests: XCTestCase {
         XCTAssertEqual(ScreenCaptureService.windowsToKeep([5], hiding: []), [5])
     }
 
-    /// The real thing: with the overlay up, the frame taken while hiding it is not dimmed by it.
-    func testTheFrameDoesNotContainTheOverlay() async throws {
+    /// The real thing: with the overlay up, the frame taken while hiding it is not dimmed by it —
+    /// taken at once, the way the hotkey takes it. ScreenCaptureKit notices a window that has just
+    /// been ordered in a beat late, and until it does, an on-screen-only list has no Pawshot in it
+    /// at all: one query in five missed it here, and a tester's log showed it twice. A version of
+    /// this test that waited 300 ms first stayed green through all of that.
+    func testTheFrameTakenAtOnceDoesNotContainTheOverlay() async throws {
         try XCTSkipUnless(CGPreflightScreenCaptureAccess(), "needs screen recording access")
         let screen = try XCTUnwrap(NSScreen.main)
         let displayID = try XCTUnwrap(SelectionOverlayController.displayID(of: screen))
         let overlay = SelectionOverlayController()
         overlay.prepareWindows()
-        overlay.begin(purpose: .screenshot) { _ in }
-        defer { overlay.dismiss() }
-        try await Task.sleep(for: .milliseconds(300))
 
-        let clean = try await ScreenCaptureService.captureDisplays([displayID], hiding: overlay.windowNumbers)
-        let dimmed = try await ScreenCaptureService.captureDisplays([displayID])
+        for attempt in 1 ... 8 {
+            overlay.begin(purpose: .screenshot) { _ in }
+            await Task.yield()
+            let clean = try await ScreenCaptureService.captureDisplays([displayID], hiding: overlay.windowNumbers)
+            try await Task.sleep(for: .milliseconds(300))
+            let dimmed = try await ScreenCaptureService.captureDisplays([displayID])
+            overlay.dismiss()
 
-        let cleanLight = try XCTUnwrap(clean[displayID]).image.averageBrightness
-        let dimmedLight = try XCTUnwrap(dimmed[displayID]).image.averageBrightness
-        XCTAssertGreaterThan(cleanLight, dimmedLight * 1.2, "the 35 % dimming is in one and not the other")
+            let cleanLight = try XCTUnwrap(clean[displayID]).image.averageBrightness
+            let dimmedLight = try XCTUnwrap(dimmed[displayID]).image.averageBrightness
+            XCTAssertGreaterThan(cleanLight, dimmedLight * 1.2, "attempt \(attempt): the 35 % dimming is in one and not the other")
+            try await Task.sleep(for: .milliseconds(200))
+        }
+    }
+
+    /// Lines logged outside a capture say nothing about a hotkey, where they used to say `+-1 ms`.
+    func testTheSinceHotkeyNoteIsOnlyThereDuringACapture() {
+        OverlayDiagnostics.pressed(at: Date(timeIntervalSinceNow: -0.1))
+        XCTAssertTrue(OverlayDiagnostics.sincePressNote().hasPrefix(" (+"))
+        OverlayDiagnostics.ended()
+        XCTAssertEqual(OverlayDiagnostics.sincePressNote(), "")
     }
 
     func testAStallMessageSaysWhereTheMainThreadWas() {
         XCTAssertEqual(
-            MainThreadWatchdog.stallMessage(at: 400, mode: "kCFRunLoopDefaultMode", windows: "12 onscreen true alpha 1.0"),
-            "main thread stalled over 250 ms at +400 ms, run loop mode kCFRunLoopDefaultMode; window server: 12 onscreen true alpha 1.0"
+            MainThreadWatchdog.stallMessage(
+                at: 400, mode: "kCFRunLoopDefaultMode", windows: "12 onscreen true alpha 1.0", memory: "WARN"
+            ),
+            "main thread stalled over 250 ms at +400 ms, run loop mode kCFRunLoopDefaultMode; "
+                + "window server: 12 onscreen true alpha 1.0; memory pressure WARN"
         )
     }
 }

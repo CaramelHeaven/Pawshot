@@ -229,6 +229,8 @@ in front, with no toast. Held longer, a glass "Hold ⌘Q to Quit" toast comes up
 the screen with a bar filling in the paw colour; at 1.3 s from the press the windows fade and
 Pawshot quits without asking, and let go before that the toast melts away and nothing else
 happens. The press starts a check that polls the key state, since a held key sends only repeats.
+Once the hold has run out, further presses are ignored: a key repeat during the 150 ms fade used
+to start a new timing, and let go then, read as a tap that closed a window mid-quit.
 A tap on a shot with work in it — anything drawn, cropped or turned, i.e. anything undo
 remembers — asks first in a sheet; a bare shot closes at once. The video editor always asks, its
 recording being thrown away, unless an export is running. Settings and the other small windows
@@ -555,7 +557,9 @@ The 66 ms that remained were the capture itself: `SCShareableContent` 17–26 ms
 38–52 ms. That enumeration number is a lesson in measuring the right build — in Debug on an idle
 machine it was 8–12 ms, and caching it was dismissed as "worth ten milliseconds"; in Release under
 real use it turned out to be a third of the whole wait. It is cached now, and a cache hit logs
-`content 0 ms`.
+`content 0 ms` — on the ⇧⌘1 path only. Since 0.4.2 the overlay path needs a list taken after the
+overlay went up and asks `SCShareableContent.currentProcess` every time (9–17 ms); it costs
+nothing visible, the dimming is already on screen, and only `frames delivered` waits for it.
 
 The cache holds only the display list, and it is dropped on
 `NSApplication.didChangeScreenParametersNotification` plus whenever a requested display isn't in
@@ -897,7 +901,8 @@ A person with a problem presses **Settings → General → Diagnostics → Save 
 the file goes, and sends it (`App/LogExport.swift`). The file is a header — build, macOS, Mac
 model, displays, the three permissions, every shortcut and whether macOS still takes it, the main
 settings, other running copies — then Pawshot's log for the last three days (`/usr/bin/log show`
-from the app: there is no sandbox, so no rights are needed) and the last three crash reports.
+from the app: there is no sandbox, so no rights are needed), the last three crash reports, and the
+main thread's stack from the last two overlay stalls (see the first ⇧⌘2 below).
 
 Two rules make that file worth reading, and every new log line follows them:
 
@@ -929,6 +934,15 @@ noticeable beat after the key. A log from that Mac also showed the stall below. 
    (`SCContentFilter(display:excludingApplications:exceptingWindows:)`). Our other windows — an
    open editor, the paw — are excepted, so they stay in the frame. `InstantOverlayTests` compares
    the frame with and without the exclusion; it went red when the exclusion was removed.
+   **The list the exclusion comes from is `SCShareableContent.currentProcess`, not the on-screen
+   one.** ScreenCaptureKit notices a window ordered in a moment ago a beat late, and until it
+   does, the on-screen list has no Pawshot in it at all — so there was nothing to leave out, and
+   the frame came out with the dimming in it. A tester's 0.4.2 log showed it twice (`Pawshot not
+   in the window list`, an `.error` now). Measured straight after `begin`: the on-screen list
+   missed Pawshot in 3 of 15 queries; `currentProcess` never did, at the same 9–17 ms (the full
+   list with off-screen windows never did either, at 35–51 ms). The first version of the test
+   waited 300 ms before capturing and stayed green through all of it; the hotkey captures at
+   +16–40 ms, and so does the test now, eight times over — red in the fifth attempt before the fix.
 3. `deliver(frames:)` puts each frame under its overlay (`OverlayWindow.frameView`, a layer of its
    own that is drawn once), and a selection made before that — a fast flick — is cut out then.
    A failed capture closes the overlay (`fail()`).
@@ -977,10 +991,30 @@ line `+N ms` from the hotkey:
 - `overlay check` at ~100 ms, 500 ms and 2 s — an `.error` `NOT DRAWN YET` if it still hasn't;
 - `overlay first event … drawn before it: false` — an `.error`, and exactly the report: the first
   click arrived before anything was drawn;
-- `app became active / resigned active / active space changed (+N ms since the hotkey)`;
+- `app became active / resigned active / active space changed (+N ms since the hotkey)` — the
+  suffix only during a capture;
 - `capture asked while the launch warm-up is still running`.
 
 A "Save Logs…" file from a Mac where it happens tells which step never came.
+
+**0.4.2 on the same MacBook Air: shorter, not gone.** The first ⇧⌘2 five seconds after a relaunch
+drew at +37 ms, and then the main thread stood 910 ms in the default mode; at +301 ms the window
+server had no window 41497 at all (`gone`), so the dimming most likely reached the screen only
+after that. Twenty minutes after launch the same first capture was fine. The watchdog says *that*
+and *where in the run loop*, not *what*, so on the first stall of an overlay it now runs
+`/usr/bin/sample` on Pawshot for a second (`StallSamples`) into
+`~/Library/Caches/com.caramelheaven.pawshot/Stalls` (five kept), and Save Logs attaches the last
+two — the header with the memory footprint and the main thread's branch of the call graph. The
+stall line also carries the memory pressure: the working guess, not proven, is the first
+allocation of 6016×3384 surfaces on an 8 GB Mac under pressure. `sample` needs no root for a
+process of the same user without hardened runtime; measured, a one-second sample takes 1.4 s and
+0.37 s of CPU, and it starts some 250 ms into the stall, so it sees the rest of it.
+
+The editor that opens after a capture usually finds another app active now (the overlay no longer
+activates Pawshot), and activation from a background app can come late or not at all — the video
+editor once opened behind other windows that way. In the tester's log it came 150–190 ms later
+every time, so it is only watched: `editor after 500 ms: … window key false` is an `.error`, and
+the answer to one is `orderFrontRegardless()`, as in the video editor.
 
 ### What can't be verified automatically here
 

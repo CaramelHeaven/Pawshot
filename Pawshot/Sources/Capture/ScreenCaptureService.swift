@@ -226,8 +226,13 @@ enum ScreenCaptureService {
         return frames
     }
 
+    /// This process's own content, not the on-screen list: ScreenCaptureKit notices a window
+    /// ordered in a moment ago a beat late, and until it does, the on-screen list has no Pawshot
+    /// at all — measured, one query in five straight after the overlay went up, and the frame then
+    /// came out dimmed. `currentProcess` always had it, at the same 9–17 ms; the full list with
+    /// off-screen windows had it too, at 35–51 ms.
     private static func freshContent() async throws -> SCShareableContent {
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        let content = try await SCShareableContent.currentProcess
         cachedContent = content
         return content
     }
@@ -243,7 +248,8 @@ enum ScreenCaptureService {
     private static func exclusion(hiding: [CGWindowID], in content: SCShareableContent) -> Exclusion? {
         let ownPID = ProcessInfo.processInfo.processIdentifier
         guard let application = content.applications.first(where: { $0.processID == ownPID }) else {
-            logger.notice("capture: Pawshot not in the window list, nothing of ours to leave out")
+            // The frame is then taken with nothing left out, and the dimming may be in it.
+            logger.error("capture: Pawshot not in the window list, the overlay may be in the frame")
             return nil
         }
         let ours = content.windows.filter { $0.owningApplication?.processID == ownPID }

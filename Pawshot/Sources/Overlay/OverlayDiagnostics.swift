@@ -78,6 +78,12 @@ enum OverlayDiagnostics {
         timeline?.milliseconds(date) ?? -1
     }
 
+    /// `" (+N ms since the hotkey)"` during a capture, nothing outside one — where the log used to
+    /// say `+-1 ms`.
+    static func sincePressNote(_ date: Date = Date()) -> String {
+        timeline.map { " (+\($0.milliseconds(date)) ms since the hotkey)" } ?? ""
+    }
+
     static func began() {
         timeline?.begin(at: Date())
         let elapsed = sincePress()
@@ -151,6 +157,7 @@ final class MainThreadWatchdog: Sendable {
         var lastPong = Date()
         var stalledSince: Date?
         var stopped = false
+        var sampled = false
     }
 
     private let pressed: Date
@@ -212,12 +219,21 @@ final class MainThreadWatchdog: Sendable {
     private func report(at date: Date) {
         let mode = CFRunLoopCopyCurrentMode(CFRunLoopGetMain()).map { $0.rawValue as String } ?? "none"
         let windows = Self.windowServerState(of: windowNumbers)
-        let message = Self.stallMessage(at: milliseconds(date), mode: mode, windows: windows)
+        let message = Self.stallMessage(at: milliseconds(date), mode: mode, windows: windows, memory: SystemState.memoryPressure)
         Self.logger.error("\(message, privacy: .public)")
+        // One stack per overlay: a sample takes 1.4 s, and the first stall is the one reported.
+        let first = state.withLock { state in
+            defer { state.sampled = true }
+            return !state.sampled
+        }
+        if first {
+            StallSamples.record()
+        }
     }
 
-    static func stallMessage(at milliseconds: Int, mode: String, windows: String) -> String {
-        "main thread stalled over \(Int(threshold * 1000)) ms at +\(milliseconds) ms, run loop mode \(mode); window server: \(windows)"
+    static func stallMessage(at milliseconds: Int, mode: String, windows: String, memory: String) -> String {
+        "main thread stalled over \(Int(threshold * 1000)) ms at +\(milliseconds) ms, run loop mode \(mode); "
+            + "window server: \(windows); memory pressure \(memory)"
     }
 
     /// What the window server says about the overlay windows: on screen or not, and their alpha.
@@ -230,5 +246,81 @@ final class MainThreadWatchdog: Sendable {
             let alpha = (info[kCGWindowAlpha as String] as? Double) ?? -1
             return "\(number) onscreen \(onscreen) alpha \(alpha)"
         }.joined(separator: ", ")
+    }
+}
+
+/// The main thread's stack, taken while it is stalled. The watchdog says *that* it stalled and in
+/// which run loop mode; only a stack says *what* it was doing — a tester's first ⇧⌘2 after a
+/// relaunch stood 910 ms in the default mode with nothing in the log to tell why.
+///
+/// `/usr/bin/sample` reads a process of the same user without root as long as it has no hardened
+/// runtime, and Pawshot has none. Measured on a running copy: a one-second sample takes 1.4 s and
+/// 0.37 s of CPU, and writes some 230 KB, of which Save Logs keeps the main thread's part.
+enum StallSamples {
+    private static let logger = Logger(subsystem: "com.caramelheaven.pawshot", category: "overlay")
+    static let prefix = "stall-"
+    /// Samples kept on disk; the oldest goes when a new one is taken.
+    static let kept = 5
+
+    static var folder: URL? {
+        try? FileManager.default
+            .url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("com.caramelheaven.pawshot/Stalls", isDirectory: true)
+    }
+
+    /// Samples this process for one second, in the background; the report lands in `folder`.
+    static func record() {
+        guard let folder else { return }
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        } catch {
+            logger.error("main thread stack: no folder for it: \(String(describing: error), privacy: .public)")
+            return
+        }
+        for old in LogExport.newestFirst(in: folder, prefix: prefix).dropFirst(kept - 1) {
+            try? FileManager.default.removeItem(at: old)
+        }
+        let path = folder.appendingPathComponent("\(prefix)\(Int(Date().timeIntervalSince1970)).txt").path
+        let pid = String(ProcessInfo.processInfo.processIdentifier)
+        logger.notice("main thread stack: sampling into \(path, privacy: .public)")
+        DispatchQueue.global(qos: .utility).async {
+            let process = Process()
+            process.executableURL = URL(filePath: "/usr/bin/sample")
+            process.arguments = [pid, "1", "10", "-mayDie", "-file", path]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            do {
+                try process.run()
+            } catch {
+                logger.error("main thread stack: sample could not start: \(String(describing: error), privacy: .public)")
+                return
+            }
+            process.waitUntilExit()
+            let status = process.terminationStatus
+            if status == 0 {
+                logger.notice("main thread stack: written")
+            } else {
+                logger.error("main thread stack: sample exited with status \(status, privacy: .public)")
+            }
+        }
+    }
+
+    /// The report's header — the process and its memory footprint — and the main thread's branch
+    /// of the call graph. The other threads are the same idle stacks in every sample.
+    static func mainThreadPart(of report: String) -> String {
+        let lines = report.components(separatedBy: "\n")
+        guard let graph = lines.firstIndex(where: { $0.hasPrefix("Call graph:") }) else { return report }
+        var kept = Array(lines[...graph])
+        var inThread = false
+        for line in lines[(graph + 1)...] {
+            // A thread starts at four spaces and its sample count; its frames carry a "+".
+            let startsThread = line.hasPrefix("    ") && line.dropFirst(4).first?.isNumber == true
+            if line.isEmpty || (startsThread && inThread) {
+                break
+            }
+            inThread = inThread || startsThread
+            kept.append(line)
+        }
+        return kept.joined(separator: "\n")
     }
 }

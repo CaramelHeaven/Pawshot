@@ -86,4 +86,30 @@ final class LogExportTests: XCTestCase {
         ])
         XCTAssertTrue(text.contains("com.caramelheaven.pawshot"), String(text.prefix(300)))
     }
+
+    /// A stall's sample goes into Save Logs as its header and the main thread's branch only: the
+    /// other threads are the same idle stacks every time, and the whole report is 230 KB.
+    func testAStallSampleKeepsTheHeaderAndTheMainThreadOnly() {
+        let report = """
+        Analysis of sampling Pawshot (pid 42) every 10 milliseconds
+        Physical footprint:         151.1M
+        ----
+
+        Call graph:
+            92 Thread_1   DispatchQueue_1: com.apple.main-thread  (serial)
+            + 92 start  (in dyld) + 6688  [0x19017be80]
+            +   92 CA::Transaction::commit()  (in QuartzCore) + 640  [0x1a0000000]
+            92 Thread_2: com.apple.NSEventThread
+            + 92 thread_start  (in libsystem_pthread.dylib) + 8  [0x19054ccec]
+
+        Total number in stack (recursive counted multiple, when >=5):
+        """
+
+        let part = StallSamples.mainThreadPart(of: report)
+
+        XCTAssertTrue(part.contains("Physical footprint:         151.1M"))
+        XCTAssertTrue(part.contains("CA::Transaction::commit()"))
+        XCTAssertFalse(part.contains("NSEventThread"))
+        XCTAssertFalse(part.contains("Total number"))
+    }
 }

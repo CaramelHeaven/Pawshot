@@ -58,8 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { _ in
             MainActor.assumeIsolated {
-                let since = OverlayDiagnostics.sincePress()
-                Self.logger.notice("active space changed (+\(since, privacy: .public) ms since the hotkey)")
+                let since = OverlayDiagnostics.sincePressNote()
+                Self.logger.notice("active space changed\(since, privacy: .public)")
             }
         }
 
@@ -78,13 +78,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // macOS 14+ may grant it late or not at all. `+N ms` is from the last capture's hotkey.
 
     func applicationDidBecomeActive(_: Notification) {
-        let since = OverlayDiagnostics.sincePress()
-        Self.logger.notice("app became active (+\(since, privacy: .public) ms since the hotkey)")
+        let since = OverlayDiagnostics.sincePressNote()
+        Self.logger.notice("app became active\(since, privacy: .public)")
     }
 
     func applicationDidResignActive(_: Notification) {
-        let since = OverlayDiagnostics.sincePress()
-        Self.logger.notice("app resigned active (+\(since, privacy: .public) ms since the hotkey)")
+        let since = OverlayDiagnostics.sincePressNote()
+        Self.logger.notice("app resigned active\(since, privacy: .public)")
     }
 
     private var spaceObserver: NSObjectProtocol?
@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "launch: displays \(facts.displays.joined(separator: "; "), privacy: .public); screen recording \(facts.screenRecording, privacy: .public), microphone \(facts.microphone, privacy: .public), input monitoring \(facts.inputMonitoring, privacy: .public)"
         )
         Self.logger.notice(
-            "launch: \(facts.hardware, privacy: .public); \(facts.system, privacy: .public); other capture apps: \(facts.otherCaptureApps.joined(separator: ", "), privacy: .public)"
+            "launch: \(facts.hardware, privacy: .public); \(facts.system, privacy: .public); other capture apps: \(facts.otherCaptureAppsText, privacy: .public)"
         )
         for hotKey in facts.hotKeys where hotKey.takenBy != nil {
             Self.logger.error(

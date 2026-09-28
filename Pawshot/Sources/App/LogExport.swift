@@ -5,9 +5,9 @@ import os
 
 /// Settings → General → "Save Logs…": one text file a person can send with a bug report.
 ///
-/// Three parts: a header with what the log alone can't say (the build, the Mac, the displays, the
+/// Four parts: a header with what the log alone can't say (the build, the Mac, the displays, the
 /// permissions, every shortcut and whether macOS still takes it), Pawshot's own log for the last
-/// three days, and the latest crash reports. The log comes from `/usr/bin/log show`: the app has no
+/// three days, the latest crash reports, and the main thread's stack from the last stalls. The log comes from `/usr/bin/log show`: the app has no
 /// sandbox, so that needs no rights, and it reads what was persisted — `.notice` and above. That
 /// is why every milestone in the code is logged at `.notice` and every interpolation `.public`:
 /// `.info` never reaches the disk, and a redacted `<private>` tells nobody anything.
@@ -45,6 +45,10 @@ enum LogExport {
         /// Other screenshot and screen-recording apps running: they may take the hotkey or share
         /// ScreenCaptureKit.
         var otherCaptureApps: [String] = []
+
+        var otherCaptureAppsText: String {
+            otherCaptureApps.isEmpty ? "none" : otherCaptureApps.joined(separator: ", ")
+        }
     }
 
     static func header(_ facts: Facts, generatedAt date: Date) -> String {
@@ -72,7 +76,7 @@ enum LogExport {
             lines.append("  \(setting.name): \(setting.value)")
         }
         lines.append("Other running copies: \(facts.otherCopies.isEmpty ? "none" : facts.otherCopies.joined(separator: ", "))")
-        lines.append("Other capture apps: \(facts.otherCaptureApps.isEmpty ? "none" : facts.otherCaptureApps.joined(separator: ", "))")
+        lines.append("Other capture apps: \(facts.otherCaptureAppsText)")
         lines.insert("Hardware: \(facts.hardware); now: \(facts.system)", at: 4)
         return lines.joined(separator: "\n")
     }
@@ -133,32 +137,43 @@ enum LogExport {
     }
 
     private static var hardwareModel: String {
-        var size = 0
-        sysctlbyname("hw.model", nil, &size, nil, 0)
-        var model = [CChar](repeating: 0, count: max(size, 1))
-        sysctlbyname("hw.model", &model, &size, nil, 0)
-        return String(cString: model)
+        SystemState.sysctlString("hw.model") ?? "?"
     }
 
     /// The last few crash reports of Pawshot, whole: a crash is the one thing the log can't show.
     static func crashReports(limit: Int = 3) -> String {
         let folder = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Logs/DiagnosticReports")
-        let reports = (try? FileManager.default.contentsOfDirectory(
+        let ours = newestFirst(in: folder, prefix: "Pawshot").prefix(limit)
+        guard !ours.isEmpty else { return "No crash reports." }
+        return ours.map { url in
+            "=== \(url.lastPathComponent) ===\n" + ((try? String(contentsOf: url, encoding: .utf8)) ?? "(unreadable)")
+        }.joined(separator: "\n\n")
+    }
+
+    /// The main thread's stacks from the last stalls the overlay's watchdog caught — see
+    /// `StallSamples`.
+    static func stallSamples(limit: Int = 2) -> String {
+        let files = StallSamples.folder.map { newestFirst(in: $0, prefix: StallSamples.prefix) } ?? []
+        guard !files.isEmpty else { return "No stall samples." }
+        return files.prefix(limit).map { url in
+            let report = (try? String(contentsOf: url, encoding: .utf8)).map(StallSamples.mainThreadPart)
+            return "=== \(url.lastPathComponent) ===\n" + (report ?? "(unreadable)")
+        }.joined(separator: "\n\n")
+    }
+
+    /// The files in a folder whose names start with `prefix`, the newest first.
+    nonisolated static func newestFirst(in folder: URL, prefix: String) -> [URL] {
+        let files = (try? FileManager.default.contentsOfDirectory(
             at: folder,
             includingPropertiesForKeys: [.contentModificationDateKey]
         )) ?? []
-        let ours = reports
-            .filter { $0.lastPathComponent.hasPrefix("Pawshot") }
+        return files
+            .filter { $0.lastPathComponent.hasPrefix(prefix) }
             .sorted { lhs, rhs in
                 let left = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
                 let right = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
                 return left > right
             }
-            .prefix(limit)
-        guard !ours.isEmpty else { return "No crash reports." }
-        return ours.map { url in
-            "=== \(url.lastPathComponent) ===\n" + ((try? String(contentsOf: url, encoding: .utf8)) ?? "(unreadable)")
-        }.joined(separator: "\n\n")
     }
 
     /// `log show` in a child process, off the main thread: three days of log take a few seconds.
@@ -193,6 +208,9 @@ enum LogExport {
             "",
             "=== Crash reports ===",
             crashReports(),
+            "",
+            "=== Main-thread stalls (the stack while the overlay's main thread stood still) ===",
+            stallSamples(),
         ].joined(separator: "\n")
     }
 
@@ -299,11 +317,11 @@ enum SystemState {
         }
     }
 
-    private static func sysctlString(_ name: String) -> String? {
+    static func sysctlString(_ name: String) -> String? {
         var size = 0
         guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else { return nil }
-        var buffer = [CChar](repeating: 0, count: size)
+        var buffer = [UInt8](repeating: 0, count: size)
         guard sysctlbyname(name, &buffer, &size, nil, 0) == 0 else { return nil }
-        return String(cString: buffer)
+        return String(decoding: buffer.prefix { $0 != 0 }, as: UTF8.self)
     }
 }

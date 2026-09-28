@@ -1139,8 +1139,8 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
-        case Selector(("undo:")): activeUndoManager?.canUndo ?? false
-        case Selector(("redo:")): activeUndoManager?.canRedo ?? false
+        case #selector(undo(_:)): activeUndoManager?.canUndo ?? false
+        case #selector(redo(_:)): activeUndoManager?.canRedo ?? false
         default: true
         }
     }

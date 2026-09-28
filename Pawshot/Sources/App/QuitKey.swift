@@ -28,6 +28,9 @@ enum QuitKey {
     static let holdDuration: Duration = .milliseconds(1300)
 
     private static var isWaitingForRelease = false
+    /// Held to the end: the windows are fading. A key repeat in those 150 ms used to start a new
+    /// timing, and let go then, it read as a tap — closing a window, or asking about it, mid-quit.
+    private static var isQuitting = false
 
     enum Phase: Equatable {
         case tap
@@ -61,7 +64,7 @@ enum QuitKey {
             return
         }
         // Key repeats of a held ⌘Q arrive while the first press is still being timed.
-        guard !isWaitingForRelease else { return }
+        guard !isWaitingForRelease, !isQuitting else { return }
         logger.notice("⌘Q pressed, timing the hold")
         isWaitingForRelease = true
 
@@ -92,6 +95,7 @@ enum QuitKey {
                     QuitToast.setProgress(progress(heldFor: held))
                 case .quit:
                     logger.notice("⌘Q: held to the end, quitting")
+                    isQuitting = true
                     QuitToast.setProgress(1)
                     fadeOutAndQuit()
                     return
