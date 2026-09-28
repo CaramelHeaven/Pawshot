@@ -73,10 +73,10 @@ final class RecordingStatusTests: XCTestCase {
 }
 
 final class SystemScreenshotShortcutsTests: XCTestCase {
-    private static func entry(enabled: Bool, keyCode: Int, flags: Int) -> [String: Any] {
+    private static func entry(enabled: Bool, keyCode: Int, flags: Int, character: Int = 65535) -> [String: Any] {
         [
             "enabled": NSNumber(value: enabled),
-            "value": ["parameters": [NSNumber(value: 65535), NSNumber(value: keyCode), NSNumber(value: flags)]],
+            "value": ["parameters": [NSNumber(value: character), NSNumber(value: keyCode), NSNumber(value: flags)]],
         ]
     }
 
@@ -136,6 +136,42 @@ final class SystemScreenshotShortcutsTests: XCTestCase {
             "181": Self.entry(enabled: false, keyCode: kVK_ANSI_6, flags: Self.shiftCommand),
         ])
         XCTAssertNil(off.conflict(with: .zoomMarkDefault))
+    }
+
+    /// A tester moved "Move focus to next window" to ⌘1, and macOS took ⇧⌘1 with it — the other
+    /// direction — so the default full-screen shortcut never fired. Both count as taken.
+    func testMoveFocusToNextWindowTakesItsKeysWithAndWithoutShift() {
+        let moved = SystemScreenshotShortcuts(symbolicHotKeys: [
+            "27": Self.entry(enabled: true, keyCode: kVK_ANSI_1, flags: 0x100000, character: 49),
+        ])
+        let commandOne = HotKeyBinding(keyCode: UInt32(kVK_ANSI_1), modifiers: [.command], label: "1")
+        let optionCommandOne = HotKeyBinding(keyCode: UInt32(kVK_ANSI_1), modifiers: [.option, .command], label: "1")
+
+        XCTAssertEqual(moved.conflict(with: .fullScreenDefault)?.id, 27, "⇧⌘1, the other direction")
+        XCTAssertEqual(moved.conflict(with: commandOne)?.id, 27)
+        XCTAssertNil(moved.conflict(with: optionCommandOne), "⌥ is not a direction")
+
+        let factory = SystemScreenshotShortcuts(symbolicHotKeys: nil)
+        let all: [HotKeyBinding] = [.regionDefault, .fullScreenDefault, .recordRegionDefault, .recordFullScreenDefault,
+                                    .zoomMarkDefault, .penDefault, .restartDefault]
+        XCTAssertFalse(all.contains { factory.conflict(with: $0)?.id == 27 }, "left at ⌘`, it takes none of ours")
+    }
+
+    /// The saved log lists every macOS shortcut that is on, any item, so a key the system takes
+    /// shows up by name: a window switcher on ⌘1 (item 27 moved there) reads `item 27: ⌘1`.
+    /// Off, bare or keyless items are left out.
+    func testEveryEnabledSystemShortcutIsListedForTheLog() {
+        let listed = SystemScreenshotShortcuts.enabledShortcuts(in: [
+            "27": Self.entry(enabled: true, keyCode: kVK_ANSI_1, flags: 0x100000, character: 49),
+            "28": Self.entry(enabled: false, keyCode: kVK_ANSI_3, flags: Self.shiftCommand),
+            "60": Self.entry(enabled: true, keyCode: kVK_Space, flags: 0x40000, character: 32),
+            "79": ["enabled": true],
+            "164": Self.entry(enabled: true, keyCode: 0xFFFF, flags: 0, character: 0xFFFF),
+            "200": Self.entry(enabled: true, keyCode: kVK_ANSI_A, flags: 0x20000, character: 97),
+        ])
+
+        XCTAssertEqual(listed.map(\.id), [27, 60])
+        XCTAssertEqual(listed.map(\.binding.logString), ["⌘1", "⌃Space"])
     }
 }
 

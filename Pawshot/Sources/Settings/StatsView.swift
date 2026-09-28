@@ -45,8 +45,10 @@ struct StatsView: View {
                     .font(.system(size: 40, weight: .heavy))
                     .monospacedDigit()
                 Group {
-                    if shots == 0 {
-                        Text("Press \(settings.regionHotKey.displayString) and pick a region.")
+                    if shots == 0, let region = settings.regionHotKey {
+                        Text("Press \(region.displayString) and pick a region.")
+                    } else if shots == 0 {
+                        Text("Pick Capture Region in the paw's menu.")
                     } else {
                         Text("Screenshots · since \(stats.since.formatted(.dateTime.day().month(.wide))) · \(Self.days(stats.daysTogether()))")
                     }
@@ -92,7 +94,10 @@ struct StatsView: View {
 
     private var modeTile: Tile {
         guard let shares = stats.modeShares else {
-            return .zero("rectangle.dashed", "Favourite mode", String(localized: "\(settings.regionHotKey.displayString) for a region, Space for a window, \(settings.fullScreenHotKey.displayString) for the whole screen."))
+            guard let region = settings.regionHotKey, let fullScreen = settings.fullScreenHotKey else {
+                return .zero("rectangle.dashed", "Favourite mode", String(localized: "A region, a window or the whole screen — from the paw's menu."))
+            }
+            return .zero("rectangle.dashed", "Favourite mode", String(localized: "\(region.displayString) for a region, Space for a window, \(fullScreen.displayString) for the whole screen."))
         }
         let name = switch shares.favourite {
         case .region: String(localized: "Region")
@@ -173,7 +178,9 @@ struct StatsView: View {
         let seconds = stats.value(.recordedSeconds)
         let recordings = stats.value(.recordings)
         guard recordings > 0 else {
-            return .zero("video", "Recorded", String(localized: "\(settings.recordRegionHotKey.displayString) records a region."), value: Self.duration(0))
+            let hint = settings.recordRegionHotKey.map { String(localized: "\($0.displayString) records a region.") }
+                ?? String(localized: "Record Region in the paw's menu records a region.")
+            return .zero("video", "Recorded", hint, value: Self.duration(0))
         }
         let episodes = seconds / Stats.episodeSeconds
         let line = episodes > 0
@@ -183,7 +190,7 @@ struct StatsView: View {
     }
 
     private var restartsTile: Tile {
-        count(.restarts, "arrow.counterclockwise", "Restarts", joke: String(localized: "Take two. And three."), hint: String(localized: "\(settings.restartHotKey.displayString) starts the take over."))
+        count(.restarts, "arrow.counterclockwise", "Restarts", joke: String(localized: "Take two. And three."), hint: settings.restartHotKey.map { String(localized: "\($0.displayString) starts the take over.") } ?? String(localized: "The restart button on the pill starts the take over."))
     }
 
     private var pausesTile: Tile {

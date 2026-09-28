@@ -145,14 +145,14 @@ final class RecordingController {
         // Dropped first: Carbon refuses a combination the app has already registered, so on a
         // restart the new ones would fail while the old ones were still alive.
         unregisterRecordingHotKeys()
-        zoomHotKey = Self.registerDuringTake(settings.zoomMarkHotKey) { [weak self] in
+        zoomHotKey = GlobalHotKey.register(settings.zoomMarkHotKey, for: "mark a zoom") { [weak self] in
             self?.markZoom()
         }
-        restartHotKey = Self.registerDuringTake(settings.restartHotKey) { [weak self] in
+        restartHotKey = GlobalHotKey.register(settings.restartHotKey, for: "restart the take") { [weak self] in
             self?.restart()
         }
         if ink != nil {
-            penHotKey = Self.registerDuringTake(settings.penHotKey) { [weak self] in
+            penHotKey = GlobalHotKey.register(settings.penHotKey, for: "switch the pen") { [weak self] in
                 self?.togglePen()
             }
         }
@@ -293,18 +293,6 @@ final class RecordingController {
     private func closeInk() {
         ink?.close()
         ink = nil
-    }
-
-    /// A shortcut that only exists while a take runs. A failure used to vanish into `try?`; now it
-    /// is in the log, with the combination.
-    private static func registerDuringTake(_ binding: HotKeyBinding, action: @escaping () -> Void) -> GlobalHotKey? {
-        do {
-            return try GlobalHotKey.register(binding, action: action)
-        } catch {
-            let shortcut = binding.logString
-            logger.error("recording shortcut \(shortcut, privacy: .public) not registered: \(String(describing: error), privacy: .public)")
-            return nil
-        }
     }
 
     /// The shortcuts that only exist while a take runs.

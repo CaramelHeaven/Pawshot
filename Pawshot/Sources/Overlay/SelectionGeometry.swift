@@ -17,6 +17,26 @@ enum SelectionGeometry {
         )
     }
 
+    /// The square in the middle of `rect`, as wide as its shorter side — where a circle drawn in
+    /// that box lies, so a rectangle turned into a circle keeps its place.
+    static func centredSquare(in rect: CGRect) -> CGRect {
+        let side = min(rect.width, rect.height)
+        return CGRect(x: rect.midX - side / 2, y: rect.midY - side / 2, width: side, height: side)
+    }
+
+    /// A triangle in `rect`, its apex at the top middle — Y goes down, as in the captured frame.
+    static func trianglePoints(in rect: CGRect) -> [CGPoint] {
+        [CGPoint(x: rect.midX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.maxY)]
+    }
+
+    /// A diamond in `rect`: the middles of its sides, clockwise from the top.
+    static func diamondPoints(in rect: CGRect) -> [CGPoint] {
+        [
+            CGPoint(x: rect.midX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.midY),
+            CGPoint(x: rect.midX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.midY),
+        ]
+    }
+
     /// A point of a frame `size` after the frame is turned a quarter, in a system with its origin at
     /// the top left and Y going down — the captured frame's. Clockwise, the top left corner lands
     /// top right: `(x, y)` → `(H − y, x)`. The frame is `H × W` afterwards.

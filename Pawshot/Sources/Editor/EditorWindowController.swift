@@ -210,6 +210,12 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             editorDocument.updateStyle { AnnotationStyle.setFillOpacity(opacity, onText: isText, of: &$0) }
             syncChrome()
         }
+        chrome.previewFillOpacity = { [weak self] opacity in
+            guard let self else { return }
+            let isText = chrome.showsTextControls
+            editorDocument.previewStyle { AnnotationStyle.setFillOpacity(opacity, onText: isText, of: &$0) }
+            syncChrome()
+        }
         chrome.cycleTextStyle = { [weak self] in
             self?.editorDocument.updateStyle(AnnotationStyle.nextTextStyle)
             self?.syncChrome()
@@ -217,6 +223,11 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         }
         chrome.pickLineEnds = { [weak self] ends in
             self?.editorDocument.updateStyle { $0.lineEnds = ends }
+            self?.syncChrome()
+            self?.returnFocusToCanvas()
+        }
+        chrome.pickShapeKind = { [weak self] kind in
+            self?.editorDocument.updateStyle { $0.shapeKind = kind }
             self?.syncChrome()
             self?.returnFocusToCanvas()
         }

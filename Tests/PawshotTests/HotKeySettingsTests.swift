@@ -208,6 +208,25 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(Settings(defaults: defaults).regionHotKey, .regionDefault)
     }
 
+    /// The field's × leaves an action with no shortcut, and that has to survive a relaunch —
+    /// read back as "none", not as the default the missing key means.
+    func testAClearedHotKeyStaysClearedUntilTheDefaultsAreRestored() {
+        let settings = Settings(defaults: defaults)
+        var announced = 0
+        settings.onHotKeysChange = { announced += 1 }
+
+        settings.fullScreenHotKey = nil
+
+        XCTAssertEqual(announced, 1, "cleared means re-registered without it")
+        XCTAssertNil(Settings(defaults: defaults).fullScreenHotKey, "a new instance reads it back as none")
+        XCTAssertEqual(Settings(defaults: defaults).regionHotKey, .regionDefault)
+        XCTAssertEqual(settings.allHotKeys.count, 6, "nothing to register, nothing to collide with")
+
+        settings.resetHotKeysToDefaults()
+
+        XCTAssertEqual(Settings(defaults: defaults).fullScreenHotKey, .fullScreenDefault)
+    }
+
     func testChangeIsAnnouncedSoTheHotKeyCanBeReRegistered() {
         let settings = Settings(defaults: defaults)
         var announced = 0
@@ -225,13 +244,13 @@ final class SettingsTests: XCTestCase {
     func testRecordingDefaults() {
         let settings = Settings(defaults: defaults)
 
-        XCTAssertEqual(settings.recordRegionHotKey.displayString, "⇧⌘3")
-        XCTAssertEqual(settings.recordFullScreenHotKey.displayString, "⇧⌘4")
+        XCTAssertEqual(settings.recordRegionHotKey?.displayString, "⇧⌘3")
+        XCTAssertEqual(settings.recordFullScreenHotKey?.displayString, "⇧⌘4")
         XCTAssertEqual(settings.zoomMarkHotKey, .zoomMarkDefault)
         XCTAssertEqual(settings.penHotKey, .penDefault)
-        XCTAssertEqual(settings.restartHotKey.displayString, "⇧⌘5")
-        XCTAssertEqual(settings.zoomMarkHotKey.displayString, "⇧⌘6")
-        XCTAssertEqual(settings.penHotKey.displayString, "⇧⌘7")
+        XCTAssertEqual(settings.restartHotKey?.displayString, "⇧⌘5")
+        XCTAssertEqual(settings.zoomMarkHotKey?.displayString, "⇧⌘6")
+        XCTAssertEqual(settings.penHotKey?.displayString, "⇧⌘7")
         XCTAssertEqual(settings.allHotKeys.count, 7, "no separate stop: the start shortcut stops")
         let all = settings.allHotKeys
         for (index, binding) in all.enumerated() {

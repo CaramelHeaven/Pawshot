@@ -466,7 +466,8 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
             })
 
         case let (rectangle as RectangleAnnotation, .box(side)):
-            return boxReshaping(rectangle, side: side, grabbedAt: grab)
+            // A circle stays one: its corners always keep the proportions.
+            return boxReshaping(rectangle, side: side, grabbedAt: grab, alwaysKeepsAspect: rectangle.style.shapeKind == .circle)
 
         case let (blur as BlurAnnotation, .box(side)):
             return boxReshaping(blur, side: side, grabbedAt: grab)
@@ -481,7 +482,8 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     private func boxReshaping<Object: Reshapable>(
         _ object: Object,
         side: SelectionGeometry.Handle,
-        grabbedAt grab: CGPoint
+        grabbedAt grab: CGPoint,
+        alwaysKeepsAspect: Bool = false
     ) -> Reshaping? where Object.Shape == SelectionGeometry.RotatedBox {
         let start = object.shape
         return Reshaping(update: { [weak self] point, flags in
@@ -490,7 +492,7 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
                 dragging: side,
                 grabbedAt: grab,
                 mouse: point,
-                keepsAspect: flags.contains(.shift),
+                keepsAspect: alwaysKeepsAspect || flags.contains(.shift),
                 fromCentre: flags.contains(.option),
                 minimumSide: 4
             )
@@ -740,6 +742,8 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         if CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(kVK_Space)) {
             draftAnnotation.move(by: delta)
         } else {
+            // ⇧ draws a shape even: a square, a circle, an equilateral triangle.
+            (draftAnnotation as? RectangleAnnotation)?.drawsEven = event.modifierFlags.contains(.shift)
             draftAnnotation.update(to: point)
         }
         needsDisplay = true
@@ -1061,9 +1065,13 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
 
     private func handleToolOrStyleKey(_ characters: String) -> Bool {
         if let tool = AnnotationTool.tool(forHotKey: characters) {
-            // A again, with the line already on, walks its ends: arrow → double → plain.
+            // A again, with the line already on, walks its ends: arrow → double → plain. R again
+            // walks the shapes: rectangle → circle → triangle → diamond.
             if tool == .arrow, self.tool == .arrow {
                 document.updateStyle { $0.lineEnds = $0.lineEnds.next }
+                delegate?.canvasDidChangeStyle(self)
+            } else if tool == .rectangle, self.tool == .rectangle {
+                document.updateStyle { $0.shapeKind = $0.shapeKind.next }
                 delegate?.canvasDidChangeStyle(self)
             } else {
                 select(tool: tool)

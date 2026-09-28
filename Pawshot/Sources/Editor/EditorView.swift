@@ -309,6 +309,8 @@ private struct StyleCapsule: View {
                     LineEndsPicker(model: model)
                 } else if model.showsFill {
                     CapsuleDivider()
+                    ShapeKindPicker(model: model)
+                    CapsuleDivider()
                     Button {
                         model.cycleFill()
                     } label: {
@@ -380,12 +382,21 @@ private struct OpacitySlider: View {
     let minimum: CGFloat
 
     @State private var value: CGFloat = 0
+    @State private var isDragging = false
 
+    /// The fill follows the slider while it moves (`previewFillOpacity`, no undo per tick); letting
+    /// go is the one step of ⌘Z. Until 0.4.9 the fill changed only on letting go.
     var body: some View {
         HStack(spacing: 6) {
             Slider(value: $value, in: minimum ... 1, step: 0.05) { editing in
+                isDragging = editing
                 if !editing {
                     model.setFillOpacity(value)
+                }
+            }
+            .onChange(of: value) { _, opacity in
+                if isDragging {
+                    model.previewFillOpacity(opacity)
                 }
             }
             .controlSize(.small)
@@ -491,6 +502,55 @@ private struct LineEndsPicker: View {
     }
 }
 
+/// Rectangle, circle, triangle, diamond — R's four shapes, and the shape of a selected one. The
+/// owner's Ф-A of 2026-09-28: the same place and look as the line's three.
+private struct ShapeKindPicker: View {
+    let model: EditorChromeModel
+
+    var body: some View {
+        ForEach(AnnotationStyle.ShapeKind.allCases, id: \.self) { kind in
+            let isSelected = model.style.shapeKind == kind
+            Button {
+                model.pickShapeKind(kind)
+            } label: {
+                Image(systemName: kind.symbolName)
+                    .foregroundStyle(isSelected ? Tokens.paw : .primary)
+                    .frame(width: 22, height: 22)
+                    .background {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 6).fill(.primary.opacity(0.14))
+                        }
+                    }
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .help(kind.title)
+            .accessibilityLabel(kind.title)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+        }
+    }
+}
+
+extension AnnotationStyle.ShapeKind {
+    var symbolName: String {
+        switch self {
+        case .rectangle: "rectangle"
+        case .circle: "circle"
+        case .triangle: "triangle"
+        case .diamond: "diamond"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .rectangle: String(localized: "Rectangle (R)")
+        case .circle: String(localized: "Circle (R)")
+        case .triangle: String(localized: "Triangle (R)")
+        case .diamond: String(localized: "Diamond (R)")
+        }
+    }
+}
+
 /// A small "A" in the current label style, so the button says what F will give next time round.
 private struct TextStylePreview: View {
     let style: AnnotationStyle
@@ -531,7 +591,8 @@ private struct ToolButton: View {
         Button {
             model.selectTool(tool)
         } label: {
-            Image(systemName: tool.symbolName)
+            // R shows the shape it draws now.
+            Image(systemName: tool == .rectangle ? model.style.shapeKind.symbolName : tool.symbolName)
                 .symbolVariant(isSelected ? .fill : .none)
                 .contentTransition(.symbolEffect(.replace))
                 .foregroundStyle(isSelected ? Tokens.paw : .primary)

@@ -384,6 +384,22 @@ final class AnnotationCanvasViewTests: XCTestCase {
         XCTAssertEqual(document.style.lineEnds, .end)
     }
 
+    /// R again with the shape tool on walks the shapes, the way A walks a line's ends.
+    func testRWalksTheShapes() throws {
+        let (canvas, document, _) = try makeCanvas()
+
+        try press(canvas, "r", keyCode: kVK_ANSI_R)
+        XCTAssertEqual(canvas.tool, .rectangle)
+        XCTAssertEqual(document.style.shapeKind, .rectangle, "the first R only picks the tool")
+
+        var seen: [AnnotationStyle.ShapeKind] = []
+        for _ in 0 ..< 4 {
+            try press(canvas, "r", keyCode: kVK_ANSI_R)
+            seen.append(document.style.shapeKind)
+        }
+        XCTAssertEqual(seen, [.circle, .triangle, .diamond, .rectangle])
+    }
+
     // MARK: - The cursor under something drawn on top
 
     /// SwiftUI drawn over a representable view is invisible to `hitTest`: AppKit finds the canvas

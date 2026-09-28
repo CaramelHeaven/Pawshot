@@ -50,6 +50,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         registerHotKeys()
+        // A release with nothing to tell opens no window, so nothing would record it as seen, and
+        // the next What's New would name a "version before the update" the person had long left.
+        // Not in the test host: it shares the owner's defaults.
+        if !Self.isTestHost, settings.welcomeCompleted, settings.lastSeenVersion != AboutPanel.version, !WhatsNew.showsAtLaunch {
+            settings.lastSeenVersion = AboutPanel.version
+        }
         recordingController.onRecorded = { movie, size, screen in
             VideoEditorWindowController(movieURL: movie, videoSize: size, on: screen).show()
         }
@@ -110,6 +116,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Self.logger.notice(
             "launch: \(facts.hardware, privacy: .public); \(facts.system, privacy: .public); other capture apps: \(facts.otherCaptureAppsText, privacy: .public)"
         )
+        let systemShortcuts = facts.systemShortcuts.isEmpty ? "none listed" : facts.systemShortcuts.joined(separator: ", ")
+        Self.logger.notice(
+            "launch: keyboard layout \(facts.keyboardLayout, privacy: .public); macOS shortcuts on, with ⌘, ⌥ or ⌃: \(systemShortcuts, privacy: .public)"
+        )
         for hotKey in facts.hotKeys where hotKey.takenBy != nil {
             Self.logger.error(
                 "launch: \(hotKey.name, privacy: .public) \(hotKey.shortcut, privacy: .public) is taken by macOS (\(hotKey.takenBy ?? "", privacy: .public)) — Pawshot never sees it"
@@ -165,25 +175,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func registerHotKeys() {
         unregisterHotKeys()
         let shortcuts = [
-            "region \(settings.regionHotKey.logString)",
-            "full screen \(settings.fullScreenHotKey.logString)",
-            "record region \(settings.recordRegionHotKey.logString)",
-            "record full screen \(settings.recordFullScreenHotKey.logString)",
+            "region \(settings.regionHotKey?.logString ?? "none")",
+            "full screen \(settings.fullScreenHotKey?.logString ?? "none")",
+            "record region \(settings.recordRegionHotKey?.logString ?? "none")",
+            "record full screen \(settings.recordFullScreenHotKey?.logString ?? "none")",
         ].joined(separator: ", ")
         Self.logger.notice("registering hotkeys: \(shortcuts, privacy: .public)")
-        regionHotKey = Self.register(settings.regionHotKey) { [weak self] in
+        regionHotKey = GlobalHotKey.register(settings.regionHotKey, for: "capture a region") { [weak self] in
             Self.logger.notice("hotkey pressed: capture a region")
             self?.beginCapture()
         }
-        fullScreenHotKey = Self.register(settings.fullScreenHotKey) { [weak self] in
+        fullScreenHotKey = GlobalHotKey.register(settings.fullScreenHotKey, for: "capture the full screen") { [weak self] in
             Self.logger.notice("hotkey pressed: capture the full screen")
             self?.beginFullScreenCapture()
         }
-        recordRegionHotKey = Self.register(settings.recordRegionHotKey) { [weak self] in
+        recordRegionHotKey = GlobalHotKey.register(settings.recordRegionHotKey, for: "record a region") { [weak self] in
             Self.logger.notice("hotkey pressed: record a region")
             self?.beginRegionRecording()
         }
-        recordFullScreenHotKey = Self.register(settings.recordFullScreenHotKey) { [weak self] in
+        recordFullScreenHotKey = GlobalHotKey.register(settings.recordFullScreenHotKey, for: "record the full screen") { [weak self] in
             Self.logger.notice("hotkey pressed: record the full screen")
             self?.beginFullScreenRecording()
         }
@@ -195,19 +205,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fullScreenHotKey = nil
         recordRegionHotKey = nil
         recordFullScreenHotKey = nil
-    }
-
-    private static func register(
-        _ binding: HotKeyBinding,
-        action: @escaping () -> Void
-    ) -> GlobalHotKey? {
-        do {
-            return try GlobalHotKey.register(binding, action: action)
-        } catch {
-            // The settings window explains this to the user; here it is only worth a log line.
-            logger.error("hotkey \(binding.logString, privacy: .public) not registered: \(String(describing: error), privacy: .public)")
-            return nil
-        }
     }
 
     // MARK: - Capture

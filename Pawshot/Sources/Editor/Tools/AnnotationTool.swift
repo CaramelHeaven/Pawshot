@@ -28,7 +28,7 @@ enum AnnotationTool: String, CaseIterable {
         switch self {
         case .select: String(localized: "Select")
         case .arrow: String(localized: "Line")
-        case .rectangle: String(localized: "Rectangle")
+        case .rectangle: String(localized: "Shape")
         case .pencil: String(localized: "Pencil")
         case .text: String(localized: "Text")
         case .blur: String(localized: "Blur")

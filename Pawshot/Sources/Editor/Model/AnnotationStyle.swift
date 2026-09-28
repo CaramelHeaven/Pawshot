@@ -14,6 +14,10 @@ struct AnnotationStyle: Equatable {
     /// Which ends of a line carry a head. Everything but the line ignores it.
     var lineEnds: LineEnds = .end
 
+    /// What R draws: a rectangle, a circle, a triangle or a diamond. Everything but the shape
+    /// ignores it.
+    var shapeKind: ShapeKind = .rectangle
+
     /// A label's size in points, apart from the line width since the widths gave way to weights
     /// for text. 18 is what width 3 used to give.
     var textSize: CGFloat = 18
@@ -71,6 +75,27 @@ struct AnnotationStyle: Equatable {
             let all = Self.allCases
             let index = all.firstIndex(of: self) ?? 0
             return all[(index + 1) % all.count]
+        }
+    }
+
+    /// R's four shapes, the owner's pick of 2026-09-28 (Ф-A: chosen in the style capsule like the
+    /// line's looks). Ordered the way R walks them once the shape tool is already on.
+    enum ShapeKind: CaseIterable, Equatable {
+        case rectangle
+        case circle
+        case triangle
+        case diamond
+
+        var next: ShapeKind {
+            let all = Self.allCases
+            let index = all.firstIndex(of: self) ?? 0
+            return all[(index + 1) % all.count]
+        }
+
+        /// Width over height when drawn even: with ⇧, and a circle always. A triangle is
+        /// equilateral.
+        var evenAspect: CGFloat {
+            self == .triangle ? 2 / sqrt(3) : 1
         }
     }
 

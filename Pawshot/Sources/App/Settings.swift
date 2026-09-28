@@ -79,51 +79,52 @@ final class Settings {
         launchLanguage = defaults.string(forKey: Key.language.rawValue).flatMap(AppLanguage.init(rawValue:)) ?? .system
     }
 
-    var regionHotKey: HotKeyBinding {
-        get { binding(for: .regionHotKey) ?? .regionDefault }
-        set { store(newValue, for: .regionHotKey) }
+    var regionHotKey: HotKeyBinding? {
+        get { binding(for: .regionHotKey, default: .regionDefault) }
+        set { store(newValue, for: .regionHotKey, default: .regionDefault) }
     }
 
-    var fullScreenHotKey: HotKeyBinding {
-        get { binding(for: .fullScreenHotKey) ?? .fullScreenDefault }
-        set { store(newValue, for: .fullScreenHotKey) }
+    var fullScreenHotKey: HotKeyBinding? {
+        get { binding(for: .fullScreenHotKey, default: .fullScreenDefault) }
+        set { store(newValue, for: .fullScreenHotKey, default: .fullScreenDefault) }
     }
 
-    var recordRegionHotKey: HotKeyBinding {
-        get { binding(for: .recordRegionHotKey) ?? .recordRegionDefault }
-        set { store(newValue, for: .recordRegionHotKey) }
+    var recordRegionHotKey: HotKeyBinding? {
+        get { binding(for: .recordRegionHotKey, default: .recordRegionDefault) }
+        set { store(newValue, for: .recordRegionHotKey, default: .recordRegionDefault) }
     }
 
-    var recordFullScreenHotKey: HotKeyBinding {
-        get { binding(for: .recordFullScreenHotKey) ?? .recordFullScreenDefault }
-        set { store(newValue, for: .recordFullScreenHotKey) }
+    var recordFullScreenHotKey: HotKeyBinding? {
+        get { binding(for: .recordFullScreenHotKey, default: .recordFullScreenDefault) }
+        set { store(newValue, for: .recordFullScreenHotKey, default: .recordFullScreenDefault) }
     }
 
     /// Marks a zoom while recording. Only registered during a take.
-    var zoomMarkHotKey: HotKeyBinding {
-        get { binding(for: .zoomMarkHotKey) ?? .zoomMarkDefault }
-        set { store(newValue, for: .zoomMarkHotKey) }
+    var zoomMarkHotKey: HotKeyBinding? {
+        get { binding(for: .zoomMarkHotKey, default: .zoomMarkDefault) }
+        set { store(newValue, for: .zoomMarkHotKey, default: .zoomMarkDefault) }
     }
 
     /// Switches the pen while recording. Only registered during a take.
-    var penHotKey: HotKeyBinding {
-        get { binding(for: .penHotKey) ?? .penDefault }
-        set { store(newValue, for: .penHotKey) }
+    var penHotKey: HotKeyBinding? {
+        get { binding(for: .penHotKey, default: .penDefault) }
+        set { store(newValue, for: .penHotKey, default: .penDefault) }
     }
 
     /// Starts the take over. Only registered during a take.
-    var restartHotKey: HotKeyBinding {
-        get { binding(for: .restartHotKey) ?? .restartDefault }
-        set { store(newValue, for: .restartHotKey) }
+    var restartHotKey: HotKeyBinding? {
+        get { binding(for: .restartHotKey, default: .restartDefault) }
+        set { store(newValue, for: .restartHotKey, default: .restartDefault) }
     }
 
     /// Every hotkey the app registers, for the "the same combination can't do two things" check.
-    /// The recording-time ones count too: they would collide the moment a take starts.
+    /// The recording-time ones count too: they would collide the moment a take starts. One cleared
+    /// with the field's × isn't here — it registers nothing.
     var allHotKeys: [HotKeyBinding] {
         [
             regionHotKey, fullScreenHotKey, recordRegionHotKey, recordFullScreenHotKey,
             zoomMarkHotKey, penHotKey, restartHotKey,
-        ]
+        ].compactMap(\.self)
     }
 
     /// ⌘Q has to be held to quit, with a toast saying so — Chrome's "Warn Before Quitting". On by
@@ -374,20 +375,35 @@ final class Settings {
 
     // MARK: - Storage
 
-    /// A stored binding that no longer decodes is treated as absent: the app falls back to the
-    /// default instead of starting without a hotkey at all.
-    private func binding(for key: Key) -> HotKeyBinding? {
+    /// What a shortcut cleared with the field's × is stored as. Kept apart from a missing key,
+    /// which means "the default" — Restore Defaults removes the keys and brings every one back.
+    static let clearedMarker = Data("none".utf8)
+
+    /// `nil` for a shortcut cleared on purpose. A stored binding that no longer decodes is treated
+    /// as absent: the app falls back to the default instead of starting without a hotkey at all.
+    private func binding(for key: Key, default fallback: HotKeyBinding) -> HotKeyBinding? {
         _ = revision
-        guard let data = defaults.data(forKey: key.rawValue) else { return nil }
-        return try? JSONDecoder().decode(HotKeyBinding.self, from: data)
+        guard let data = defaults.data(forKey: key.rawValue) else { return fallback }
+        if data == Self.clearedMarker {
+            return nil
+        }
+        return (try? JSONDecoder().decode(HotKeyBinding.self, from: data)) ?? fallback
     }
 
-    private func store(_ binding: HotKeyBinding, for key: Key) {
-        guard let data = try? JSONEncoder().encode(binding) else {
-            Self.logger.error("shortcut \(key.rawValue, privacy: .public) not stored: it doesn't encode")
-            return
+    private func store(_ binding: HotKeyBinding?, for key: Key, default fallback: HotKeyBinding) {
+        let data: Data
+        if let binding {
+            guard let encoded = try? JSONEncoder().encode(binding) else {
+                Self.logger.error("shortcut \(key.rawValue, privacy: .public) not stored: it doesn't encode")
+                return
+            }
+            data = encoded
+        } else {
+            data = Self.clearedMarker
         }
-        Self.logger.notice("shortcut \(key.rawValue, privacy: .public) → \(binding.logString, privacy: .public)")
+        let old = self.binding(for: key, default: fallback)?.logString ?? "none"
+        let new = binding?.logString ?? "none"
+        Self.logger.notice("shortcut \(key.rawValue, privacy: .public): \(old, privacy: .public) → \(new, privacy: .public)")
 
         defaults.set(data, forKey: key.rawValue)
         revision += 1

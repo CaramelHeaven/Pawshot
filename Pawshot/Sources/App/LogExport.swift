@@ -37,7 +37,7 @@ enum LogExport {
         var screenRecording: Bool
         var microphone: Bool
         var inputMonitoring: Bool
-        /// Name, shortcut, and the macOS screenshot item that still takes it, if any.
+        /// Name, shortcut (`none` when cleared), and the macOS item that still takes it, if any.
         var hotKeys: [(name: String, shortcut: String, takenBy: String?)]
         var settings: [(name: String, value: String)]
         var otherCopies: [String]
@@ -48,6 +48,11 @@ enum LogExport {
         /// Other screenshot and screen-recording apps running: they may take the hotkey or share
         /// ScreenCaptureKit.
         var otherCaptureApps: [String] = []
+        /// Every macOS shortcut switched on with ⌘, ⌥ or ⌃, `item 27: ⌘1` — a key macOS takes never
+        /// reaches Pawshot, and the tester's window switcher on ⌘1 was one.
+        var systemShortcuts: [String] = []
+        /// The input source in use when the log was saved.
+        var keyboardLayout = ""
 
         var otherCaptureAppsText: String {
             otherCaptureApps.isEmpty ? "none" : otherCaptureApps.joined(separator: ", ")
@@ -73,6 +78,8 @@ enum LogExport {
             let taken = hotKey.takenBy.map { " — TAKEN BY macOS: \($0)" } ?? ""
             lines.append("  \(hotKey.name): \(hotKey.shortcut)\(taken)")
         }
+        lines.append("Keyboard layout: \(facts.keyboardLayout)")
+        lines.append("macOS shortcuts on, with ⌘, ⌥ or ⌃: \(facts.systemShortcuts.isEmpty ? "none listed" : facts.systemShortcuts.joined(separator: ", "))")
         lines.append("")
         lines.append("Settings:")
         for setting in facts.settings {
@@ -87,7 +94,14 @@ enum LogExport {
     static func currentFacts() -> Facts {
         let settings = Settings.shared
         let system = SystemScreenshotShortcuts.current()
-        let named: [(String, HotKeyBinding)] = [
+        let enabled = SystemScreenshotShortcuts.currentEnabledShortcuts()
+        /// A screenshot item first — it has a name and a factory default — then any item at all.
+        func takenBy(_ binding: HotKeyBinding) -> String? {
+            let id = system.conflict(with: binding)?.id
+                ?? enabled.first { $0.binding.keyCode == binding.keyCode && $0.binding.carbonModifiers == binding.carbonModifiers }?.id
+            return id.map { "item \($0)" }
+        }
+        let named: [(String, HotKeyBinding?)] = [
             ("Capture a region", settings.regionHotKey),
             ("Capture the full screen", settings.fullScreenHotKey),
             ("Record a region", settings.recordRegionHotKey),
@@ -112,7 +126,7 @@ enum LogExport {
             microphone: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
             inputMonitoring: CGPreflightListenEventAccess(),
             hotKeys: named.map { name, binding in
-                (name, binding.logString, system.conflict(with: binding).map { "item \($0.id)" })
+                (name, binding?.logString ?? "none", binding.flatMap(takenBy))
             },
             settings: [
                 ("Warn before quitting (⌘Q)", "\(settings.warnsBeforeQuitting)"),
@@ -127,7 +141,9 @@ enum LogExport {
             otherCopies: others,
             hardware: SystemState.hardware,
             system: SystemState.now,
-            otherCaptureApps: SystemState.otherCaptureApps
+            otherCaptureApps: SystemState.otherCaptureApps,
+            systemShortcuts: enabled.map { "item \($0.id): \($0.binding.logString)" },
+            keyboardLayout: KeyboardLayout.currentInputSourceID
         )
     }
 

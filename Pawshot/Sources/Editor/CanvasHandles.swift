@@ -48,15 +48,23 @@ enum CanvasHandles {
         }
     }
 
+    /// A turned circle looks the same, so a circle has no turning.
     static func canTurn(_ annotation: Annotation) -> Bool {
-        annotation is RectangleAnnotation || annotation is TextAnnotation
+        if let shape = annotation as? RectangleAnnotation {
+            return shape.style.shapeKind != .circle
+        }
+        return annotation is TextAnnotation
     }
 
-    /// A label's top and bottom sides change nothing — its height is its text's.
+    /// A label's top and bottom sides change nothing — its height is its text's. A circle has only
+    /// its corners: a side would pull it into an oval.
     static func hasHandle(_ handle: SelectionGeometry.Handle, on annotation: Annotation) -> Bool {
         guard handle != .inside else { return false }
         if annotation is TextAnnotation {
             return handle != .top && handle != .bottom
+        }
+        if let shape = annotation as? RectangleAnnotation, shape.style.shapeKind == .circle {
+            return ![.top, .bottom, .left, .right].contains(handle)
         }
         return true
     }

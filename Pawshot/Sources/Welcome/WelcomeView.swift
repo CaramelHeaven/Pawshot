@@ -66,9 +66,14 @@ struct WelcomeView: View {
         .glassEffect(.regular, in: .rect(cornerRadius: Tokens.Radius.panel))
     }
 
-    private func shortcut(_ title: LocalizedStringKey, _ binding: HotKeyBinding) -> some View {
+    private func shortcut(_ title: LocalizedStringKey, _ binding: HotKeyBinding?) -> some View {
         LabeledContent(title) {
-            KeyCaps(caps: binding.keyCaps)
+            if let binding {
+                KeyCaps(caps: binding.keyCaps)
+            } else {
+                Text("Not set")
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -129,7 +134,7 @@ struct WelcomeView: View {
                 Divider()
                 AccessRow(
                     title: Text("Shortcuts \(takenShortcutNames(takenBySystem))"),
-                    detail: Text("macOS keeps them for its own screenshots. Untick them in Keyboard Shortcuts → Screenshots."),
+                    detail: takenDetail,
                     isGranted: takenBySystem.isEmpty,
                     grantedLabel: "Free"
                 ) {
@@ -189,8 +194,22 @@ struct WelcomeView: View {
         .padding(.bottom, 18)
     }
 
-    /// Our shortcuts that macOS still takes for its screenshots, read from the live preferences —
-    /// the row turns "Free" the moment the system item is unticked.
+    /// Where to untick what macOS holds — "Screenshots → Save picture of screen as a file" —
+    /// or, with nothing held, what the row is about.
+    private var takenDetail: Text {
+        let system = SystemScreenshotShortcuts.current()
+        var items: [String] = []
+        for item in settings.allHotKeys.compactMap(system.conflict(with:)) where !items.contains("\(item.section) → \(item.name)") {
+            items.append("\(item.section) → \(item.name)")
+        }
+        guard !items.isEmpty else {
+            return Text("macOS keeps them for its own screenshots. Untick them in Keyboard Shortcuts → Screenshots.")
+        }
+        return Text("macOS keeps them for itself. Untick in Keyboard Shortcuts: \(items.joined(separator: "; ")).")
+    }
+
+    /// Our shortcuts that macOS still takes for itself, read from the live preferences — the row
+    /// turns "Free" the moment the system item is unticked.
     private var takenBySystem: [HotKeyBinding] {
         let system = SystemScreenshotShortcuts.current()
         return settings.allHotKeys.filter { system.conflict(with: $0) != nil }
@@ -198,7 +217,7 @@ struct WelcomeView: View {
 
     /// The taken ones, or — once they are free — the two recording shortcuts the row is about.
     private func takenShortcutNames(_ taken: [HotKeyBinding]) -> String {
-        let shown = taken.isEmpty ? [settings.recordRegionHotKey, settings.recordFullScreenHotKey] : taken
+        let shown = taken.isEmpty ? [settings.recordRegionHotKey, settings.recordFullScreenHotKey].compactMap(\.self) : taken
         return shown.map(\.displayString).joined(separator: ", ")
     }
 }

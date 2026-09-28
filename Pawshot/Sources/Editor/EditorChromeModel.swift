@@ -37,7 +37,11 @@ final class EditorChromeModel {
     @ObservationIgnored var pickCustomColor: (NSColor) -> Void = { _ in }
     @ObservationIgnored var cycleFill: () -> Void = {}
     @ObservationIgnored var setFillOpacity: (CGFloat) -> Void = { _ in }
+    /// The slider mid-drag: the fill follows it at once, and letting go (`setFillOpacity`) is the
+    /// one step of ⌘Z.
+    @ObservationIgnored var previewFillOpacity: (CGFloat) -> Void = { _ in }
     @ObservationIgnored var pickLineEnds: (AnnotationStyle.LineEnds) -> Void = { _ in }
+    @ObservationIgnored var pickShapeKind: (AnnotationStyle.ShapeKind) -> Void = { _ in }
     @ObservationIgnored var pickTextWeight: (NSFont.Weight) -> Void = { _ in }
     @ObservationIgnored var rotate: (_ clockwise: Bool) -> Void = { _ in }
     /// Where the floating tools are, in the SwiftUI content's coordinates; `nil` when they are not

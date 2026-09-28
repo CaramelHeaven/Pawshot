@@ -11,10 +11,17 @@ final class RectangleAnnotation: Reshapable {
     /// `end` are those of the level rectangle.
     private(set) var angle: CGFloat = 0
 
+    /// Set by the canvas while this is being drawn: ⇧ is held, and the shape comes out even — a
+    /// square, an equilateral triangle. A circle is always even.
+    var drawsEven = false
+
     /// The level rectangle — before the turn. A normalised one: it can be dragged in any
-    /// direction. Computed by the same function as the region selection during a capture.
+    /// direction. Computed by the same function as the region selection during a capture. A
+    /// circle takes the square in its middle, so a rectangle made a circle and back is the same
+    /// rectangle again.
     var rect: CGRect {
-        SelectionGeometry.rect(from: start, to: end)
+        let drawn = SelectionGeometry.rect(from: start, to: end)
+        return style.shapeKind == .circle ? SelectionGeometry.centredSquare(in: drawn) : drawn
     }
 
     init(start: CGPoint, style: AnnotationStyle) {
@@ -46,7 +53,13 @@ final class RectangleAnnotation: Reshapable {
     }
 
     func update(to point: CGPoint) {
-        end = point
+        guard drawsEven || style.shapeKind == .circle else {
+            end = point
+            return
+        }
+        // From the corner where the drag began, as a square drawn with ⇧ is in any editor.
+        let even = SelectionGeometry.rect(from: start, to: point, aspect: style.shapeKind.evenAspect, within: .infinite)
+        end = CGPoint(x: point.x < start.x ? even.minX : even.maxX, y: point.y < start.y ? even.minY : even.maxY)
     }
 
     func move(by delta: CGVector) {
@@ -82,9 +95,7 @@ final class RectangleAnnotation: Reshapable {
             transform.concat()
         }
 
-        // Softly rounded corners, scaled with the stroke so a thick frame doesn't look pinched.
-        let radius = min(max(3, style.lineWidth), min(rect.width, rect.height) / 2)
-        let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+        let path = outline(in: rect)
         path.lineWidth = style.lineWidth
 
         if style.isFilled {
@@ -96,10 +107,48 @@ final class RectangleAnnotation: Reshapable {
         path.stroke()
     }
 
+    /// The shape's path in `rect`: the level rectangle when drawn, the box's own system when hit.
+    private func outline(in rect: CGRect) -> NSBezierPath {
+        let points: [CGPoint]
+        switch style.shapeKind {
+        case .rectangle:
+            // Softly rounded corners, scaled with the stroke so a thick frame doesn't look pinched.
+            let radius = min(max(3, style.lineWidth), min(rect.width, rect.height) / 2)
+            return NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+        case .circle:
+            return NSBezierPath(ovalIn: rect)
+        case .triangle:
+            points = SelectionGeometry.trianglePoints(in: rect)
+        case .diamond:
+            points = SelectionGeometry.diamondPoints(in: rect)
+        }
+        let path = NSBezierPath()
+        path.move(to: points[0])
+        points.dropFirst().forEach(path.line(to:))
+        path.close()
+        path.lineJoinStyle = .round
+        return path
+    }
+
     func hitTest(_ point: CGPoint, tolerance: CGFloat) -> Bool {
         // Tested in the rectangle's own level system, so a turned one is hit where it is drawn.
         let local = box.toLocal(point)
         let level = box.local
+        guard style.shapeKind == .rectangle else {
+            // A circle, a triangle, a diamond: their own outline, not the box around them — a
+            // click in a diamond's empty corner picks what is under it.
+            let path = outline(in: level).cgPath
+            if style.isFilled, path.contains(local) {
+                return true
+            }
+            let band = path.copy(
+                strokingWithWidth: style.lineWidth + tolerance * 2,
+                lineCap: .round,
+                lineJoin: .round,
+                miterLimit: 10
+            )
+            return band.contains(local)
+        }
         if style.isFilled, level.contains(local) {
             return true
         }

@@ -52,7 +52,7 @@ final class RecordingPillController {
     /// Shows the pill — in the notch of `screen` when it has one, otherwise by the recorded area
     /// (`area` in AppKit screen coordinates).
     /// `stopShortcut` is the one that started the take — pressing it again stops it.
-    func show(near area: CGRect, on screen: NSScreen, penAvailable: Bool, stopShortcut: HotKeyBinding) {
+    func show(near area: CGRect, on screen: NSScreen, penAvailable: Bool, stopShortcut: HotKeyBinding?) {
         model.penAvailable = penAvailable
         model.stopShortcut = stopShortcut
         model.penIsOn = false

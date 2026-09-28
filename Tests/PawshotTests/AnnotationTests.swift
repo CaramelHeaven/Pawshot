@@ -245,4 +245,77 @@ final class AnnotationTests: XCTestCase {
         XCTAssertGreaterThan(plated.boundingBox.width, plain.boundingBox.width)
         XCTAssertEqual(plated.textFrame, plain.textFrame, "the letters stay where they were")
     }
+
+    // MARK: - R's shapes
+
+    private func shape(_ kind: AnnotationStyle.ShapeKind, _ rect: CGRect, fill: CGFloat = 0) -> RectangleAnnotation {
+        var style = AnnotationStyle(color: .red, lineWidth: 3, fillOpacity: fill)
+        style.shapeKind = kind
+        let shape = RectangleAnnotation(start: rect.origin, style: style)
+        shape.update(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        return shape
+    }
+
+    /// A rectangle made a circle is the circle in its middle, and back it is the same rectangle:
+    /// the drawn corners are kept, only what is drawn in them changes.
+    func testARectangleMadeACircleAndBackIsTheSameRectangle() {
+        let drawn = shape(.rectangle, CGRect(x: 0, y: 0, width: 200, height: 100))
+
+        drawn.style.shapeKind = .circle
+        XCTAssertEqual(drawn.rect, CGRect(x: 50, y: 0, width: 100, height: 100))
+
+        drawn.style.shapeKind = .rectangle
+        XCTAssertEqual(drawn.rect, CGRect(x: 0, y: 0, width: 200, height: 100))
+    }
+
+    /// A circle is drawn round whatever the drag, from the corner where it began.
+    func testACircleIsDrawnRound() {
+        let circle = shape(.circle, CGRect(x: 100, y: 100, width: 0, height: 0))
+        circle.update(to: CGPoint(x: 40, y: 70))
+
+        XCTAssertEqual(circle.rect, CGRect(x: 70, y: 70, width: 30, height: 30))
+    }
+
+    /// ⇧ while drawing: a square, and a triangle with equal sides.
+    func testShiftDrawsAnEvenShape() {
+        let square = shape(.rectangle, CGRect(x: 0, y: 0, width: 0, height: 0))
+        square.drawsEven = true
+        square.update(to: CGPoint(x: 80, y: 50))
+        XCTAssertEqual(square.rect.size, CGSize(width: 50, height: 50))
+
+        let triangle = shape(.triangle, CGRect(x: 0, y: 0, width: 0, height: 0))
+        triangle.drawsEven = true
+        triangle.update(to: CGPoint(x: 100, y: 200))
+        XCTAssertEqual(triangle.rect.width, 100, accuracy: 0.001)
+        XCTAssertEqual(triangle.rect.height, 100 * sqrt(3) / 2, accuracy: 0.001)
+    }
+
+    /// A shape is hit by its own outline, not by the box around it.
+    func testCirclesTrianglesAndDiamondsAreHitByTheirOutline() {
+        let box = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let circle = shape(.circle, box)
+        XCTAssertTrue(circle.hitTest(CGPoint(x: 0, y: 50), tolerance: 4), "on the ring")
+        XCTAssertFalse(circle.hitTest(CGPoint(x: 50, y: 50), tolerance: 4), "the empty middle")
+        XCTAssertFalse(circle.hitTest(CGPoint(x: 2, y: 2), tolerance: 4), "the box's corner is not the circle")
+
+        let diamond = shape(.diamond, box, fill: 0.6)
+        XCTAssertTrue(diamond.hitTest(CGPoint(x: 50, y: 50), tolerance: 4), "filled, hit inside")
+        XCTAssertFalse(diamond.hitTest(CGPoint(x: 8, y: 8), tolerance: 4), "the empty corner of its box")
+
+        let triangle = shape(.triangle, box)
+        XCTAssertTrue(triangle.hitTest(CGPoint(x: 50, y: 1), tolerance: 4), "the apex")
+        XCTAssertFalse(triangle.hitTest(CGPoint(x: 5, y: 5), tolerance: 4), "beside the apex")
+    }
+
+    /// A circle keeps round: only its corners resize it, and it has nothing to turn.
+    func testACircleHasOnlyCornersAndNoTurning() {
+        let circle = shape(.circle, CGRect(x: 0, y: 0, width: 100, height: 100))
+        XCTAssertFalse(CanvasHandles.hasHandle(.right, on: circle))
+        XCTAssertTrue(CanvasHandles.hasHandle(.topLeft, on: circle))
+        XCTAssertFalse(CanvasHandles.canTurn(circle))
+
+        let triangle = shape(.triangle, CGRect(x: 0, y: 0, width: 100, height: 100))
+        XCTAssertTrue(CanvasHandles.hasHandle(.right, on: triangle))
+        XCTAssertTrue(CanvasHandles.canTurn(triangle))
+    }
 }

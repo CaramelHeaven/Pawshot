@@ -46,18 +46,26 @@ The shortcuts used only during a take (zoom, pen, restart) are not on it; the pi
 them. It replaced the old "Open Pawshot" window rather than sitting next to it. To see it again:
 `defaults delete com.caramelheaven.pawshot app.welcomeCompleted`.
 
-**After an update, a "What's New" window says what changed — once.** The owner picked its look,
-N-A, on 2026-09-28 from four mockups: About's icon in its corner brackets, "What's New", the
-version, a few plain paragraphs and "Got It". It opens by itself at the first launch of a new
-version (`WhatsNew.showsAtLaunch`) and never on a fresh install: "Get Started" records the version
-it was pressed in. Shown means seen, however it is closed. It and the welcome window put
+**After an update, a "What's New" window says what changed since the version the person had —
+once.** Its first look, N-A, told only about the latest version; the owner then picked W-C on
+2026-09-28 from four mockups, so a jump from 0.4.6 to 0.4.9 hears about 0.4.7, 0.4.8 and 0.4.9: a
+header with the icon in its corner brackets on the left, "What's New" and `0.4.7 → 0.4.9`, then a
+timeline — a paw-coloured dot per version, the current one filled and marked "now", the text beside
+it — ending in a grey "0.4.7 — your version before the update", and "Got It". Many skipped
+versions scroll inside a list of bounded height rather than growing the window. It opens by itself
+at the first launch of a new version (`WhatsNew.showsAtLaunch`) and never on a fresh install:
+"Get Started" records the version it was pressed in. The window reads the version it came from once
+(`@State`): showing it records the new version as seen, and a list re-read after that would be
+empty. A launch that opens no window — a release with nothing to tell — records the version too,
+so "your version before the update" stays true. Shown means seen, however it is closed. It and the welcome window put
 themselves above every other app (`ComesForward`): Sparkle relaunches Pawshot from a background
 helper, as a login item does, macOS doesn't activate it, and SwiftUI then orders a window front
-among Pawshot's own only — 0.4.7's What's New opened behind the app in front. An update from 0.4.6, which stored no
-version, counts as an update. The words are `WhatsNew.text`, rewritten with every version (see
-Releasing, under `### Updates`); an empty text means no window. Only the latest text is kept, so
-a jump from 0.4.5 to 0.4.8 hears about 0.4.8 alone. To see it again:
-`defaults write com.caramelheaven.pawshot app.lastSeenVersion 0`.
+among Pawshot's own only — 0.4.7's What's New opened behind the app in front. An update from
+0.4.6 or older, which stored no version, hears everything there is and shows "Version 0.4.9" with
+no bottom line. The words are `WhatsNew.history`, newest first, one entry per version since 0.4.7
+(see Releasing, under `### Updates`); an entry with an empty text is left out, and with nothing
+left there is no window. To see it again from a given version:
+`defaults write com.caramelheaven.pawshot app.lastSeenVersion 0.4.7`.
 
 **Settings → Statistics counts what the person does, on this Mac only** — the owner picked the
 numbers and the look (L-B) on 2026-09-28 from a page of 28 candidates and four layouts. The count
@@ -128,15 +136,21 @@ glass bar shows the microphone with its live level and the system sound.
 | `Esc` | a half-typed size first, then cancel |
 
 All four shortcuts are editable in **Settings** (`⌘,`), which also carries launch at login, the
-interface language and the recording sound. macOS takes a screenshot combination before Carbon
-ever hands it to us, so the settings window reads the real state of the system shortcuts (`SystemScreenshotShortcuts`) and
-warns while one of ours is still taken, instead of silently doing nothing.
+interface language and the recording sound. macOS takes a screenshot combination — and "Move
+focus to next window", with ⇧ for its other direction — before Carbon ever hands it to us, so the
+settings window reads the real state of the system shortcuts (`SystemScreenshotShortcuts`) and
+warns while one of ours is still taken, naming the item as System Settings does ("Keyboard → Move
+focus to next window"), instead of silently doing nothing. The × at the right end
+of a field takes the shortcut away: the action then has none — the field reads "Record Shortcut",
+the menu item shows no keys, and the action is reached from the paw's menu or the pill. A cleared
+one is stored as `none`, apart from a missing key (the default), so Restore Defaults brings every
+one back.
 
 Everything that draws lives in **two glass capsules at the bottom**, the owner's pick: one with
 the tools and their letters, one with the style — four colours always on show (red, green,
 white, black), a fifth of one's own with a picker behind it, and then only what the current tool
-or selected object has: widths, the fill and its **always visible opacity slider** for a
-rectangle, widths and the ends for a line, the look, one "Аа" button per weight of the family
+or selected object has: widths, the four shapes, the fill and its **always visible opacity
+slider** for a shape, widths and the ends for a line, the look, one "Аа" button per weight of the family
 and the plate's slider for a label. Side by side when they fit, the style above the tools when
 they don't; narrower still, the colours fold into one swatch and the capsules scroll. Settings →
 General → Editor puts them in a strip of their own under the shot (the default; the window's
@@ -162,8 +176,17 @@ line's ends — goes to that object alone: a blue double arrow made single stays
 
 **The line is one tool with three looks** — a plain stroke, an arrow, a double arrow — picked by
 three buttons in the toolbar, or by pressing `A` again with the line already on. A drawn line can
-become any of them later. **The fill has an opacity**: `F` walks none → 30% → 60% → solid, the
-slider next to it gives anything in between, and a text plate takes the same value. **The fifth
+become any of them later. **The shape tool has four** — a rectangle, a circle, a triangle, a
+diamond — the owner's Ф-A of 2026-09-28, chosen the line's way: four buttons after the widths, or
+`R` again with the tool on, and a drawn shape switches with its colour, fill and turn kept. The
+kind is `AnnotationStyle.shapeKind` on the one `RectangleAnnotation` class. A circle is always
+round: drawn from where the drag began, it lies in the middle square of its box, so a rectangle
+made a circle and back is the same rectangle. `⇧` while drawing makes any of them even — a
+square, an equilateral triangle. A circle, a triangle and a diamond are hit by their own outline,
+not by their box. **The fill has an opacity**: `F` walks none → 30% → 60% → solid, the slider
+next to it gives anything in between, and a text plate takes the same value. The fill follows the
+slider while it moves (`EditorDocument.previewStyle`, no undo per tick), and letting go is one
+step of ⌘Z back to where the drag began; until 0.4.9 it changed only on letting go. **The fifth
 colour** is picked in a popover — saturation and brightness, hue, the hex, the last eight colours,
 and an eyedropper (`NSColorSampler`) that takes a colour straight off the shot; it is remembered
 between launches.
@@ -196,7 +219,9 @@ arithmetic in `SelectionGeometry`, and the cursor is decided by one function the
   shows them, as on the recording region); `⇧` keeps a corner's proportions, `⌥` grows it from
   the middle. Just outside a corner it **turns** about its middle (`⇧` — 15°), Figma's way,
   with nothing drawn there — the owner asked for the turning to stay quiet. The angle is stored
-  on the rectangle; the frame, the hit test and the export all turn with it.
+  on the rectangle; the frame, the hit test and the export all turn with it. A triangle and a
+  diamond do the same; **a circle** has only its corners, which always keep it round, and no
+  turning.
 - **A blur** resizes like a rectangle and never turns: it hides a line of text, and a turned
   pixelation reads as a glitch.
 - **A label**: the corners set the size, the left and right sides the width its text wraps
@@ -239,7 +264,7 @@ a single existing gesture.
 |---|---|---|---|
 | `V` | select and move | `⌘Z` / `⌘⇧Z` | undo / redo |
 | `A` | line; again: arrow → double → plain | `⌫` | delete the selection |
-| `R` | rectangle | `[` / `]` | width − / +; on a label: size − / + (`⇧` — weight) |
+| `R` | shape; again: circle → triangle → diamond → rectangle | `[` / `]` | width − / +; on a label: size − / + (`⇧` — weight) |
 | `D` | pencil | `1`…`4` / `5` | red, green, white, black / your own colour |
 | `T` | text | `F` | fill none → 30% → 60% → solid; with `T` or a label: plain → outline → plate |
 | `B` | blur | `C` | clear all (no confirmation, `⌘Z` brings it back) |
@@ -493,6 +518,7 @@ Paths are given relative to `Pawshot/Sources/`.
 | Launch at login                                       | `App/LoginItem.swift`                   |
 | What is remembered between launches                   | `App/Settings.swift`                    |
 | The settings window and the shortcut recorder         | `Settings/`                             |
+| A shortcut field: ×, "Didn't reach Pawshot", its log   | `Settings/HotKeyRecorderView.swift`     |
 | A key combination: storage, Carbon mask, `⇧⌘2` label  | `HotKey/HotKeyBinding.swift`            |
 | Whether macOS still holds ⇧⌘3/⇧⌘4 for itself          | `HotKey/SystemScreenshotShortcuts.swift` |
 | Recording: stream, writer, codecs, sound tracks       | `Recording/RecordingEngine.swift`       |
@@ -726,9 +752,24 @@ own hotkeys are **unregistered** (`Settings.onHotKeyRecordingChange` → `AppDel
 pressing the current shortcut to replace it would fire a capture instead. The flip side: whatever
 ends a recording must say so. Closing the window or switching the Settings tab with a field still
 recording sent nothing — measured — and every hotkey stayed unregistered until a relaunch, so the
-recorder also ends on `NSWindow.willCloseNotification` and on leaving its window
-(`HotKeyRecorderViewTests`). Losing key focus mid-recording is not covered: a test host has no key
-windows to prove it with.
+recorder also ends on `NSWindow.willCloseNotification`, on leaving its window and on
+`NSWindow.didResignKeyNotification` (`HotKeyRecorderViewTests` post the notification; a test host
+has no key windows of its own). The last one came from a tester's log: the field kept recording
+while she was in other apps, and all four hotkeys were gone for 35 s.
+
+Third: **a combination macOS or another app takes first never reaches Pawshot at all** — not the
+recorder, not Carbon. The same tester had macOS's own "Move focus to next window" (item 27) moved
+from ⌘` to ⌘1, and ⇧⌘1 — its other direction — left not one key press in the log across six tries, while ⇧⌘1 registered as the
+full-screen shortcut for three days fired zero times. Nothing takes such a key back (short of the
+private SkyLight call, which the owner refused), so the recorder says it instead: modifiers with
+⌘, ⌥ or ⌃ held and let go with no key in between, or the window losing focus mid-chord, show
+"Didn't reach Pawshot" with the reason in a tooltip. While a field records, a local
+`NSEvent` monitor logs every key event the app receives — only watching, it hands each one on —
+which is what tells "never arrived" from "arrived and a menu item took it", and a key up with no
+key down names the key that was taken. Item 27 is now in `SystemScreenshotShortcuts` with
+`reversesWithShift`, so Settings turns ⇧⌘1 red and names it; that macOS takes the ⇧ direction of a
+moved item is read off her log, not tried on a Mac. The saved log lists every macOS shortcut that
+is switched on (`item 27: ⌘1`) and the keyboard layout, so the next such item shows there.
 
 Logging a registration uses `privacy: .public` on purpose — the default redacts interpolated
 strings to `<private>`, and this log line is exactly how a hotkey is verified from the outside.
@@ -993,7 +1034,10 @@ takes root. The test host shares the app's defaults, so with the switch off on t
 What is covered: launch facts, every hotkey registration, unregistration and press (a press with
 nobody behind it is an `.error`), every early return of a capture, the overlay's begin, mode,
 cancel and selection, the editor's opening, exports and their failures, ⌘Q's every decision, the
-shortcut fields, settings changes, permission prompts, recording and the video editor.
+shortcut fields (every key event while one records, why it stopped, a refusal naming the action
+that holds the combination, a × clearing it, a shortcut changed from what to what), settings
+changes, permission prompts, recording and the video editor. A hotkey's lines name its action —
+`hotkey fired: ⇧⌘2 (capture a region), Firefox in front`.
 
 ### The overlay goes up before the capture, and never activates Pawshot
 
@@ -1301,16 +1345,16 @@ stays when it comes).
 - **Releasing:** raise `MARKETING_VERSION`, write its "What's New" (next point), commit, push,
   `make release publish`. The tag goes on the remote's default branch, so push first, or the tag
   lands on the previous commit.
-- **Every raised version gets its "What's New" text — the agent writes it, in the same change
-  as the raise.** In `App/WhatsNew.swift`: `version` becomes the new `MARKETING_VERSION`, `text`
-  is rewritten in English, and its Russian goes into `Localizable.xcstrings` (the English is the
-  key, so the sync marks the old entry `stale` — delete it by hand). It is written for the
+- **Every raised version gets its "What's New" entry — the agent writes it, in the same change
+  as the raise.** In `App/WhatsNew.swift` a new `Entry` goes on top of `history` with the new
+  `MARKETING_VERSION` and its text in English, and its Russian goes into `Localizable.xcstrings`.
+  Older entries stay, with their translations: someone skipping versions reads them all. It is written for the
   person who just updated, not for the log: what they can do now, or what stopped getting in
   their way — a few short paragraphs, the names exactly as on screen (Settings → General →
   Diagnostics / Настройки → Основные → Диагностика), no class names, no measurements, no
   "refactored". Only what changed since the last released version. A release with nothing a
   person would notice gets an empty text, and then no window. `WhatsNewTests` stays red until
-  `version` matches the bundle's — that is the reminder.
+  the top entry's `version` matches the bundle's — that is the reminder.
 - **Sparkle's tools** (`generate_keys`, `generate_appcast`) come with the package under
   `Tuist/.build/…/Sparkle/bin/`; the Makefile finds them rather than naming the path, which moved
   between SwiftPM versions.

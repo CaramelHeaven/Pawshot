@@ -24,6 +24,16 @@ enum KeyboardLayout {
         return latinCharacter(forKeyCode: event.keyCode)
     }
 
+    /// The input source in use, `com.apple.keylayout.Russian` — for the log: a shortcut's label
+    /// and a letter key both depend on it.
+    static var currentInputSourceID: String {
+        guard
+            let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+            let property = TISGetInputSourceProperty(source, kTISPropertyInputSourceID)
+        else { return "unknown" }
+        return Unmanaged<CFString>.fromOpaque(property).takeUnretainedValue() as String
+    }
+
     /// The same key press as if it had been made on a Latin layout, or `nil` when it already was.
     ///
     /// ⌘-combinations are matched by the main menu and not by any view, so the fallback hands the

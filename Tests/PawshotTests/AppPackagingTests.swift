@@ -56,23 +56,66 @@ final class AboutPanelTests: XCTestCase {
 }
 
 final class WhatsNewTests: XCTestCase {
-    /// The text is rewritten with every version bump (AGENTS.md, Releasing). A raised
-    /// `MARKETING_VERSION` still carrying the last version's words fails here.
-    func testTheTextIsForThisVersion() {
-        XCTAssertEqual(WhatsNew.version, AboutPanel.version, "MARKETING_VERSION was raised: rewrite WhatsNew for it")
+    /// A new entry goes on top with every version bump (AGENTS.md, Releasing). A raised
+    /// `MARKETING_VERSION` with no entry of its own fails here.
+    func testTheNewestEntryIsForThisVersion() {
+        XCTAssertEqual(WhatsNew.history.first?.version, AboutPanel.version, "MARKETING_VERSION was raised: add its WhatsNew entry")
+    }
+
+    private let history = [
+        WhatsNew.Entry(version: "0.4.10", text: "Ten"),
+        WhatsNew.Entry(version: "0.4.9", text: "Nine"),
+        WhatsNew.Entry(version: "0.4.8", text: ""),
+        WhatsNew.Entry(version: "0.4.7", text: "Seven"),
+    ]
+
+    /// From 0.4.6 to 0.4.9 is everything in between, not only 0.4.9's words.
+    func testEverySkippedVersionIsTold() {
+        func versions(since: String?) -> [String] {
+            WhatsNew.entries(in: history, since: since).map(\.version)
+        }
+
+        XCTAssertEqual(versions(since: nil), ["0.4.10", "0.4.9", "0.4.7"], "0.4.6 and older stored no version: all of it")
+        XCTAssertEqual(versions(since: "0.4.6"), ["0.4.10", "0.4.9", "0.4.7"])
+        XCTAssertEqual(versions(since: "0.4.7"), ["0.4.10", "0.4.9"], "a release with nothing to tell is left out")
+        XCTAssertEqual(versions(since: "0.4.9"), ["0.4.10"], "0.4.10 is after 0.4.9, not before it")
+        XCTAssertEqual(versions(since: "0.4.10"), [])
     }
 
     /// Once after an update — never on a fresh install, where the welcome window speaks first.
     func testShownOnceAfterAnUpdateOnly() {
-        func shows(_ lastSeen: String?, welcomed: Bool = true, text: String = "News") -> Bool {
-            WhatsNew.shouldShow(lastSeen: lastSeen, welcomeCompleted: welcomed, current: "0.4.7", text: text)
+        func shows(_ lastSeen: String?, welcomed: Bool = true) -> Bool {
+            WhatsNew.shouldShow(lastSeen: lastSeen, welcomeCompleted: welcomed, current: "0.4.10", history: history)
         }
 
         XCTAssertFalse(shows(nil, welcomed: false), "a fresh install gets the welcome window")
         XCTAssertTrue(shows(nil), "an update from 0.4.6, which never stored a version")
-        XCTAssertTrue(shows("0.4.6"))
-        XCTAssertFalse(shows("0.4.7"), "already seen")
-        XCTAssertFalse(shows("0.4.6", text: ""), "a release with nothing to tell")
+        XCTAssertTrue(shows("0.4.9"))
+        XCTAssertFalse(shows("0.4.10"), "already seen")
+        let upToEight = Array(history.drop { $0.version != "0.4.8" })
+        XCTAssertFalse(
+            WhatsNew.shouldShow(lastSeen: "0.4.7", welcomeCompleted: true, current: "0.4.8", history: upToEight),
+            "a release with nothing to tell"
+        )
+    }
+
+    /// Many skipped versions scroll inside a window of bounded height; a few don't scroll at all.
+    /// A `ScrollView` that collapsed to nothing, or grew with its content, fails here.
+    @MainActor
+    func testALongHistoryScrollsInsteadOfGrowingTheWindow() {
+        func height(_ count: Int) -> CGFloat {
+            let paragraph = String(repeating: "A change a person would notice, told in plain words. ", count: 4)
+            let entries = (0 ..< count).map { WhatsNew.Entry(version: "0.4.\(40 - $0)", text: paragraph) }
+            let view = NSHostingView(rootView: WhatsNewContent(from: "0.4.6", current: "0.4.40", entries: entries) {})
+            return view.fittingSize.height
+        }
+
+        let one = height(1)
+        let three = height(3)
+        let many = height(12)
+        XCTAssertGreaterThan(three, one, "the list takes the room its text needs")
+        XCTAssertLessThanOrEqual(many, one + WhatsNewContent.listMaxHeight, "the list stops growing and scrolls")
+        XCTAssertGreaterThan(many, three)
     }
 
     /// After Sparkle's relaunch nobody activates Pawshot, and 0.4.7's What's New opened behind

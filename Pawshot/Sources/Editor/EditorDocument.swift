@@ -298,6 +298,13 @@ final class EditorDocument {
     /// The same change, not the whole current style: turning a blue double arrow into a single one
     /// must not also paint it in whatever colour was picked since.
     func updateStyle(_ transform: (inout AnnotationStyle) -> Void) {
+        // A slider let go: back to where it started, silently, so the change below is the one
+        // step of undo from there.
+        if let base = previewBase {
+            previewBase = nil
+            style = base.style
+            base.selection?.style = base.selectionStyle ?? base.style
+        }
         transform(&style)
 
         if let selection {
@@ -308,6 +315,30 @@ final class EditorDocument {
             onChange?()
         }
     }
+
+    /// What a slider shows while it moves: the same change as `updateStyle`, with no step of undo
+    /// per tick. Every tick starts from the style before the drag, and `updateStyle` on letting go
+    /// records the whole drag as one step.
+    func previewStyle(_ transform: (inout AnnotationStyle) -> Void) {
+        let base = previewBase ?? PreviewBase(style: style, selection: selection, selectionStyle: selection?.style)
+        previewBase = base
+        var previewed = base.style
+        transform(&previewed)
+        style = previewed
+        if let selection = base.selection, var changed = base.selectionStyle {
+            transform(&changed)
+            selection.style = changed
+        }
+        onChange?()
+    }
+
+    private struct PreviewBase {
+        let style: AnnotationStyle
+        let selection: Annotation?
+        let selectionStyle: AnnotationStyle?
+    }
+
+    private var previewBase: PreviewBase?
 
     func bringToFront(_ annotation: Annotation) {
         guard let index = annotations.firstIndex(where: { $0 === annotation }) else { return }

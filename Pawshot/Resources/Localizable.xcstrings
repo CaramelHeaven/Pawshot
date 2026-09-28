@@ -58,6 +58,16 @@
         }
       }
     },
+    "%@ — your version before the update" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — ваша версия до обновления"
+          }
+        }
+      }
+    },
     "%lld chars" : {
       "localizations" : {
         "ru" : {
@@ -267,6 +277,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Роман, который вы не писали."
+          }
+        }
+      }
+    },
+    "A region, a window or the whole screen — from the paw's menu." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Область, окно или весь экран — из меню лапы."
           }
         }
       }
@@ -641,6 +661,16 @@
         }
       }
     },
+    "Circle (R)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Круг (R)"
+          }
+        }
+      }
+    },
     "Circled everything that wasn't nailed down." : {
       "localizations" : {
         "ru" : {
@@ -1011,6 +1041,26 @@
         }
       }
     },
+    "Diamond (R)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ромб (R)"
+          }
+        }
+      }
+    },
+    "Didn't reach Pawshot" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не дошло до Pawshot"
+          }
+        }
+      }
+    },
     "Double arrow (A)" : {
       "localizations" : {
         "ru" : {
@@ -1067,6 +1117,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Рисуется при сохранении видео, а не во время записи. Клики становятся оранжевыми кольцами. Сочетания показываются подписью — только с ⌘, ⌥ или ⌃, так что обычный набор текста и пароли не попадают в кадр. Зум ставится там, где во время записи было нажато %@. Для отдельного видео любое из этого можно выключить в редакторе."
+          }
+        }
+      }
+    },
+    "Drawn in when the video is saved, never while you record. Clicks become orange rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain typing and passwords never appear. Zooms go wherever you pressed the magnifier on the pill while recording. Each can still be switched off for one video in the editor." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рисуется при сохранении видео, а не во время записи. Клики становятся оранжевыми кольцами. Сочетания показываются подписью — только с ⌘, ⌥ или ⌃, так что обычный набор текста и пароли не попадают в кадр. Зум ставится там, где во время записи была нажата лупа на пилюле. Для отдельного видео любое из этого можно выключить в редакторе."
           }
         }
       }
@@ -1401,16 +1461,6 @@
         }
       }
     },
-    "Keyboard Shortcuts… → Screenshots, then untick:" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сочетания клавиш… → Снимки экрана, затем снимите флажки:"
-          }
-        }
-      }
-    },
     "Labels" : {
       "localizations" : {
         "ru" : {
@@ -1574,6 +1624,16 @@
         }
       }
     },
+    "Move focus to next window" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переместить фокус на следующее окно"
+          }
+        }
+      }
+    },
     "N numbers the steps." : {
       "localizations" : {
         "ru" : {
@@ -1620,6 +1680,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "И ни одной опечатки. Наверное."
+          }
+        }
+      }
+    },
+    "Not set" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не задано"
           }
         }
       }
@@ -1870,12 +1940,32 @@
         }
       }
     },
+    "Pick Capture Region in the paw's menu." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите «Снять область» в меню лапы."
+          }
+        }
+      }
+    },
     "Pick a colour from the screen" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Взять цвет с экрана"
+          }
+        }
+      }
+    },
+    "Pick another shortcut, or untick in Keyboard Shortcuts…:" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите другое сочетание или снимите флажок в «Сочетания клавиш…»:"
           }
         }
       }
@@ -1970,6 +2060,16 @@
         }
       }
     },
+    "R now draws a circle, a triangle and a diamond as well: pick one next to the line widths, or press R again. A drawn shape switches the same way.\n\nThe fill follows the opacity slider while you drag it, not only when you let go.\n\nEvery shortcut in Settings now has a cross on its right: remove the shortcut altogether, and the action stays in the paw's menu.\n\nIf a shortcut never reaches Pawshot — macOS or another app takes it first — the field now says so instead of staying silent.\n\nA shortcut field waiting for keys now lets go when you switch to another window. Until now, Pawshot's shortcuts stopped working meanwhile." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "R теперь рисует ещё круг, треугольник и ромб: выберите фигуру рядом с толщинами или нажмите R ещё раз. Нарисованная фигура переключается так же.\n\nЗаливка меняется прямо во время движения ползунка, а не только когда его отпускаешь.\n\nУ каждого сочетания в настройках справа появился крестик: сочетание можно убрать совсем, а действие останется в меню лапы.\n\nЕсли сочетание не доходит до Pawshot — его раньше забирает macOS или другое приложение, — поле так и пишет, а не молчит.\n\nПоле, которое ждёт сочетание, теперь отпускает его, если уйти в другое окно. Раньше сочетания Pawshot в это время не работали."
+          }
+        }
+      }
+    },
     "Record" : {
       "localizations" : {
         "ru" : {
@@ -1996,6 +2096,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Записать область"
+          }
+        }
+      }
+    },
+    "Record Region in the paw's menu records a region." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Записать область» в меню лапы записывает область."
+          }
+        }
+      }
+    },
+    "Record Shortcut" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать сочетание"
           }
         }
       }
@@ -2090,12 +2210,12 @@
         }
       }
     },
-    "Rectangle" : {
+    "Rectangle (R)" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Прямоугольник"
+            "value" : "Прямоугольник (R)"
           }
         }
       }
@@ -2602,12 +2722,32 @@
         }
       }
     },
+    "Settings now has a Statistics tab: how many shots you've taken, what you draw with most, how many days in a row. It's all counted on this Mac only.\n\nCollect Logs can now be switched off — in the welcome window and in Settings → General → Diagnostics.\n\nIf something breaks, the logs reach the developer with one button: Send by Email…, in the same place." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В настройках новая вкладка «Статистика»: сколько снимков сделано, чем вы рисуете чаще всего, сколько дней подряд. Всё считается только на этом Mac.\n\n«Собирать логи» теперь можно выключить — в окне приветствия и в Настройки → Основные → Диагностика.\n\nЕсли что-то сломалось, логи уходят разработчику одной кнопкой: «Отправить почтой…» там же."
+          }
+        }
+      }
+    },
     "Settings…" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Настройки…"
+          }
+        }
+      }
+    },
+    "Shape" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фигура"
           }
         }
       }
@@ -2728,6 +2868,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Системный"
+          }
+        }
+      }
+    },
+    "System Settings section: Keyboard" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Keyboard"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Клавиатура"
+          }
+        }
+      }
+    },
+    "System Settings section: Screenshots" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Screenshots"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снимки экрана"
           }
         }
       }
@@ -2862,6 +3036,16 @@
         }
       }
     },
+    "The keys never reached Pawshot: macOS or another app takes this combination first. Pick another one, or free it there." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сочетание не дошло до Pawshot: его раньше забирает macOS или другое приложение. Выберите другое или освободите его там."
+          }
+        }
+      }
+    },
     "The pause button on the pill stops the clock." : {
       "localizations" : {
         "ru" : {
@@ -2922,6 +3106,16 @@
         }
       }
     },
+    "The restart button on the pill starts the take over." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кнопка «Заново» на пилюле начинает дубль заново."
+          }
+        }
+      }
+    },
     "The selected region didn't land inside the captured frame." : {
       "localizations" : {
         "ru" : {
@@ -2978,6 +3172,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Инструменты и цвета"
+          }
+        }
+      }
+    },
+    "Triangle (R)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Треугольник (R)"
           }
         }
       }
@@ -3331,12 +3535,22 @@
         }
       }
     },
-    "macOS takes %@ for its own screenshots, so Pawshot never sees the key." : {
+    "macOS keeps them for itself. Untick in Keyboard Shortcuts: %@." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS забирает %@ под свои скриншоты, и Pawshot не получает нажатие."
+            "value" : "Их держит macOS. Снимите флажки в «Сочетания клавиш»: %@."
+          }
+        }
+      }
+    },
+    "macOS takes %@ for itself, so Pawshot never sees the key." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS забирает %@ себе, и Pawshot не получает нажатие."
           }
         }
       }
@@ -3347,6 +3561,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "нет сигнала"
+          }
+        }
+      }
+    },
+    "now" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сейчас"
           }
         }
       }
@@ -3462,8 +3686,21 @@
         }
       }
     },
-    "• %@" : {
-      "shouldTranslate" : false
+    "• %@ → %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "• %1$@ → %2$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "• %1$@ → %2$@"
+          }
+        }
+      }
     },
     "↩" : {
       "shouldTranslate" : false

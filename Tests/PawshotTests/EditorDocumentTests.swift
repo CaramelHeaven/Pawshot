@@ -149,6 +149,28 @@ final class EditorDocumentTests: XCTestCase {
         XCTAssertEqual(arrow.style.color, AnnotationStyle.default.color)
     }
 
+    /// The opacity slider: the fill follows every tick at once, and letting go is one ⌘Z back to
+    /// where the drag began — not a step per tick, and not only on letting go.
+    func testASliderDragShowsAtOnceAndUndoesInOneStep() {
+        let document = makeDocument()
+        let undoManager = makeUndoManager(for: document)
+        let rectangle = RectangleAnnotation(start: .zero, style: .default)
+        rectangle.update(to: CGPoint(x: 60, y: 40))
+        step(undoManager) { document.add(rectangle) }
+        document.selection = rectangle
+
+        for opacity in [0.2, 0.45, 0.7] as [CGFloat] {
+            document.previewStyle { $0.fillOpacity = opacity }
+            XCTAssertEqual(rectangle.style.fillOpacity, opacity, "the fill follows the slider")
+        }
+        step(undoManager) { document.updateStyle { $0.fillOpacity = 0.7 } }
+        XCTAssertEqual(rectangle.style.fillOpacity, 0.7)
+
+        undoManager.undo()
+        XCTAssertEqual(rectangle.style.fillOpacity, 0, "one step back to before the drag")
+        XCTAssertEqual(document.style.fillOpacity, 0.7, "the current style keeps the last choice, as any style change does")
+    }
+
     /// Turning the blue double arrow into a single one must leave it blue, whatever colour is
     /// current: the change goes to the selection, not the whole current style.
     func testChangingTheEndsOfASelectedLineKeepsItsColour() {

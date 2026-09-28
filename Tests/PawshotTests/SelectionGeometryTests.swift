@@ -574,4 +574,16 @@ final class SelectionGeometryTests: XCTestCase {
         XCTAssertFalse(SelectionGeometry.isRotationZone(CGPoint(x: 40, y: -20), of: box), "inside is moving")
         XCTAssertFalse(SelectionGeometry.isRotationZone(CGPoint(x: 0, y: -40), of: box), "beside a side is nothing")
     }
+
+    /// Where R's shapes lie in their box: a circle in the middle square, a triangle's apex at the
+    /// top middle (Y goes down), a diamond on the middles of the sides.
+    func testTheShapesPointsInTheirBox() {
+        let box = CGRect(x: 10, y: 20, width: 200, height: 100)
+        XCTAssertEqual(SelectionGeometry.centredSquare(in: box), CGRect(x: 60, y: 20, width: 100, height: 100))
+        XCTAssertEqual(SelectionGeometry.trianglePoints(in: box), [CGPoint(x: 110, y: 20), CGPoint(x: 210, y: 120), CGPoint(x: 10, y: 120)])
+        XCTAssertEqual(
+            SelectionGeometry.diamondPoints(in: box),
+            [CGPoint(x: 110, y: 20), CGPoint(x: 210, y: 70), CGPoint(x: 110, y: 120), CGPoint(x: 10, y: 70)]
+        )
+    }
 }

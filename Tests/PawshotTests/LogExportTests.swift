@@ -48,6 +48,18 @@ final class LogExportTests: XCTestCase {
         XCTAssertTrue(header.contains("Other capture apps: CleanShot X"))
     }
 
+    /// A key macOS takes never reaches Pawshot, so the header lists every system shortcut that is
+    /// on, and the layout the labels were read in.
+    func testTheHeaderListsTheSystemShortcutsAndTheLayout() {
+        var facts = facts(takenBy: nil)
+        facts.systemShortcuts = ["item 27: ⌘1", "item 60: ⌃Space"]
+        facts.keyboardLayout = "com.apple.keylayout.Russian"
+        let header = LogExport.header(facts, generatedAt: Date())
+
+        XCTAssertTrue(header.contains("macOS shortcuts on, with ⌘, ⌥ or ⌃: item 27: ⌘1, item 60: ⌃Space"))
+        XCTAssertTrue(header.contains("Keyboard layout: com.apple.keylayout.Russian"))
+    }
+
     func testOtherCaptureAppsAreFoundWithoutFalseFriends() {
         XCTAssertEqual(
             SystemState.matchingCaptureApps(["CleanShot X", "Obsidian", "OBS", "Safari", "Shottr", "Kaleidoscope"]),

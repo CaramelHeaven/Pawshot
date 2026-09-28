@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// The settings window: a tab in the toolbar per topic, a grouped form in each.
@@ -303,13 +304,22 @@ private struct RecordingSettings: View {
         } header: {
             Text("Shown in the video")
         } footer: {
-            explanation("""
-            Drawn in when the video is saved, never while you record. Clicks become orange \
-            rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain \
-            typing and passwords never appear. Zooms go wherever you pressed \
-            \(settings.zoomMarkHotKey.displayString) while recording. Each can still be switched \
-            off for one video in the editor.
-            """)
+            if let zoomMark = settings.zoomMarkHotKey {
+                explanation("""
+                Drawn in when the video is saved, never while you record. Clicks become orange \
+                rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain \
+                typing and passwords never appear. Zooms go wherever you pressed \
+                \(zoomMark.displayString) while recording. Each can still be switched \
+                off for one video in the editor.
+                """)
+            } else {
+                explanation("""
+                Drawn in when the video is saved, never while you record. Clicks become orange \
+                rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain \
+                typing and passwords never appear. Zooms go wherever you pressed the magnifier on \
+                the pill while recording. Each can still be switched off for one video in the editor.
+                """)
+            }
         }
     }
 
@@ -391,24 +401,25 @@ private struct ShortcutSettings: View {
     private let settings = Settings.shared
     @State private var isConfirmingReset = false
 
-    private typealias Row = (title: LocalizedStringKey, keyPath: ReferenceWritableKeyPath<Settings, HotKeyBinding>)
+    /// `log` names the action in English for the log, whatever the interface speaks.
+    private typealias Row = (title: LocalizedStringKey, log: String, keyPath: ReferenceWritableKeyPath<Settings, HotKeyBinding?>)
 
     private static let screenshotRows: [Row] = [
-        ("Capture region", \.regionHotKey),
-        ("Capture full screen", \.fullScreenHotKey),
+        ("Capture region", "capture a region", \.regionHotKey),
+        ("Capture full screen", "capture the full screen", \.fullScreenHotKey),
     ]
 
     /// Pressed again while a take runs, either one stops it.
     private static let recordingRows: [Row] = [
-        ("Record region", \.recordRegionHotKey),
-        ("Record full screen", \.recordFullScreenHotKey),
+        ("Record region", "record a region", \.recordRegionHotKey),
+        ("Record full screen", "record the full screen", \.recordFullScreenHotKey),
     ]
 
     /// Live only during a take, so they can be anything that doesn't clash with the rest.
     private static let duringRecordingRows: [Row] = [
-        ("Zoom in here", \.zoomMarkHotKey),
-        ("Pen on / off", \.penHotKey),
-        ("Restart", \.restartHotKey),
+        ("Zoom in here", "mark a zoom", \.zoomMarkHotKey),
+        ("Pen on / off", "switch the pen", \.penHotKey),
+        ("Restart", "restart the take", \.restartHotKey),
     ]
 
     private static var rows: [Row] {
@@ -472,14 +483,18 @@ private struct ShortcutSettings: View {
             LabeledContent(row.title) {
                 RecorderField(
                     binding: binding,
-                    isTakenBySystem: conflicts.contains { $0.binding == binding }
-                ) { apply($0, to: row.keyPath) }
+                    logName: row.log,
+                    isTakenBySystem: binding.map { binding in conflicts.contains { $0.binding == binding } } ?? false,
+                    onRecord: { apply($0, to: row) },
+                    onClear: { settings[keyPath: row.keyPath] = nil }
+                )
             }
         }
     }
 
-    /// Our shortcuts that macOS still takes for its own screenshots, read from the live system
-    /// preferences — the warning goes away the moment the system item is unticked.
+    /// Our shortcuts that macOS still takes for itself — its screenshots, or "Move focus to next
+    /// window" — read from the live system preferences: the warning goes away the moment the
+    /// system item is unticked.
     private var conflicts: [(binding: HotKeyBinding, system: SystemScreenshotShortcuts.Shortcut)] {
         let system = SystemScreenshotShortcuts.current()
         return settings.allHotKeys.compactMap { binding in
@@ -493,7 +508,7 @@ private struct ShortcutSettings: View {
         VStack(alignment: .leading, spacing: 8) {
             let taken = conflicts.map(\.binding.displayString).joined(separator: ", ")
             Label {
-                Text("macOS takes \(taken) for its own screenshots, so Pawshot never sees the key.")
+                Text("macOS takes \(taken) for itself, so Pawshot never sees the key.")
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
@@ -501,9 +516,16 @@ private struct ShortcutSettings: View {
             .font(.callout)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Keyboard Shortcuts… → Screenshots, then untick:")
-                ForEach(conflicts, id: \.system.id) { conflict in
-                    Text("• \(conflict.system.name)")
+                Text("Pick another shortcut, or untick in Keyboard Shortcuts…:")
+                // One line per system item: "Move focus to next window" can hold two of ours, ⌘1
+                // and ⇧⌘1.
+                let items = conflicts.map(\.system).reduce(into: [SystemScreenshotShortcuts.Shortcut]()) { items, item in
+                    if !items.contains(where: { $0.id == item.id }) {
+                        items.append(item)
+                    }
+                }
+                ForEach(items, id: \.id) { item in
+                    Text("• \(item.section) → \(item.name)")
                 }
             }
             .font(.footnote)
@@ -520,15 +542,23 @@ private struct ShortcutSettings: View {
 
     /// The same combination can't do two things — that would leave one of them dead with no way
     /// to tell why.
-    private func apply(
-        _ binding: HotKeyBinding,
-        to keyPath: ReferenceWritableKeyPath<Settings, HotKeyBinding>
-    ) -> Bool {
-        let others = Self.rows.map(\.keyPath).filter { $0 != keyPath }.map { settings[keyPath: $0] }
-        guard !others.contains(binding) else { return false }
+    private func apply(_ binding: HotKeyBinding, to row: Row) -> Bool {
+        let shortcut = binding.logString
+        if let holder = Self.rows.first(where: { $0.keyPath != row.keyPath && settings[keyPath: $0.keyPath] == binding }) {
+            Self.logger.notice("shortcut for \(row.log, privacy: .public): \(shortcut, privacy: .public) refused, \(holder.log, privacy: .public) has it")
+            return false
+        }
 
-        settings[keyPath: keyPath] = binding
+        settings[keyPath: row.keyPath] = binding
+        // Accepted, and still dead: macOS takes it first. The field turns red; the log says why.
+        if let system = SystemScreenshotShortcuts.current().conflict(with: binding) {
+            Self.logger.error("shortcut for \(row.log, privacy: .public): \(shortcut, privacy: .public) is taken by macOS (item \(system.id, privacy: .public)) — Pawshot won't see it until that is unticked")
+        }
         return true
+    }
+
+    private static var logger: Logger {
+        .pawshot("settings")
     }
 }
 
@@ -536,9 +566,11 @@ private struct ShortcutSettings: View {
 /// is tested; this only keeps it in sync and forwards "recording started/stopped" to `AppDelegate`
 /// through `Settings.onHotKeyRecordingChange`, so the global hotkeys step aside meanwhile.
 private struct RecorderField: NSViewRepresentable {
-    let binding: HotKeyBinding
+    let binding: HotKeyBinding?
+    let logName: String
     let isTakenBySystem: Bool
     let onRecord: (HotKeyBinding) -> Bool
+    let onClear: () -> Void
 
     func makeNSView(context _: Context) -> HotKeyRecorderView {
         let view = HotKeyRecorderView(binding: binding)
@@ -550,7 +582,9 @@ private struct RecorderField: NSViewRepresentable {
 
     func updateNSView(_ view: HotKeyRecorderView, context _: Context) {
         view.binding = binding
+        view.logName = logName
         view.isTakenBySystem = isTakenBySystem
         view.onRecord = onRecord
+        view.onClear = onClear
     }
 }

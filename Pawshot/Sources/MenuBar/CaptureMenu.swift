@@ -37,12 +37,12 @@ struct CaptureMenu: View {
                     actions.stopRecording()
                 }
                 // The shortcut that started a take stops it; ⇧⌘3 is the one shown.
-                .keyboardShortcut(settings.recordRegionHotKey.keyboardShortcut)
+                .keyboardShortcut(settings.recordRegionHotKey?.keyboardShortcut)
 
                 Button("Restart Recording", systemImage: "arrow.counterclockwise") {
                     actions.restartRecording()
                 }
-                .keyboardShortcut(settings.restartHotKey.keyboardShortcut)
+                .keyboardShortcut(settings.restartHotKey?.keyboardShortcut)
 
                 Button(
                     recording.isPaused ? "Resume Recording" : "Pause Recording",
@@ -59,12 +59,12 @@ struct CaptureMenu: View {
             Button("Capture Region", systemImage: "rectangle.dashed") {
                 actions.captureRegion()
             }
-            .keyboardShortcut(settings.regionHotKey.keyboardShortcut)
+            .keyboardShortcut(settings.regionHotKey?.keyboardShortcut)
 
             Button("Capture Full Screen", systemImage: "display") {
                 actions.captureFullScreen()
             }
-            .keyboardShortcut(settings.fullScreenHotKey.keyboardShortcut)
+            .keyboardShortcut(settings.fullScreenHotKey?.keyboardShortcut)
         }
 
         if state.recording == nil {
@@ -72,12 +72,12 @@ struct CaptureMenu: View {
                 Button("Record Region", systemImage: "rectangle.dashed.badge.record") {
                     actions.recordRegion()
                 }
-                .keyboardShortcut(settings.recordRegionHotKey.keyboardShortcut)
+                .keyboardShortcut(settings.recordRegionHotKey?.keyboardShortcut)
 
                 Button("Record Full Screen", systemImage: "menubar.dock.rectangle.badge.record") {
                     actions.recordFullScreen()
                 }
-                .keyboardShortcut(settings.recordFullScreenHotKey.keyboardShortcut)
+                .keyboardShortcut(settings.recordFullScreenHotKey?.keyboardShortcut)
             }
         }
 

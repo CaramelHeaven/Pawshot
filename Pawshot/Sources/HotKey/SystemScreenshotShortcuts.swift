@@ -1,7 +1,8 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// Which of macOS's own screenshot shortcuts are switched on right now.
+/// Which of macOS's own shortcuts that take ours are switched on right now: the screenshot ones,
+/// and "Move focus to next window".
 ///
 /// The owner records with ⇧⌘3 and ⇧⌘4 — keys the system takes for its screenshots before Carbon
 /// ever hands them to us. They start working the moment the matching item is unticked in
@@ -12,13 +13,21 @@ import Carbon.HIToolbox
 /// Checked on the owner's machine: id 28 is ⇧⌘3, 29 ⌃⇧⌘3, 30 ⇧⌘4, 31 ⌃⇧⌘4, 184 ⇧⌘5 (181 and 182, the
 /// Touch Bar's ⇧⌘6 and ⌃⇧⌘6, are absent there — it has no Touch Bar). Each entry
 /// carries `enabled` and `value.parameters = (character, key code, modifier flags)`.
+///
+/// Item 27, "Move focus to next window", came from a tester who had moved it from ⌘` to ⌘1: macOS
+/// then took ⇧⌘1 too, as the other direction, and the default full-screen shortcut never fired.
+/// That ⇧ goes along with a moved item is read off her log, not tried on a Mac.
 struct SystemScreenshotShortcuts: Equatable {
     struct Shortcut: Equatable {
         let id: Int
-        let keyCode: UInt32
-        let modifiers: NSEvent.ModifierFlags
-        let isEnabled: Bool
+        var keyCode: UInt32
+        var modifiers: NSEvent.ModifierFlags
+        var isEnabled: Bool
         let name: String
+        /// Apple's name for the part of Keyboard Shortcuts the item is in.
+        var section = String(localized: "System Settings section: Screenshots", defaultValue: "Screenshots")
+        /// The same keys with ⇧ go the other way, and macOS takes them as well.
+        var reversesWithShift = false
     }
 
     let shortcuts: [Shortcut]
@@ -47,6 +56,10 @@ struct SystemScreenshotShortcuts: Equatable {
                  name: String(localized: "Save picture of the Touch Bar as a file")),
         Shortcut(id: 182, keyCode: UInt32(kVK_ANSI_6), modifiers: [.control, .shift, .command], isEnabled: false,
                  name: String(localized: "Copy picture of the Touch Bar to the clipboard")),
+        Shortcut(id: 27, keyCode: UInt32(kVK_ANSI_Grave), modifiers: [.command], isEnabled: true,
+                 name: String(localized: "Move focus to next window"),
+                 section: String(localized: "System Settings section: Keyboard", defaultValue: "Keyboard"),
+                 reversesWithShift: true),
     ]
 
     /// Parses the `AppleSymbolicHotKeys` dictionary. Anything unreadable falls back to the
@@ -59,28 +72,24 @@ struct SystemScreenshotShortcuts: Equatable {
                 let enabled = (entry["enabled"] as? NSNumber)?.boolValue
             else { return fallback }
 
+            var shortcut = fallback
+            shortcut.isEnabled = enabled
             let parameters = (entry["value"] as? [String: Any])?["parameters"] as? [NSNumber]
-            guard let parameters, parameters.count == 3 else {
-                return Shortcut(
-                    id: fallback.id, keyCode: fallback.keyCode, modifiers: fallback.modifiers,
-                    isEnabled: enabled, name: fallback.name
-                )
-            }
+            guard let parameters, parameters.count == 3 else { return shortcut }
 
-            let modifiers = NSEvent.ModifierFlags(rawValue: parameters[2].uintValue)
+            shortcut.keyCode = parameters[1].uint32Value
+            shortcut.modifiers = NSEvent.ModifierFlags(rawValue: parameters[2].uintValue)
                 .intersection([.shift, .control, .option, .command])
-            return Shortcut(
-                id: fallback.id,
-                keyCode: parameters[1].uint32Value,
-                modifiers: modifiers,
-                isEnabled: enabled,
-                name: fallback.name
-            )
+            return shortcut
         }
     }
 
     /// Reads the live preferences.
     static func current() -> SystemScreenshotShortcuts {
+        SystemScreenshotShortcuts(symbolicHotKeys: liveSymbolicHotKeys())
+    }
+
+    private static func liveSymbolicHotKeys() -> [String: Any]? {
         // Another app's domain is cached per process; without the sync an unticked item would
         // keep reading as enabled until Pawshot restarts.
         CFPreferencesAppSynchronize("com.apple.symbolichotkeys" as CFString)
@@ -88,12 +97,51 @@ struct SystemScreenshotShortcuts: Equatable {
             "AppleSymbolicHotKeys" as CFString,
             "com.apple.symbolichotkeys" as CFString
         )
-        return SystemScreenshotShortcuts(symbolicHotKeys: value as? [String: Any])
+        return value as? [String: Any]
+    }
+
+    /// Every macOS shortcut in the preferences that is switched on and holds ⌘, ⌥ or ⌃ — any
+    /// item, not just the screenshots. A combination macOS takes this way reaches Pawshot neither
+    /// in the recorder nor through Carbon, so the saved log lists them all: a tester's ⇧⌘1 that
+    /// never arrived is exactly the case. Only items the Mac's preferences mention are here — an
+    /// untouched factory default isn't — and there is no table of names for them: the id is
+    /// what System Settings' item is looked up by.
+    static func enabledShortcuts(in symbolicHotKeys: [String: Any]?) -> [(id: Int, binding: HotKeyBinding)] {
+        (symbolicHotKeys ?? [:]).compactMap { key, value in
+            guard
+                let id = Int(key),
+                let entry = value as? [String: Any],
+                (entry["enabled"] as? NSNumber)?.boolValue == true,
+                let parameters = (entry["value"] as? [String: Any])?["parameters"] as? [NSNumber],
+                parameters.count == 3,
+                parameters[1].intValue != 0xFFFF
+            else { return nil }
+
+            let modifiers = NSEvent.ModifierFlags(rawValue: parameters[2].uintValue)
+                .intersection([.shift, .control, .option, .command])
+            guard HotKeyBinding.isUsable(modifiers) else { return nil }
+
+            let character = parameters[0].intValue
+            let label = switch character {
+            case 32: "Space"
+            case 33 ..< 0xFFFF: UnicodeScalar(character).map { String($0).uppercased() } ?? "Key \(parameters[1])"
+            default: "Key \(parameters[1])"
+            }
+            return (id, HotKeyBinding(keyCode: parameters[1].uint32Value, modifiers: modifiers, label: label))
+        }
+        .sorted { $0.id < $1.id }
+    }
+
+    static func currentEnabledShortcuts() -> [(id: Int, binding: HotKeyBinding)] {
+        enabledShortcuts(in: liveSymbolicHotKeys())
     }
 
     /// The enabled system shortcut that takes this combination before Pawshot sees it, if any.
     func conflict(with binding: HotKeyBinding) -> Shortcut? {
         let flags = binding.modifierFlags.intersection([.shift, .control, .option, .command])
-        return shortcuts.first { $0.isEnabled && $0.keyCode == binding.keyCode && $0.modifiers == flags }
+        return shortcuts.first { shortcut in
+            shortcut.isEnabled && shortcut.keyCode == binding.keyCode
+                && (shortcut.modifiers == flags || shortcut.reversesWithShift && shortcut.modifiers.union(.shift) == flags)
+        }
     }
 }
