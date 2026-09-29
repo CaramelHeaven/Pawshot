@@ -366,7 +366,8 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
 
     private enum Destination {
         case clipboard
-        case desktop
+        /// The folder Settings name for saves.
+        case folder
     }
 
     /// ⌘C: the file in the chosen format.
@@ -379,9 +380,9 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         export(.gif, to: .clipboard)
     }
 
-    /// ⌘S: to the Desktop, in the chosen format.
+    /// ⌘S: to the save folder, in the chosen format.
     @objc func saveDocument(_: Any?) {
-        export(model.preset, to: .desktop)
+        export(model.preset, to: .folder)
     }
 
     private func export(_ preset: VideoPreset, to destination: Destination) {
@@ -393,7 +394,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
 
         let url: URL
         do {
-            url = try destination == .desktop ? VideoHandOff.desktopURL(for: preset) : VideoHandOff.clipURL(for: preset)
+            url = try destination == .folder ? VideoHandOff.savedURL(for: preset) : VideoHandOff.clipURL(for: preset)
         } catch {
             Self.logger.error("video export: no file to write to: \(String(describing: error), privacy: .public)")
             presentFailure(error)

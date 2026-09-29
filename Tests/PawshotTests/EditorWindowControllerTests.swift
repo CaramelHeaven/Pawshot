@@ -116,6 +116,23 @@ final class EditorWindowControllerTests: XCTestCase {
         XCTAssertFalse(window.isVisible)
     }
 
+    /// Growing the shot by the window's edge and turning it are not drawing: a tap of ⌘Q still
+    /// closes at once. It used to ask, since both are steps of ⌘Z.
+    func testQuitKeyClosesACroppedOrTurnedShotAtOnce() throws {
+        let document = try makeDocument(pointSize: CGSize(width: 300, height: 200), scale: 1)
+        let (controller, window) = try shownController(document)
+        defer { window.orderOut(nil) }
+
+        document.setCrop(CGRect(x: 20, y: 20, width: 200, height: 120))
+        document.rotate(clockwise: true)
+        XCTAssertTrue(document.undoManager?.canUndo ?? false, "both are steps of ⌘Z")
+        XCTAssertFalse(controller.hasWork)
+
+        controller.closeForQuitKey()
+
+        XCTAssertFalse(window.isVisible)
+    }
+
     /// With something drawn, a tap of ⌘Q asks first and leaves the window where it is.
     func testQuitKeyAsksBeforeThrowingAwayWork() throws {
         let document = try makeDocument(pointSize: CGSize(width: 300, height: 200), scale: 1)

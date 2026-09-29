@@ -98,36 +98,45 @@ private struct CanvasScrollView: NSViewRepresentable {
 
 // MARK: - Toolbar
 
-/// The turns, history and the ways out. Everything that draws — the tools, the colours and the
-/// style — lives at the bottom (`ToolCapsule`), the owner's pick. One primary action, tinted with
-/// the paw colour: Copy. Everything else is neutral glass, so the eye finds ⌘C first.
+/// Changing the shot on the left — history, the turns, Clear All — its size in the middle, and the
+/// ways out on the right (the owner's T2 of 2026-09-29, the way Preview and Pixelmator split it).
+/// One primary action, tinted with the paw colour: Copy. Everything else is neutral glass, so the
+/// eye finds ⌘C first.
 private struct EditorToolbar: ToolbarContent {
     let model: EditorChromeModel
 
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
+            Button("Undo", systemImage: "arrow.uturn.backward") { model.undo() }
+                .help("Undo (⌘Z)")
+            Button("Redo", systemImage: "arrow.uturn.forward") { model.redo() }
+                .help("Redo (⇧⌘Z)")
+        }
+
+        ToolbarItemGroup(placement: .navigation) {
             Button("Rotate Left", systemImage: "rotate.left") { model.rotate(false) }
                 .help("Rotate left — the selected object, or the whole shot (⌘L)")
             Button("Rotate Right", systemImage: "rotate.right") { model.rotate(true) }
                 .help("Rotate right — the selected object, or the whole shot (⌘R)")
+            Button("Clear All", systemImage: "eraser") { model.clearAll() }
+                .help("Erase all markup (C)")
+        }
+
+        ToolbarItem(placement: .principal) {
+            Text(verbatim: "\(Int(model.pixelSize.width)) × \(Int(model.pixelSize.height))")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .help("The shot's size in pixels")
         }
 
         ToolbarSpacer(.flexible)
 
         ToolbarItemGroup {
-            Button("Undo", systemImage: "arrow.uturn.backward") { model.undo() }
-                .help("Undo (⌘Z)")
-            Button("Redo", systemImage: "arrow.uturn.forward") { model.redo() }
-                .help("Redo (⇧⌘Z)")
-            Button("Clear All", systemImage: "eraser") { model.clearAll() }
-                .help("Erase all markup (C)")
-        }
-
-        ToolbarItemGroup {
-            Button("Save to Desktop", systemImage: "square.and.arrow.down") { model.save() }
-                .help("Save to Desktop (⌘S)")
+            Button("Save", systemImage: "square.and.arrow.down") { model.save() }
+                .help("Save to “\(Settings.shared.saveFolderName)” (⌘S)")
             Button("Copy Text", systemImage: "text.viewfinder") { model.copyText() }
-                .help("Copy the text in the shot (⌘D)")
+                .help("Copy the text and QR codes in the shot (⌘D)")
         }
 
         ToolbarItem {
@@ -226,8 +235,9 @@ private struct ToolsGrip: View {
 
 /// Two glass capsules under the shot, or over its bottom edge — where Settings puts them: the
 /// tools, and the style — the colours and whatever the current tool or selected object has. Side
-/// by side when they fit, the style above the tools when they don't; on a very narrow shot the
-/// colours fold into one swatch and the capsules scroll.
+/// by side when they fit; narrower, one capsule of the tools and a chip that opens the style in a
+/// popover (the owner's pick, A on the "Pawshot Next" page, 2026-09-29). Stacking the two, folding
+/// the colours and scrolling sideways, what came before, ate the shot's height and hid the rest.
 private struct ToolCapsule: View {
     let model: EditorChromeModel
 
@@ -235,34 +245,30 @@ private struct ToolCapsule: View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
                 tools
-                StyleCapsule(model: model, foldsColours: false)
+                StyleCapsule(model: model)
             }
-            VStack(spacing: 6) {
-                StyleCapsule(model: model, foldsColours: false)
-                tools
+            HStack(spacing: 2) {
+                toolButtons
+                CapsuleDivider()
+                StyleChip(model: model)
             }
-            VStack(spacing: 6) {
-                StyleCapsule(model: model, foldsColours: true)
-                tools
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                VStack(spacing: 6) {
-                    StyleCapsule(model: model, foldsColours: true)
-                    tools
-                }
-            }
+            .glassCapsule()
         }
     }
 
     private var tools: some View {
         HStack(spacing: 2) {
-            ForEach(AnnotationTool.allCases, id: \.self) { tool in
-                ToolButton(tool: tool, model: model)
-                    .buttonStyle(.plain)
-                    .frame(width: 28, height: 28)
-            }
+            toolButtons
         }
         .glassCapsule()
+    }
+
+    private var toolButtons: some View {
+        ForEach(AnnotationTool.allCases, id: \.self) { tool in
+            ToolButton(tool: tool, model: model)
+                .buttonStyle(.plain)
+                .frame(width: 28, height: 28)
+        }
     }
 }
 
@@ -271,60 +277,103 @@ private struct ToolCapsule: View {
 /// opacity for a label, widths for the rest. The opacity slider is always out — no chevron.
 private struct StyleCapsule: View {
     let model: EditorChromeModel
-    let foldsColours: Bool
 
     var body: some View {
         HStack(spacing: 2) {
-            if foldsColours {
-                FoldedColours(model: model)
-            } else {
-                ForEach(AnnotationStyle.Palette.colors.indices, id: \.self) { index in
-                    SwatchButton(index: index, model: model)
-                }
-                CustomSwatchButton(model: model)
-            }
+            StyleColours(model: model)
             CapsuleDivider()
-            if model.showsTextControls {
-                Button {
-                    model.cycleTextStyle()
-                } label: {
-                    TextStylePreview(style: model.style)
-                }
-                .buttonStyle(.plain)
-                .frame(width: 26, height: 26)
-                .help("Text style: plain, outline, plate (F)")
-                .accessibilityLabel("Text style")
+            StyleSizes(model: model)
+            if StyleExtras.shows(for: model) {
                 CapsuleDivider()
-                ForEach(model.textWeights, id: \.rawValue) { weight in
-                    WeightButton(weight: weight, model: model)
-                }
-                CapsuleDivider()
-                OpacitySlider(model: model, minimum: 0.1)
-            } else {
-                ForEach(AnnotationStyle.LineWidth.steps, id: \.self) { width in
-                    WidthButton(width: width, model: model)
-                }
-                if model.showsLineEnds {
-                    CapsuleDivider()
-                    LineEndsPicker(model: model)
-                } else if model.showsFill {
-                    CapsuleDivider()
-                    ShapeKindPicker(model: model)
-                    CapsuleDivider()
-                    Button {
-                        model.cycleFill()
-                    } label: {
-                        FillPreview(style: model.style)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Fill: none, 30%, 60%, solid (F)")
-                    .accessibilityLabel("Fill")
-                    .accessibilityValue(model.style.isFilled ? "\(Int(model.style.fillOpacity * 100))%" : "off")
-                    OpacitySlider(model: model, minimum: 0)
-                }
+                StyleExtras(model: model)
             }
         }
         .glassCapsule()
+    }
+}
+
+/// The same three parts as the capsule, one row each: what the chip opens on a narrow window.
+private struct StyleRows: View {
+    let model: EditorChromeModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 2) { StyleColours(model: model) }
+            HStack(spacing: 2) { StyleSizes(model: model) }
+            if StyleExtras.shows(for: model) {
+                HStack(spacing: 2) { StyleExtras(model: model) }
+            }
+        }
+        .padding(10)
+    }
+}
+
+/// The four colours and one's own.
+private struct StyleColours: View {
+    let model: EditorChromeModel
+
+    var body: some View {
+        ForEach(AnnotationStyle.Palette.colors.indices, id: \.self) { index in
+            SwatchButton(index: index, model: model)
+        }
+        CustomSwatchButton(model: model)
+    }
+}
+
+/// The widths — or, for a label, its look and the family's weights.
+private struct StyleSizes: View {
+    let model: EditorChromeModel
+
+    var body: some View {
+        if model.showsTextControls {
+            Button {
+                model.cycleTextStyle()
+            } label: {
+                TextStylePreview(style: model.style)
+            }
+            .buttonStyle(.plain)
+            .frame(width: 26, height: 26)
+            .help("Text style: plain, outline, plate (F)")
+            .accessibilityLabel("Text style")
+            CapsuleDivider()
+            ForEach(model.textWeights, id: \.rawValue) { weight in
+                WeightButton(weight: weight, model: model)
+            }
+        } else {
+            ForEach(AnnotationStyle.LineWidth.steps, id: \.self) { width in
+                WidthButton(width: width, model: model)
+            }
+        }
+    }
+}
+
+/// What only some objects have: a line's ends, a shape's kind and fill, a label's plate opacity.
+private struct StyleExtras: View {
+    let model: EditorChromeModel
+
+    static func shows(for model: EditorChromeModel) -> Bool {
+        model.showsTextControls || model.showsLineEnds || model.showsFill
+    }
+
+    var body: some View {
+        if model.showsTextControls {
+            OpacitySlider(model: model, minimum: 0.1)
+        } else if model.showsLineEnds {
+            LineEndsPicker(model: model)
+        } else if model.showsFill {
+            ShapeKindPicker(model: model)
+            CapsuleDivider()
+            Button {
+                model.cycleFill()
+            } label: {
+                FillPreview(style: model.style)
+            }
+            .buttonStyle(.plain)
+            .help("Fill: none, 30%, 60%, solid (F)")
+            .accessibilityLabel("Fill")
+            .accessibilityValue(model.style.isFilled ? "\(Int(model.style.fillOpacity * 100))%" : "off")
+            OpacitySlider(model: model, minimum: 0)
+        }
     }
 }
 
@@ -414,8 +463,9 @@ private struct OpacitySlider: View {
     }
 }
 
-/// The colours behind one swatch of the current colour, for a capsule that has no room for five.
-private struct FoldedColours: View {
+/// On a narrow window the whole style behind one chip: the current colour and width, and a
+/// chevron. The keys — digits, [ ], F — work as they always did, with the popover closed.
+private struct StyleChip: View {
     let model: EditorChromeModel
     @State private var isPresented = false
 
@@ -423,24 +473,28 @@ private struct FoldedColours: View {
         Button {
             isPresented = true
         } label: {
-            Circle()
-                .fill(Color(nsColor: model.style.color))
-                .overlay(Circle().strokeBorder(.primary.opacity(0.35), lineWidth: 0.75))
-                .frame(width: 16, height: 16)
-                .frame(width: 24, height: 22)
-                .contentShape(.rect)
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(Color(nsColor: model.style.color))
+                    .overlay(Circle().strokeBorder(.primary.opacity(0.35), lineWidth: 0.75))
+                    .frame(width: 15, height: 15)
+                Capsule()
+                    .fill(.primary)
+                    .frame(width: 14, height: min(max(model.style.lineWidth / 2, 1.5), 5))
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 7)
+            .frame(height: 26)
+            .background(Tokens.paw.opacity(0.14), in: .capsule)
+            .contentShape(.capsule)
         }
         .buttonStyle(.plain)
-        .help("Colours")
-        .accessibilityLabel("Colours")
+        .help("Colour, width and the rest of the style")
+        .accessibilityLabel("Style")
         .popover(isPresented: $isPresented, arrowEdge: .top) {
-            HStack(spacing: 2) {
-                ForEach(AnnotationStyle.Palette.colors.indices, id: \.self) { index in
-                    SwatchButton(index: index, model: model)
-                }
-                CustomSwatchButton(model: model)
-            }
-            .padding(10)
+            StyleRows(model: model)
         }
     }
 }

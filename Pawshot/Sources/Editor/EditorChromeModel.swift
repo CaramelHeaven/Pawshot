@@ -17,6 +17,8 @@ final class EditorChromeModel {
     var selectedKind: AnnotationTool?
     /// The shape R draws now — the current style's, never a selected line's leftover.
     var drawingShapeKind: AnnotationStyle.ShapeKind = .rectangle
+    /// The shot's size in pixels, in the middle of the toolbar.
+    var pixelSize: CGSize = .zero
     /// The weights of the labels' family, one button each.
     var textWeights: [NSFont.Weight] = LabelFont.systemWeights
     var customColor: NSColor = .systemPurple

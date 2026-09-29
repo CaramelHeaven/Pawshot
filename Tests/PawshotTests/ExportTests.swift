@@ -291,6 +291,28 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(Array(data.prefix(4)), [0x89, 0x50, 0x4E, 0x47])
     }
 
+    /// Each format picked in Settings comes out as a file of that type, read back by ImageIO.
+    func testEachFormatWritesItsOwnType() throws {
+        for format in ImageFormat.allCases {
+            let data = try ExportService.data(from: makeImage(), format: format)
+            let source = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
+            XCTAssertEqual(CGImageSourceGetType(source) as String?, format.type.identifier, "\(format)")
+        }
+    }
+
+    /// ⌘S writes a dated file of the chosen format into the chosen folder.
+    func testSavingGoesIntoTheChosenFolder() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("pawshot-save-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let url = try ExportService.save(makeImage(), to: folder, format: .jpeg)
+
+        XCTAssertEqual(url.deletingLastPathComponent().standardizedFileURL, folder.standardizedFileURL)
+        XCTAssertEqual(url.pathExtension, "jpg")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+    }
+
     func testCopyTextPutsItOnPasteboardAsPlainText() {
         let pasteboard = NSPasteboard(name: NSPasteboard.Name("pawshot.tests.text"))
 

@@ -143,7 +143,7 @@ struct VideoEditorView: View {
             Button("Save", action: actions.save)
                 .buttonStyle(.glassProminent)
                 .tint(Tokens.paw)
-                .help("Save to the Desktop (⌘S)")
+                .help("Save to “\(Settings.shared.saveFolderName)” (⌘S)")
         }
         .controlSize(.large)
     }

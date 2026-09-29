@@ -1,21 +1,23 @@
 import AppKit
+import ImageIO
+import UniformTypeIdentifiers
 
 enum ExportError: LocalizedError {
     case encodingFailed
-    case desktopUnavailable(Error)
+    case folderUnavailable(URL, Error)
 
     var errorDescription: String? {
         switch self {
         case .encodingFailed:
-            String(localized: "Couldn't build a PNG out of the shot.")
-        case let .desktopUnavailable(underlying):
-            String(localized: "Couldn't write the file to the Desktop: \(underlying.localizedDescription)")
+            String(localized: "Couldn't build an image file out of the shot.")
+        case let .folderUnavailable(folder, underlying):
+            String(localized: "Couldn't write the file to “\(FileManager.default.displayName(atPath: folder.path))”: \(underlying.localizedDescription)")
         }
     }
 }
 
-/// Hands the finished picture to the outside world: to the clipboard or as a file on the
-/// Desktop.
+/// Hands the finished picture to the outside world: to the clipboard or as a file in the folder
+/// Settings name.
 enum ExportService {
     static func pngData(from image: CGImage) throws -> Data {
         let representation = NSBitmapImageRep(cgImage: image)
@@ -46,24 +48,40 @@ enum ExportService {
         pasteboard.setString(text, forType: .string)
     }
 
-    @discardableResult
-    static func saveToDesktop(_ image: CGImage, fileName: String = ExportNaming.fileName()) throws -> URL {
-        let png = try pngData(from: image)
+    /// The shot as a file of `format`. JPEG and HEIC at 0.9: screenshot text stays crisp, and the
+    /// file is still a fraction of a PNG's.
+    static func data(from image: CGImage, format: ImageFormat) throws -> Data {
+        if format == .png {
+            return try pngData(from: image)
+        }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, format.type.identifier as CFString, 1, nil) else {
+            throw ExportError.encodingFailed
+        }
+        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.9] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw ExportError.encodingFailed
+        }
+        return data as Data
+    }
 
+    /// ⌘S: a new file named by the date in `folder`.
+    @discardableResult
+    static func save(_ image: CGImage, to folder: URL, format: ImageFormat) throws -> URL {
+        try write(image, to: folder.appendingPathComponent(ExportNaming.fileName(extension: format.fileExtension)), format: format)
+    }
+
+    /// Save As…: exactly this file.
+    @discardableResult
+    static func write(_ image: CGImage, to url: URL, format: ImageFormat) throws -> URL {
+        let data = try data(from: image, format: format)
         do {
-            let desktop = try FileManager.default.url(
-                for: .desktopDirectory,
-                in: .userDomainMask,
-                appropriateFor: nil,
-                create: false
-            )
-            let url = desktop.appendingPathComponent(fileName)
-            try png.write(to: url, options: .atomic)
+            try data.write(to: url, options: .atomic)
             return url
         } catch {
-            // A TCC denial lands here too: macOS has a separate permission for the Desktop
-            // folder.
-            throw ExportError.desktopUnavailable(error)
+            // A TCC denial lands here too: macOS guards the Desktop, Documents and Downloads with
+            // a permission of their own.
+            throw ExportError.folderUnavailable(url.deletingLastPathComponent(), error)
         }
     }
 }

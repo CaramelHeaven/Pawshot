@@ -68,6 +68,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         )
         window.isReleasedWhenClosed = false
         window.toolbarStyle = .unified
+        // The size stands in the middle of the toolbar instead; the title stays for Mission
+        // Control and the Window menu.
+        window.titleVisibility = .hidden
 
         super.init(window: window)
 
@@ -298,6 +301,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         if chrome.drawingShapeKind != shapeKind {
             chrome.drawingShapeKind = shapeKind
         }
+        // The size after a crop or a turn, in the middle of the toolbar.
+        if chrome.pixelSize != pixelSize {
+            chrome.pixelSize = pixelSize
+        }
         let weights = LabelFont.weights(of: LabelFont.family)
         if chrome.textWeights != weights {
             chrome.textWeights = weights
@@ -353,7 +360,34 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     }
 
     @objc func saveDocument(_: Any?) {
-        export(to: .desktop)
+        export(to: .folder)
+    }
+
+    /// ⇧⌘S: a name, a folder and a format picked once, in the system's save sheet. The folder and
+    /// format in Settings stay as they are.
+    @objc func saveDocumentAs(_: Any?) {
+        guard let window, !isClosing else { return }
+        canvas.finishTextEditing()
+        let settings = Settings.shared
+        let panel = NSSavePanel()
+        panel.directoryURL = settings.saveFolder
+        panel.nameFieldStringValue = ExportNaming.fileName(extension: settings.imageFormat.fileExtension)
+        panel.allowedContentTypes = [settings.imageFormat.type]
+        panel.canCreateDirectories = true
+        let picker = SaveFormatPicker(initial: settings.imageFormat) { [weak panel] format in
+            panel?.allowedContentTypes = [format.type]
+        }
+        panel.accessoryView = NSHostingView(rootView: picker)
+        Self.editorLogger.notice("save as: sheet opened")
+        panel.beginSheetModal(for: window) { [weak self, weak panel] response in
+            guard response == .OK, let panel, let url = panel.url else {
+                Self.editorLogger.notice("save as: cancelled")
+                return
+            }
+            // The picker keeps the panel's one allowed type in step with the format it shows.
+            let format = ImageFormat.allCases.first { $0.type == panel.allowedContentTypes.first } ?? settings.imageFormat
+            self?.export(to: .file(url, format))
+        }
     }
 
     /// ⌘D: the text of the shot instead of the shot itself. Wired through Edit → Copy Text the
@@ -474,7 +508,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
 
     private enum ExportDestination {
         case clipboard
-        case desktop
+        /// The folder and format in Settings.
+        case folder
+        /// Save As…: this file, in this format.
+        case file(URL, ImageFormat)
     }
 
     private func export(to destination: ExportDestination) {
@@ -496,9 +533,13 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             case .clipboard:
                 try ExportService.copy(image)
                 Self.editorLogger.notice("copied \(image.width)×\(image.height) px in \(Self.milliseconds(since: started)) ms")
-            case .desktop:
-                let url = try ExportService.saveToDesktop(image)
+            case .folder:
+                let settings = Settings.shared
+                let url = try ExportService.save(image, to: settings.saveFolder, format: settings.imageFormat)
                 Self.editorLogger.notice("saved \(image.width)×\(image.height) px to \(url.path, privacy: .public) in \(Self.milliseconds(since: started)) ms")
+            case let .file(url, format):
+                try ExportService.write(image, to: url, format: format)
+                Self.editorLogger.notice("saved as \(image.width)×\(image.height) px to \(url.path, privacy: .public) in \(Self.milliseconds(since: started)) ms")
             }
 
             // No confirmation banner: the window dissolving is the confirmation. The shot is already
@@ -555,8 +596,8 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         syncChrome()
     }
 
-    /// A tap of ⌘Q. A shot nothing was done to closes at once; one with work in it — anything
-    /// drawn, cropped or turned, which is exactly what undo remembers — asks first.
+    /// A tap of ⌘Q. A shot with something drawn on it asks first; any other closes at once —
+    /// growing, cropping or turning it alone is not work worth a question (the owner's call).
     func closeForQuitKey() {
         guard hasWork, let window else {
             Self.editorLogger.notice("⌘Q tap: bare shot, closing")
@@ -578,8 +619,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         }
     }
 
+    /// Something is drawn on the shot. Drawn and then erased is nothing.
     var hasWork: Bool {
-        !editorDocument.annotations.isEmpty || editorDocument.undoManager?.canUndo == true
+        !editorDocument.annotations.isEmpty
     }
 
     /// The labels' family changed in Settings: every open editor re-sets its labels right away.
@@ -780,6 +822,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     private func cropDidChange() {
         canvas.documentCropDidChange()
         updateTitle()
+        syncChrome()
 
         guard resizeEdges == nil else { return }
         fitWindowToShot()

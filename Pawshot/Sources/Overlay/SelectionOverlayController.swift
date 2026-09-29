@@ -114,6 +114,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         hasFrames = false
         pendingSelection = nil
         previousApp = NSWorkspace.shared.frontmostApplication
+        // From the list taken before the overlay, so no window-server call is added on the way
+        // to the dimming — one here was seen to go with the dimming leaking into the frame.
+        OverlayDiagnostics.noteFrontApp(previousApp, windows: capturedWindows)
 
         let primaryMaxY = NSScreen.screens.first.map(\.frame.maxY) ?? 0
         let mouseLocation = NSEvent.mouseLocation
@@ -152,6 +155,10 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             window.orderFrontRegardless()
             // The screen under the cursor becomes key — that's where Esc and the first click go.
             // A non-activating panel takes the keyboard without Pawshot becoming active.
+            //
+            // Not deferred until the frame is taken, though Telegram Desktop's photo viewer may
+            // close on losing the keyboard: tried on 2026-09-29 and rolled back after the dimming
+            // leaked into the frame in test runs — see AGENTS.md, the overlay section.
             if screen.frame.contains(mouseLocation) {
                 window.makeKey()
                 window.makeFirstResponder(view)
@@ -176,6 +183,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
                 try? await Task.sleep(for: .milliseconds(pause))
                 guard let self, isActive else { return }
                 OverlayDiagnostics.check(windows: windows)
+                if pause == 400 {
+                    OverlayDiagnostics.compareFrontAppWindows("at +\(OverlayDiagnostics.sincePress()) ms")
+                }
             }
         }
 
@@ -218,6 +228,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         }
         let since = OverlayDiagnostics.sincePress()
         Self.logger.notice("frames delivered +\(since, privacy: .public) ms")
+        OverlayDiagnostics.compareFrontAppWindows("at the frame")
 
         if let pending = pendingSelection {
             pendingSelection = nil

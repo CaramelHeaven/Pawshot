@@ -17,14 +17,15 @@ final class PawshotSmokeTests: XCTestCase {
     @MainActor
     func testMainMenuKeepsTheEditorShortcuts() throws {
         let menu = try XCTUnwrap(NSApp.mainMenu)
-        func item(_ submenu: String, keyEquivalent: String) -> NSMenuItem? {
+        func item(_ submenu: String, keyEquivalent: String, modifiers: NSEvent.ModifierFlags = [.command]) -> NSMenuItem? {
             menu.item(withTitle: submenu)?.submenu?.items.first {
-                $0.keyEquivalent == keyEquivalent && $0.keyEquivalentModifierMask == [.command]
+                $0.keyEquivalent == keyEquivalent && $0.keyEquivalentModifierMask == modifiers
             }
         }
 
         XCTAssertEqual(item("File", keyEquivalent: "w")?.title, "Close Window")
-        XCTAssertEqual(item("File", keyEquivalent: "s")?.title, "Save to Desktop")
+        XCTAssertEqual(item("File", keyEquivalent: "s")?.title, "Save")
+        XCTAssertEqual(item("File", keyEquivalent: "s", modifiers: [.command, .shift])?.title, "Save As…")
         XCTAssertEqual(item("Edit", keyEquivalent: "z")?.title, "Undo")
         XCTAssertEqual(item("Edit", keyEquivalent: "c")?.title, "Copy")
         XCTAssertEqual(item("Edit", keyEquivalent: "d")?.title, "Copy Text")

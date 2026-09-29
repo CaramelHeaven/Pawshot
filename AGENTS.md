@@ -102,7 +102,7 @@ if the window is closed, then delivers anyway.
 | `P` | format: Original (HEVC) → 1080p (H.264) → GIF 720p 15 fps; remembered |
 | `⌘C` | the file, in the chosen format, onto the clipboard |
 | `⇧⌘C` | a GIF onto the clipboard, whatever the format |
-| `⌘S` | to the Desktop, in the chosen format |
+| `⌘S` | to the save folder (Settings → General → Saving), in the chosen format |
 | `Esc` | let go of the selected piece — never closes |
 | `⌘W` | close and throw the recording away |
 | `⌘Q` tapped / held | ask, then close and throw the recording away / quit Pawshot |
@@ -151,8 +151,10 @@ the tools and their letters, one with the style — four colours always on show 
 white, black), a fifth of one's own with a picker behind it, and then only what the current tool
 or selected object has: widths, the four shapes, the fill and its **always visible opacity
 slider** for a shape, widths and the ends for a line, the look, one "Аа" button per weight of the family
-and the plate's slider for a label. Side by side when they fit, the style above the tools when
-they don't; narrower still, the colours fold into one swatch and the capsules scroll. Settings →
+and the plate's slider for a label. Side by side when they fit; narrower, one capsule of the
+tools and a chip — the current colour and width — that opens the whole style in a popover, a row
+each for the colours, the widths and the rest (the owner's A of 2026-09-29; stacking the two
+capsules, folding the colours and scrolling sideways, what came before, is gone). Settings →
 General → Editor puts them in a strip of their own under the shot (the default; the window's
 chrome is measured, so growing the shot by its edge accounts for the strip) or floating over the
 shot's bottom edge; the switch applies at once, and open windows refit. Over the shot, the panel
@@ -168,8 +170,11 @@ content is not a view, and the canvas answers (`testHitTestSeesTheCanvasUnderASw
 the panel reports its frame, and the shot's, in SwiftUI's global space; the controller maps it onto
 the window through the shot (`SelectionGeometry.windowRect`, since where SwiftUI's global space
 starts under the title bar and toolbar is not to be assumed), and the canvas leaves the cursor
-alone inside it (`cursorExclusion`). The SwiftUI toolbar on top holds only the two turns, history, and Copy as the
-one orange primary action. The shot sits between them as a sheet of paper. Annotations are
+alone inside it (`cursorExclusion`). The SwiftUI toolbar on top (the owner's T2 of 2026-09-29)
+splits the way Preview does: what changes the shot on the left — undo and redo, then the two turns
+and Clear All — the size in pixels in the middle, and the ways out on the right — Save, Copy Text,
+and Copy as the one orange primary action. The window's own title is hidden, since the middle
+says it; it stays for Mission Control and the Window menu. Save As… is `⇧⌘S` and the File menu. The shot sits between them as a sheet of paper. Annotations are
 **objects**: they can be moved, recoloured and deleted one by one, and all of it is undoable with
 `⌘Z`. The toolbar shows the selected object's style, and a change to it — a colour, the fill, a
 line's ends — goes to that object alone: a blue double arrow made single stays blue.
@@ -246,12 +251,16 @@ drag is one `⌘Z`, and the whole thing switches itself off once the shot no lon
 window — there dragging the window means "show more", not "capture more". The shot is always
 displayed at its own size; there is no zoom in the editor.
 
-The finished result leaves the app in three ways: `⌘C` to the clipboard, `⌘S` as a file
-`pawshot-<date>-<time>-<UUID tail>.png` on the Desktop, and `⌘D` as the **text** read off the shot.
+The finished result leaves the app in four ways: `⌘C` to the clipboard, `⌘S` as a file
+`pawshot-<date>-<time>-<UUID tail>.png` (or `.jpg`, `.heic`) in the save folder — the Desktop until
+Settings → General → Saving names another, in the format picked there — `⇧⌘S` through the
+system's save sheet with a name, folder and format for this once, and `⌘D` as the **text** read
+off the shot, with what any QR code or barcode on it holds first.
 All three hand the result off first and then **dissolve the window in 150 ms** (plain alpha) — the
 window going away is the confirmation. No banners, no thumbnail in a corner, no waiting: the fade
 starts after the clipboard or the file is already written, and the window stops taking clicks the
-moment it starts fading. Dragging the picture out with the mouse is a separate future iteration.
+moment it starts fading. Dragging the picture out with the mouse is not built: it came with the
+shot chip of T1, which the owner swapped for T2.
 
 `⌘D` reads the flattened picture and not the bare frame, so a blurred password is gone from the
 clipboard too. Picking text with the mouse, the way Preview does, is deliberately not built: it
@@ -270,8 +279,9 @@ a single existing gesture.
 | `B` | blur | `C` | clear all (no confirmation, `⌘Z` brings it back) |
 | `N` | step counter | drag a window edge | grow or crop the shot |
 | | | `⌘C` | copy the result to the clipboard, the window closes |
-| | | `⌘D` | copy the text read off the shot, the window closes |
-| | | `⌘S` | save a PNG to the Desktop, the window closes |
+| | | `⌘D` | copy the QR codes' payloads and the text read off the shot, the window closes |
+| | | `⌘S` | save to the save folder in the save format, the window closes |
+| | | `⇧⌘S` | save as — name, folder, format — the window closes |
 | | | hold `⌘` | move whatever is under the cursor, without leaving the tool |
 | | | `⇧` dragging a handle | a line's end or a turn on 15° steps; a corner keeps proportions |
 | | | `⌥` dragging a handle | a rectangle or a blur grows from its middle |
@@ -293,8 +303,9 @@ Pawshot quits without asking, and let go before that the toast melts away and no
 happens. The press starts a check that polls the key state, since a held key sends only repeats.
 Once the hold has run out, further presses are ignored: a key repeat during the 150 ms fade used
 to start a new timing, and let go then, read as a tap that closed a window mid-quit.
-A tap on a shot with work in it — anything drawn, cropped or turned, i.e. anything undo
-remembers — asks first in a sheet; a bare shot closes at once. The video editor always asks, its
+A tap on a shot with something drawn on it asks first in a sheet; any other shot closes at once —
+a crop, a grown edge or a turn alone is no reason to ask (the owner's call, 2026-09-29; it used
+to ask for anything undo remembered). The video editor always asks, its
 recording being thrown away, unless an export is running. Settings and the other small windows
 just close; the capture overlay ignores a tap. The paw menu's "Quit Pawshot" quits at once as it
 always did.
@@ -558,14 +569,16 @@ Paths are given relative to `Pawshot/Sources/`.
 | The glass badge and key hints over the overlay        | `Overlay/OverlayHUD.swift`              |
 | Flattening the shot with annotations into a picture   | `Editor/AnnotationRenderer.swift`       |
 | The saved file name                                   | `Editor/Export/ExportNaming.swift`      |
-| The clipboard and writing to the Desktop              | `Editor/Export/ExportService.swift`     |
+| The clipboard, file formats, the save folder          | `Editor/Export/ExportService.swift`     |
+| Save As…'s format picker                              | `Editor/Export/SaveFormatPicker.swift`  |
+| The save folder and format settings                   | `App/Settings.swift` (`saveFolder`, `imageFormat`) |
 | Drawing, mouse, hotkeys, text input                   | `Editor/AnnotationCanvasView.swift`     |
 | The "drag an object or draw a new one" rule           | `Editor/CanvasInteraction.swift`        |
 | ⌘Q: tap closes the window, hold quits                  | `App/QuitKey.swift`                     |
 | The "Hold ⌘Q to Quit" toast                           | `App/QuitToast.swift`                   |
 | The annotation list, selection, undo, turning the shot | `Editor/EditorDocument.swift`          |
 | The colour picker behind the fifth swatch, hex        | `Editor/ColorPickerPopover.swift`       |
-| The bottom capsule, the top toolbar                   | `Editor/EditorView.swift`               |
+| The bottom capsule, the style chip, the top toolbar   | `Editor/EditorView.swift`               |
 | The labels' family, its weights, the nearest face     | `Editor/Model/LabelFont.swift`          |
 | A label's corner handles, the size drag               | `Editor/AnnotationCanvasView.swift`, `TextAnnotation.resize` |
 | Which handles an object has, where, the cursor        | `Editor/CanvasHandles.swift`            |
@@ -574,7 +587,7 @@ Paths are given relative to `Pawshot/Sources/`.
 | A new tool: letter, icon, object creation             | `Editor/Tools/AnnotationTool.swift`     |
 | How a specific annotation looks and is hit by a mouse | `Editor/Model/*Annotation.swift`        |
 | **Line breaks, blank lines, indent in the read text** | `Editor/TextRecognition/TextLayout.swift` |
-| Talking to Vision, recognition languages              | `Editor/TextRecognition/TextRecognitionService.swift` |
+| Talking to Vision, recognition languages, QR codes    | `Editor/TextRecognition/TextRecognitionService.swift` |
 | A key that must work on any keyboard layout           | `App/KeyboardLayout.swift`              |
 | A translation, a new language                         | `Resources/Localizable.xcstrings`, `defaultKnownRegions` in `Project.swift` |
 | The language picker and how it is applied             | `App/Settings.swift` (`language`), `Settings/SettingsView.swift` |
@@ -1069,7 +1082,18 @@ Measured in the test host on a 5K screen: hotkey → first draw 9–52 ms (was 9
 catches up at 43–95 ms.
 
 The overlay is a **non-activating `NSPanel`**. It takes Esc, Space, M and ↩ without making
-Pawshot the active app. `NSApp.activate()` is gone from the overlay, and with it the cooperative
+Pawshot the active app. Taking the keyboard may still close what the app in front shows: the
+owner's Telegram Desktop photo viewer was gone from the frame (2026-09-29). Making the overlay key
+only once the frame was taken was tried and rolled back: the dimming then leaked into the frame in
+3 of 10 full test runs (`testTheFrameTakenAtOnceDoesNotContainTheOverlay`). The same change had
+also put a `CGWindowListCopyWindowInfo` in `begin`, right before the overlay goes up, and the leak
+kept coming with the key back at once (1 of 2) and stopped once that call was gone (7 of 7) — so
+the call, not the deferred key, is the likelier cause, and the deferred key was not measured again
+without it. **No window-server call belongs between the hotkey and the overlay** beyond the one
+list `AppDelegate` already takes. The log compares the front app's ordinary windows from that list
+with those at the frame and 500 ms in (`front app windows: … gone: …`, an `.error` when one went):
+the next fix waits for that line from a real Telegram. Meanwhile ⇧⌘1 takes the screen with no
+overlay at all. `NSApp.activate()` is gone from the overlay, and with it the cooperative
 activation of macOS 14+, the Space it may switch to, and the four-second stall in her log. The
 other app stays active, so its open menu is still open when the frame is taken — which is what
 the old "freeze first" order was protecting. The editor that opens afterwards activates Pawshot
@@ -1246,8 +1270,9 @@ as its window is open — around 60 MB on a 5K screen, per window. That is what 
 shot possible at all, and it is why the frame must not be re-captured instead: by the time the
 editor is open, Pawshot is active and every other app's menu has already closed.
 
-`⌘S` writes to `~/Desktop`, and macOS has a **separate permission** for that folder — the system
-asks on the first save. A refusal arrives as a write error: we show an alert and **don't** close
+`⌘S` writes to the save folder (`Settings.saveFolder`, the Desktop by default; one gone missing
+falls back to it), and macOS has a **separate permission** for the Desktop, Documents and
+Downloads — the system asks on the first save there. A refusal arrives as a write error: we show an alert and **don't** close
 the window, otherwise the work is gone.
 
 ### Installation and launch at login

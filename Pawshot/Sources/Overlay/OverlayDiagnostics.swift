@@ -87,6 +87,39 @@ enum OverlayDiagnostics {
         timeline.map { " (+\($0.milliseconds(date)) ms since the hotkey)" } ?? ""
     }
 
+    private static var frontPID: pid_t?
+    private static var frontWindowsAtPress: [CGWindowID: CGSize] = [:]
+
+    /// The app in front's ordinary windows at the hotkey, from the list the overlay was given, so
+    /// this adds nothing on the way to the dimming. Telegram Desktop's photo viewer was gone from
+    /// the frame (the owner's report, 2026-09-29), likely closed by the overlay taking the
+    /// keyboard; this list against the one at the frame and 500 ms in says which window went.
+    static func noteFrontApp(_ app: NSRunningApplication?, windows: [CapturedWindow]) {
+        guard Logger.isCollecting, let pid = app?.processIdentifier else {
+            frontPID = nil
+            return
+        }
+        frontPID = pid
+        frontWindowsAtPress = Dictionary(
+            windows.filter { $0.ownerPID == pid }.map { ($0.windowID, $0.frame.size) },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
+    /// `moment` names the look — "at the frame", "at +500 ms". A window gone is an `.error`.
+    static func compareFrontAppWindows(_ moment: String) {
+        guard let pid = frontPID else { return }
+        let now = Set(ScreenCaptureService.onScreenWindows().filter { $0.ownerPID == pid }.map(\.windowID))
+        let gone = frontWindowsAtPress.filter { !now.contains($0.key) }
+        let before = frontWindowsAtPress.count
+        if gone.isEmpty {
+            logger.notice("front app windows: before \(before, privacy: .public), \(moment, privacy: .public) \(now.count, privacy: .public)")
+        } else {
+            let list = gone.map { "\($0.key) \(Int($0.value.width))×\(Int($0.value.height))" }.sorted().joined(separator: ", ")
+            logger.error("front app windows: before \(before, privacy: .public), \(moment, privacy: .public) \(now.count, privacy: .public), gone: \(list, privacy: .public)")
+        }
+    }
+
     static func began() {
         timeline?.begin(at: Date())
         let elapsed = sincePress()

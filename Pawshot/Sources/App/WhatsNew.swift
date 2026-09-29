@@ -14,6 +14,23 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.5", text: String(localized: """
+            Pick where ⌘S saves and in what format — PNG, JPEG or HEIC — in Settings → General → \
+            Saving. Videos go to the same folder. ⇧⌘S asks for a name, a folder and a format just \
+            once.
+
+            ⌘D now reads QR codes and barcodes too: what they hold goes to the clipboard first, then \
+            the text.
+
+            In a narrow editor window the tools stay in one row, and the colours and widths open \
+            from the chip next to them.
+
+            The toolbar is rearranged: undo, turns and Clear All on the left, the size of the shot \
+            in the middle, saving and copying on the right.
+
+            ⌘Q no longer asks before closing a shot you only resized or turned — only one with \
+            something drawn on it.
+            """)),
             Entry(version: "0.4.10", text: String(localized: """
             A shortcut you change or remove in Settings during a recording now takes effect at \
             once. Until now the old one kept working until the recording ended, so pressing \

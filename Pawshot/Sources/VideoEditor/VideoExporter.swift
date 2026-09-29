@@ -406,13 +406,12 @@ final class GIFWriter {
     }
 }
 
-/// Where a finished video goes: the Desktop, or a file on the clipboard.
+/// Where a finished video goes: the folder Settings name for saves (the Desktop by default), or
+/// a file on the clipboard.
 enum VideoHandOff {
-    static func desktopURL(for preset: VideoPreset) throws -> URL {
-        let desktop = try FileManager.default.url(
-            for: .desktopDirectory, in: .userDomainMask, appropriateFor: nil, create: false
-        )
-        return desktop.appendingPathComponent(ExportNaming.fileName(extension: preset.fileExtension))
+    @MainActor
+    static func savedURL(for preset: VideoPreset) -> URL {
+        Settings.shared.saveFolder.appendingPathComponent(ExportNaming.fileName(extension: preset.fileExtension))
     }
 
     /// A file on the clipboard has to outlive the paste, so clips live in Caches rather than in

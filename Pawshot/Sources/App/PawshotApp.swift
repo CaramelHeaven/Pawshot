@@ -109,10 +109,16 @@ private struct EditorCommands: Commands {
             }
             .keyboardShortcut("w")
 
-            Button("Save to Desktop") {
+            // Into the folder and format set in Settings → General.
+            Button("Save") {
                 send(#selector(EditorWindowController.saveDocument(_:)))
             }
             .keyboardShortcut("s")
+
+            Button("Save As…") {
+                send(#selector(EditorWindowController.saveDocumentAs(_:)))
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])
         }
 
         CommandGroup(after: .pasteboard) {

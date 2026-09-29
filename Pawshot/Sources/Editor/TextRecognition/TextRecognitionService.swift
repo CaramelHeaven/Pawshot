@@ -23,9 +23,27 @@ enum TextRecognitionError: LocalizedError {
 /// together and every indent is stripped. Vision hands over one observation per line, already
 /// grouped by column, and its boxes are what `TextLayout` rebuilds the shape from.
 enum TextRecognitionService {
-    /// Reads the shot. An empty string is a legitimate answer — a screenshot of a photo has no
-    /// text in it — and what to do about that belongs to the caller.
+    /// Reads the shot: what its QR codes and barcodes hold, then its text
+    /// (`TextLayout.clipboardText`). An empty string is a legitimate answer — a screenshot of a
+    /// photo has no text in it — and what to do about that belongs to the caller.
     static func text(for image: CGImage) async throws -> String {
+        async let codes = codes(in: image)
+        let text = try await lines(in: image)
+        return try await TextLayout.clipboardText(codes: codes, text: text)
+    }
+
+    /// The payloads of every code Vision finds, in its order. The same request family as the
+    /// text, so it runs in the same few milliseconds.
+    static func codes(in image: CGImage) async throws -> [String] {
+        let request = DetectBarcodesRequest()
+        do {
+            return try await request.perform(on: image, orientation: .up).compactMap(\.payloadString)
+        } catch {
+            throw TextRecognitionError.recognitionFailed(error)
+        }
+    }
+
+    private static func lines(in image: CGImage) async throws -> String {
         var request = RecognizeTextRequest()
         request.recognitionLevel = .accurate
         // Off on purpose. With the correction on, the recogniser "helpfully" turns

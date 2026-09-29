@@ -671,6 +671,26 @@
         }
       }
     },
+    "Choose" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать"
+          }
+        }
+      }
+    },
+    "Choose…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать…"
+          }
+        }
+      }
+    },
     "Circle (R)" : {
       "localizations" : {
         "ru" : {
@@ -791,12 +811,12 @@
         }
       }
     },
-    "Colours" : {
+    "Colour, width and the rest of the style" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Цвета"
+            "value" : "Цвет, толщина и остальной стиль"
           }
         }
       }
@@ -871,12 +891,12 @@
         }
       }
     },
-    "Copy the text in the shot (⌘D)" : {
+    "Copy the text and QR codes in the shot (⌘D)" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Скопировать текст со снимка (⌘D)"
+            "value" : "Скопировать текст и QR-коды со снимка (⌘D)"
           }
         }
       }
@@ -891,22 +911,22 @@
         }
       }
     },
-    "Couldn't build a PNG out of the shot." : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Не удалось собрать PNG из снимка."
-          }
-        }
-      }
-    },
     "Couldn't build a picture of the shot to read." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Не удалось собрать изображение снимка для распознавания."
+          }
+        }
+      }
+    },
+    "Couldn't build an image file out of the shot." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось собрать файл изображения из снимка."
           }
         }
       }
@@ -991,12 +1011,18 @@
         }
       }
     },
-    "Couldn't write the file to the Desktop: %@" : {
+    "Couldn't write the file to “%@”: %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Couldn't write the file to “%1$@”: %2$@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Не удалось записать файл на Рабочий стол: %@"
+            "value" : "Не удалось записать файл в «%@»: %@"
           }
         }
       }
@@ -1280,6 +1306,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Формат (P)"
+          }
+        }
+      }
+    },
+    "Format:" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Формат:"
           }
         }
       }
@@ -1980,6 +2016,16 @@
         }
       }
     },
+    "Pick where ⌘S saves and in what format — PNG, JPEG or HEIC — in Settings → General → Saving. Videos go to the same folder. ⇧⌘S asks for a name, a folder and a format just once.\n\n⌘D now reads QR codes and barcodes too: what they hold goes to the clipboard first, then the text.\n\nIn a narrow editor window the tools stay in one row, and the colours and widths open from the chip next to them.\n\nThe toolbar is rearranged: undo, turns and Clear All on the left, the size of the shot in the middle, saving and copying on the right.\n\n⌘Q no longer asks before closing a shot you only resized or turned — only one with something drawn on it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Куда ⌘S сохраняет и в каком формате — PNG, JPEG или HEIC, — теперь выбирается в Настройки → Основные → Сохранение. Видео идут в ту же папку. ⇧⌘S один раз спрашивает имя, папку и формат.\n\n⌘D теперь читает и QR-коды со штрихкодами: сначала в буфер идёт их содержимое, потом текст.\n\nВ узком окне редактора инструменты остаются в один ряд, а цвета и толщины открываются из кнопки рядом с ними.\n\nПанель сверху переставлена: слева отмена, повороты и «Очистить всё», по центру размер снимка, справа сохранение и копирование.\n\n⌘Q больше не спрашивает, прежде чем закрыть снимок, который только растянули или повернули, — только если на нём что-то нарисовано."
+          }
+        }
+      }
+    },
     "Pigeon: shots at the height of the day." : {
       "localizations" : {
         "ru" : {
@@ -2536,6 +2582,26 @@
         }
       }
     },
+    "Save As…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить как…"
+          }
+        }
+      }
+    },
+    "Save To" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранять в"
+          }
+        }
+      }
+    },
     "Save and copy as" : {
       "localizations" : {
         "ru" : {
@@ -2576,32 +2642,12 @@
         }
       }
     },
-    "Save to Desktop" : {
+    "Save to “%@” (⌘S)" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сохранить на Рабочий стол"
-          }
-        }
-      }
-    },
-    "Save to Desktop (⌘S)" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сохранить на Рабочий стол (⌘S)"
-          }
-        }
-      }
-    },
-    "Save to the Desktop (⌘S)" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сохранить на Рабочий стол (⌘S)"
+            "value" : "Сохранить в «%@» (⌘S)"
           }
         }
       }
@@ -2612,6 +2658,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Сохранить…"
+          }
+        }
+      }
+    },
+    "Saving" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранение"
           }
         }
       }
@@ -2642,6 +2698,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ScreenCaptureKit не вернул дисплей %u — скорее всего, нет доступа к записи экрана."
+          }
+        }
+      }
+    },
+    "Screenshot Format" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Формат снимков"
           }
         }
       }
@@ -2868,6 +2934,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Остановить запись"
+          }
+        }
+      }
+    },
+    "Style" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стиль"
           }
         }
       }
@@ -3122,6 +3198,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Выбранная область не попала в снятый кадр."
+          }
+        }
+      }
+    },
+    "The shot's size in pixels" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размер снимка в пикселях"
           }
         }
       }
@@ -3783,6 +3869,16 @@
     },
     "⌘S" : {
       "shouldTranslate" : false
+    },
+    "⌘S puts shots and videos here; ⇧⌘S picks a name, a folder and a format just once. PNG keeps every pixel, JPEG and HEIC are several times smaller." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘S кладёт снимки и видео сюда; ⇧⌘S один раз спрашивает имя, папку и формат. PNG хранит каждый пиксель, JPEG и HEIC в несколько раз меньше."
+          }
+        }
+      }
     },
     "⌘Z presses" : {
       "localizations" : {

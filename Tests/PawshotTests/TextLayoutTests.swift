@@ -1,3 +1,5 @@
+import CoreImage
+import CoreImage.CIFilterBuiltins
 @testable import Pawshot
 import XCTest
 
@@ -218,5 +220,33 @@ final class TextLayoutTests: XCTestCase {
             Right column four
             """
         )
+    }
+
+    /// ⌘D on a shot with a QR code: the code's payload first, then the text, a blank line between.
+    func testCodesComeBeforeTheText() {
+        XCTAssertEqual(TextLayout.clipboardText(codes: [], text: "Hello"), "Hello")
+        XCTAssertEqual(TextLayout.clipboardText(codes: ["https://pawshot.app"], text: ""), "https://pawshot.app")
+        XCTAssertEqual(
+            TextLayout.clipboardText(codes: ["https://a.io", "https://a.io", "978-5"], text: "Scan me"),
+            "https://a.io\n978-5\n\nScan me",
+            "a code reported twice is written once"
+        )
+        XCTAssertEqual(TextLayout.clipboardText(codes: [], text: ""), "")
+    }
+}
+
+/// Unlike the text, a QR code is read the same way on every Mac, so Vision is exercised here.
+final class BarcodeRecognitionTests: XCTestCase {
+    func testAQRCodeOnTheShotIsRead() async throws {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data("https://github.com/CaramelHeaven/Pawshot".utf8)
+        let code = try XCTUnwrap(filter.outputImage).transformed(by: CGAffineTransform(scaleX: 12, y: 12))
+        // A quiet white margin around it, as on any screen.
+        let canvas = CIImage(color: .white).cropped(to: code.extent.insetBy(dx: -60, dy: -60))
+        let image = try XCTUnwrap(CIContext().createCGImage(code.composited(over: canvas), from: canvas.extent))
+
+        let codes = try await TextRecognitionService.codes(in: image)
+
+        XCTAssertEqual(codes, ["https://github.com/CaramelHeaven/Pawshot"])
     }
 }

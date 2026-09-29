@@ -3,6 +3,7 @@ import CoreGraphics
 import Foundation
 import Observation
 import os
+import UniformTypeIdentifiers
 
 /// What the app remembers between launches. Deliberately thin: only the values that are really
 /// stored, each with a default, so a fresh install and a broken value behave the same way.
@@ -46,6 +47,8 @@ final class Settings {
         case labelFont = "editor.labelFont"
         case toolsPlacement = "editor.toolsPlacement"
         case overlayToolsScale = "editor.overlayToolsScale"
+        case saveFolder = "export.folder"
+        case imageFormat = "export.imageFormat"
     }
 
     /// Told when a hotkey changed, so `AppDelegate` can re-register it.
@@ -320,6 +323,48 @@ final class Settings {
         }
     }
 
+    /// Where ⌘S puts shots and videos. The Desktop until another folder is chosen; a folder that
+    /// is gone by now falls back to it rather than failing every save.
+    var saveFolder: URL {
+        get {
+            _ = revision
+            if let path = defaults.string(forKey: Key.saveFolder.rawValue) {
+                var isDirectory: ObjCBool = false
+                if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
+                    return URL(fileURLWithPath: path, isDirectory: true)
+                }
+            }
+            return Self.desktop
+        }
+        set {
+            Self.logger.notice("save folder → \(newValue.path, privacy: .public)")
+            defaults.set(newValue.path, forKey: Key.saveFolder.rawValue)
+            revision += 1
+        }
+    }
+
+    /// The folder as the Finder names it — "Desktop" reads «Рабочий стол» in Russian.
+    var saveFolderName: String {
+        FileManager.default.displayName(atPath: saveFolder.path)
+    }
+
+    static var desktop: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop", isDirectory: true)
+    }
+
+    /// The format ⌘S and a dragged shot are written in. Videos keep their own (the editor's P).
+    var imageFormat: ImageFormat {
+        get {
+            _ = revision
+            return defaults.string(forKey: Key.imageFormat.rawValue).flatMap(ImageFormat.init(rawValue:)) ?? .png
+        }
+        set {
+            Self.logger.notice("image format → \(newValue.rawValue, privacy: .public)")
+            defaults.set(newValue.rawValue, forKey: Key.imageFormat.rawValue)
+            revision += 1
+        }
+    }
+
     /// How big the tools are drawn over the shot, dragged by their edge; 1 is their own size. The
     /// editor keeps it within `SelectionGeometry.toolsScale`.
     var overlayToolsScale: CGFloat {
@@ -439,6 +484,39 @@ enum AppLanguage: String, CaseIterable {
 }
 
 /// Where the editor's capsule of tools and colours sits.
+/// A saved shot's file format. PNG keeps every pixel; JPEG and HEIC are a fraction of the size
+/// for a photo-like shot and blur text edges a little.
+enum ImageFormat: String, CaseIterable {
+    case png
+    case jpeg
+    case heic
+
+    var fileExtension: String {
+        switch self {
+        case .png: "png"
+        case .jpeg: "jpg"
+        case .heic: "heic"
+        }
+    }
+
+    var type: UTType {
+        switch self {
+        case .png: .png
+        case .jpeg: .jpeg
+        case .heic: .heic
+        }
+    }
+
+    /// As on the picker; the names are the formats' own and stay untranslated.
+    var name: String {
+        switch self {
+        case .png: "PNG"
+        case .jpeg: "JPEG"
+        case .heic: "HEIC"
+        }
+    }
+}
+
 enum ToolsPlacement: String, CaseIterable {
     /// A strip of its own under the shot: nothing of the shot is covered.
     case below

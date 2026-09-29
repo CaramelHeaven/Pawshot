@@ -80,6 +80,28 @@ private struct GeneralSettings: View {
                     .foregroundStyle(.secondary)
             }
             Section {
+                LabeledContent("Save To") {
+                    HStack {
+                        Text(verbatim: settings.saveFolderName)
+                            .foregroundStyle(.secondary)
+                            .help(settings.saveFolder.path)
+                        Button("Choose…", action: chooseSaveFolder)
+                    }
+                }
+                Picker("Screenshot Format", selection: $settings.imageFormat) {
+                    ForEach(ImageFormat.allCases, id: \.self) { format in
+                        Text(verbatim: format.name).tag(format)
+                    }
+                }
+                .pickerStyle(.segmented)
+            } header: {
+                Text("Saving")
+            } footer: {
+                Text("⌘S puts shots and videos here; ⇧⌘S picks a name, a folder and a format just once. PNG keeps every pixel, JPEG and HEIC are several times smaller.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Section {
                 Toggle("Collect Logs", isOn: LogExport.collectingBinding)
                 if settings.collectsLogs {
                     LabeledContent(isCollectingLogs ? "Collecting…" : "Logs") {
@@ -106,6 +128,19 @@ private struct GeneralSettings: View {
         }
         .formStyle(.grouped)
         .frame(height: 720)
+    }
+
+    private func chooseSaveFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = settings.saveFolder
+        panel.prompt = String(localized: "Choose")
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            Settings.shared.saveFolder = url
+        }
     }
 
     /// What is running and whose it is — first, so it is there without scrolling.

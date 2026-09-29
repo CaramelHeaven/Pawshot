@@ -26,6 +26,17 @@ enum TextLayout {
     /// `->` losing its dash is left alone — restoring that would be guessing.
     private static let substitutions: [(Character, Character)] = [("‹", "<")]
 
+    /// What ⌘D puts on the clipboard: each code's payload on a line of its own, a blank line, then
+    /// the text. A code Vision reports twice is written once; with no codes it is the text alone.
+    static func clipboardText(codes: [String], text: String) -> String {
+        let unique = codes.reduce(into: [String]()) { unique, code in
+            if !code.isEmpty, !unique.contains(code) {
+                unique.append(code)
+            }
+        }
+        return [unique.joined(separator: "\n"), text].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    }
+
     static func assemble(_ lines: [Line]) -> String {
         guard !lines.isEmpty else { return "" }
 
