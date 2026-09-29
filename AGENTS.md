@@ -102,7 +102,7 @@ if the window is closed, then delivers anyway.
 | `P` | format: Original (HEVC) → 1080p (H.264) → GIF 720p 15 fps; remembered |
 | `⌘C` | the file, in the chosen format, onto the clipboard |
 | `⇧⌘C` | a GIF onto the clipboard, whatever the format |
-| `⌘S` | to the save folder (Settings → General → Saving), in the chosen format |
+| `⌘S` | to the save folder (Settings → Screenshots → Saving), in the chosen format |
 | `Esc` | let go of the selected piece — never closes |
 | `⌘W` | close and throw the recording away |
 | `⌘Q` tapped / held | ask, then close and throw the recording away / quit Pawshot |
@@ -135,13 +135,18 @@ glass bar shows the microphone with its live level and the system sound.
 | `Space` | window mode |
 | `Esc` | a half-typed size first, then cancel |
 
-All four shortcuts are editable in **Settings** (`⌘,`), which also carries launch at login, the
-interface language and the recording sound. macOS takes a screenshot combination — and "Move
+All four shortcuts are editable in **Settings** (`⌘,`). Its tabs are the owner's О-C, Г-A, З-C
+and Ш-C of 2026-09-29, picked from a page of mockups: General (launch at login, ⌘Q, the language,
+the log), Screenshots (saving and the editor), Recording, Shortcuts and Statistics; About is not a
+tab, it has its window. The Recording rows name the key that changes each one for a single take
+(M, S, X on the overlay, P in the editor), their long explanations in tooltips. Shortcuts is a
+cheat sheet: each shortcut a card with big caps — `HotKeyRecorderView` with `style = .card` —
+recorded by a click on the card. macOS takes a screenshot combination — and "Move
 focus to next window", with ⇧ for its other direction — before Carbon ever hands it to us, so the
 settings window reads the real state of the system shortcuts (`SystemScreenshotShortcuts`) and
-warns while one of ours is still taken, naming the item as System Settings does ("Keyboard → Move
-focus to next window"), instead of silently doing nothing. The × at the right end
-of a field takes the shortcut away: the action then has none — the field reads "Record Shortcut",
+warns on the card of one of ours still taken — a red outline, "macOS takes it · Fix…", the item
+named as System Settings does in its tooltip ("Keyboard → Move focus to next window") — instead
+of silently doing nothing. The × in the card's corner takes the shortcut away: the action then has none — the field reads "Record Shortcut",
 the menu item shows no keys, and the action is reached from the paw's menu or the pill. A cleared
 one is stored as `none`, apart from a missing key (the default), so Restore Defaults brings every
 one back.
@@ -155,7 +160,7 @@ and the plate's slider for a label. Side by side when they fit; narrower, one ca
 tools and a chip — the current colour and width — that opens the whole style in a popover, a row
 each for the colours, the widths and the rest (the owner's A of 2026-09-29; stacking the two
 capsules, folding the colours and scrolling sideways, what came before, is gone). Settings →
-General → Editor puts them in a strip of their own under the shot (the default; the window's
+Screenshots → Editor puts them in a strip of their own under the shot (the default; the window's
 chrome is measured, so growing the shot by its edge accounts for the strip) or floating over the
 shot's bottom edge; the switch applies at once, and open windows refit. Over the shot, the panel
 has a visible grip at each end — a pill that lights up in the paw colour on a 16 pt strip: drag it
@@ -197,8 +202,8 @@ and an eyedropper (`NSColorSampler`) that takes a colour straight off the shot; 
 between launches.
 
 **Labels are set in any font family installed on the Mac**, the system font by default, picked
-in Settings → General → Editor from a searchable list where each family is written in itself,
-with a live label on a strip of shot under it. The family is one for all labels
+in Settings → Screenshots → Editor from a searchable list, opened from a button, where each family
+is written in itself, with a live label on a strip of shot under the button. The family is one for all labels
 (`LabelFont.family`) and applies at once: every open editor re-measures the labels already drawn
 (`EditorDocument.labelFontDidChange`) — the owner's call, and not a step of ⌘Z, since it is a
 setting. A family no longer installed falls back to the system font. Each label keeps its own
@@ -253,7 +258,7 @@ displayed at its own size; there is no zoom in the editor.
 
 The finished result leaves the app in four ways: `⌘C` to the clipboard, `⌘S` as a file
 `pawshot-<date>-<time>-<UUID tail>.png` (or `.jpg`, `.heic`) in the save folder — the Desktop until
-Settings → General → Saving names another, in the format picked there — `⇧⌘S` through the
+Settings → Screenshots → Saving names another, in the format picked there — `⇧⌘S` through the
 system's save sheet with a name, folder and format for this once, and `⌘D` as the **text** read
 off the shot, with what any QR code or barcode on it holds first.
 All three hand the result off first and then **dissolve the window in 150 ms** (plain alpha) — the
@@ -309,6 +314,13 @@ to ask for anything undo remembered). The video editor always asks, its
 recording being thrown away, unless an export is running. Settings and the other small windows
 just close; the capture overlay ignores a tap. The paw menu's "Quit Pawshot" quits at once as it
 always did.
+
+**Closing the last editor gives the focus back** to the app that was in front when it opened
+(`App/FocusHandBack.swift`), however it closes — a ⌘Q tap, ⌘W, ⌘C/⌘S/⌘D, the red button. Before,
+Pawshot stayed the active app with no window, and typing went nowhere (the owner, 2026-09-29).
+Another Pawshot window still open — Settings, a second editor — keeps the focus. Activation is
+cooperative since macOS 14, so whether it went through is logged half a second later
+(`focus not handed back … still active` is an `.error`).
 
 **The editor opens in the middle of the screen the shot was taken on**, and a shot bigger than the
 window (a full-screen capture) opens scrolled to its middle, still at 1:1.
@@ -490,7 +502,8 @@ instead of the global tuist 4.7.0, under which the manifests don't work.
 ```
 make            # list the targets
 make build      # Debug build
-make test       # run PawshotTests
+make test       # run PawshotTests, minus the ones that take the screen or the focus
+make test-ui    # every test, windows and overlays included — the Mac is busy meanwhile
 make lint       # SwiftFormat, changing nothing
 make format     # format the sources
 make icon       # redraw the icon from Tools/GenerateAppIcon.swift
@@ -575,6 +588,7 @@ Paths are given relative to `Pawshot/Sources/`.
 | Drawing, mouse, hotkeys, text input                   | `Editor/AnnotationCanvasView.swift`     |
 | The "drag an object or draw a new one" rule           | `Editor/CanvasInteraction.swift`        |
 | ⌘Q: tap closes the window, hold quits                  | `App/QuitKey.swift`                     |
+| The focus going back to the app in front on close     | `App/FocusHandBack.swift`               |
 | The "Hold ⌘Q to Quit" toast                           | `App/QuitToast.swift`                   |
 | The annotation list, selection, undo, turning the shot | `Editor/EditorDocument.swift`          |
 | The colour picker behind the fifth swatch, hex        | `Editor/ColorPickerPopover.swift`       |
@@ -614,6 +628,15 @@ This holds even when the work is finished, tests are green and a commit looks li
 step. Report what changed and stop there. The only exception is a direct, explicit instruction in
 that very message ("commit this", "push it") — an approval given for an earlier commit doesn't
 carry over to the next one.
+
+### Tests must not get in the owner's way
+
+He works at this Mac while an agent runs the tests, and some of them put windows up, activate the
+app or dim every screen for seconds. `make test` skips those (`UI_TESTS` in the `Makefile`) and
+is what an agent runs; `make test-ui` runs everything and only on the owner's word. A new test
+that shows, activates or covers anything goes into `UI_TESTS`. The test host also registers no
+global hotkeys (`AppDelegate.registerHotKeys`): it ran next to his own copy, and his ⇧⌘2 then put
+up two overlays.
 
 ### Where the capture delay actually comes from
 

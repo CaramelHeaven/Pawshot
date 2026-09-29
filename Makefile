@@ -12,7 +12,7 @@ INSTALL_PATH := /Applications/Pawshot.app
 ICON_SET := Pawshot/Resources
 
 .DEFAULT_GOAL := help
-.PHONY: help generate build test lint format icon install dist release publish uninstall run clean
+.PHONY: help generate build test test-ui lint format icon install dist release publish uninstall run clean
 
 help: ## List every target
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -26,10 +26,32 @@ build: generate ## Debug build from the CLI
 	$(MISE) tuist xcodebuild build -scheme $(SCHEME) -workspace $(WORKSPACE) \
 		-destination "$(DESTINATION)"
 
+# Tests that put windows up, take the focus or dim the screen: they get in the way of whoever
+# works at this Mac meanwhile, so `make test` leaves them to `make test-ui`.
+UI_TESTS := \
+	InstantOverlayTests \
+	RecordingBarInOverlayTests \
+	RecordingFrameViewTests \
+	VideoEditorWindowControllerTests \
+	VideoEditorOrderingTests \
+	EditorWindowControllerTests/testShotStillFitsItsWindowAfterTheToolbarArrives \
+	EditorWindowControllerTests/testUndoSentDownTheResponderChainUndoesTheLastChange \
+	EditorWindowControllerTests/testWindowOpensCentredOnItsScreen \
+	EditorWindowControllerTests/testHugeShotOpensScrolledToItsMiddle \
+	EditorWindowControllerTests/testQuitKeyAsksBeforeThrowingAwayWork \
+	WhatsNewTests/testTheWindowComesForwardByItself \
+	RecordingBarTests/testButtonsCallTheActionsSetAfterTheFirstDraw \
+	RecordingEngineTests/testRecordsAPlayableMovieOfARegion
+
 # English, whatever language the app was switched to: the test host is the app itself.
-test: generate ## Run PawshotTests
-	$(MISE) tuist xcodebuild test -scheme $(TEST_SCHEME) -workspace $(WORKSPACE) \
-		-destination "$(DESTINATION)" -testLanguage en
+TEST_RUN = $(MISE) tuist xcodebuild test -scheme $(TEST_SCHEME) -workspace $(WORKSPACE) \
+	-destination "$(DESTINATION)" -testLanguage en
+
+test: generate ## Run PawshotTests, except the ones that take the screen or the focus
+	$(TEST_RUN) $(addprefix -skip-testing:PawshotTests/,$(UI_TESTS))
+
+test-ui: generate ## Run every test, windows and overlays included (the Mac is busy meanwhile)
+	$(TEST_RUN)
 
 lint: ## Check formatting without changing anything
 	$(MISE) swiftformat --lint Pawshot/Sources Tests Tools

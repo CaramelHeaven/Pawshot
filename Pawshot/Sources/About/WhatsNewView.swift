@@ -37,7 +37,11 @@ struct WhatsNewContent: View {
 
     /// A person back after many versions gets a scrolling list, not a window taller than the
     /// screen of a MacBook Air.
-    static let listMaxHeight: CGFloat = 480
+    static let listMaxHeight: CGFloat = 576
+
+    /// The owner asked for a window a fifth taller (2026-09-29). One version's text took 315 pt of
+    /// a 526 pt window; 420 makes that window 631. Two versions already fill it.
+    static let listMinHeight: CGFloat = 420
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -47,7 +51,7 @@ struct WhatsNewContent: View {
                 timeline
             }
             .scrollBounceBehavior(.basedOnSize)
-            .frame(maxHeight: Self.listMaxHeight)
+            .frame(minHeight: Self.listMinHeight, maxHeight: Self.listMaxHeight, alignment: .top)
 
             Button("Got It", action: onDone)
                 .buttonStyle(.glassProminent)

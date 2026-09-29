@@ -174,6 +174,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// — would fail against itself and be lost.
     private func registerHotKeys() {
         unregisterHotKeys()
+        // The test host runs next to the owner's own copy: its shortcuts would put up a second
+        // overlay on his ⇧⌘2 while tests run.
+        guard !Self.isTestHost else { return }
         let shortcuts = [
             "region \(settings.regionHotKey?.logString ?? "none")",
             "full screen \(settings.fullScreenHotKey?.logString ?? "none")",

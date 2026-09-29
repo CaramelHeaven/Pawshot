@@ -108,8 +108,9 @@ final class WhatsNewTests: XCTestCase {
         )
     }
 
-    /// Many skipped versions scroll inside a window of bounded height; a few don't scroll at all.
-    /// A `ScrollView` that collapsed to nothing, or grew with its content, fails here.
+    /// Many skipped versions scroll inside a window of bounded height; a few don't scroll at all,
+    /// and one still gets the minimum. A `ScrollView` that collapsed to nothing, or grew with its
+    /// content, fails here.
     @MainActor
     func testALongHistoryScrollsInsteadOfGrowingTheWindow() {
         func height(_ count: Int) -> CGFloat {
@@ -119,12 +120,14 @@ final class WhatsNewTests: XCTestCase {
             return view.fittingSize.height
         }
 
-        let one = height(1)
-        let three = height(3)
-        let many = height(12)
-        XCTAssertGreaterThan(three, one, "the list takes the room its text needs")
-        XCTAssertLessThanOrEqual(many, one + WhatsNewContent.listMaxHeight, "the list stops growing and scrolls")
-        XCTAssertGreaterThan(many, three)
+        // With no entries the list is exactly its minimum, which gives the rest of the window.
+        let empty = height(0)
+        let chrome = empty - WhatsNewContent.listMinHeight
+        let heights = (1 ... 12).map(height)
+        XCTAssertEqual(heights[0], empty, "one short version sits in the minimum")
+        XCTAssertEqual(heights, heights.sorted(), "more text never makes the window shorter")
+        XCTAssertGreaterThan(heights[11], heights[0], "the list takes the room its text needs")
+        XCTAssertLessThanOrEqual(heights[11], chrome + WhatsNewContent.listMaxHeight, "the list stops growing and scrolls")
     }
 
     /// After Sparkle's relaunch nobody activates Pawshot, and 0.4.7's What's New opened behind

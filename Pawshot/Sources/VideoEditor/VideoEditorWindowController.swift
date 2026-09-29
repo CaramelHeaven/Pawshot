@@ -27,6 +27,8 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
     /// The export's splice of the pieces: what plays.
     private let splicePlayer = AVPlayer()
     private let openingScreen: NSScreen
+    /// The app in front when the editor opened — the one recorded; it gets the focus back on close.
+    private var previousApp: NSRunningApplication?
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
     /// Building the splice and seeking it, between Space and the first frame.
@@ -89,6 +91,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         Settings.shared.recordVideoEditorOpen()
         guard let window else { return }
         window.setFrameOrigin(Self.origin(for: window, on: openingScreen))
+        previousApp = FocusHandBack.remember()
         NSApp.activate()
         showWindow(nil)
         window.makeKeyAndOrderFront(nil)
@@ -522,6 +525,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         if exportTask == nil {
             discard()
         }
+        FocusHandBack.handBack(to: previousApp, closing: window)
     }
 
     /// The raw recording goes: it was either exported or thrown away — the owner's rule, the same

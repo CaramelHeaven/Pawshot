@@ -721,6 +721,16 @@
         }
       }
     },
+    "Click a shortcut to change it" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите на сочетание, чтобы сменить его"
+          }
+        }
+      }
+    },
     "Click a window" : {
       "localizations" : {
         "ru" : {
@@ -1300,6 +1310,16 @@
         }
       }
     },
+    "Fix…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправить…"
+          }
+        }
+      }
+    },
     "Format (P)" : {
       "localizations" : {
         "ru" : {
@@ -1493,6 +1513,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Хранятся только на этом Mac, за последние три дня. Никуда не уходят, пока вы сами их не отправите: файлом или письмом разработчику."
+          }
+        }
+      }
+    },
+    "Label font" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Шрифт подписей"
           }
         }
       }
@@ -1770,6 +1800,16 @@
         }
       }
     },
+    "Only with ⌘, ⌥ or ⌃" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только с ⌘, ⌥ или ⌃"
+          }
+        }
+      }
+    },
     "Opacity" : {
       "localizations" : {
         "ru" : {
@@ -1852,6 +1892,16 @@
     },
     "P" : {
       "shouldTranslate" : false
+    },
+    "PNG keeps every pixel. JPEG and HEIC are several times smaller." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG хранит каждый пиксель, JPEG и HEIC в несколько раз меньше."
+          }
+        }
+      }
     },
     "Passwords, emails and strangers' faces." : {
       "localizations" : {
@@ -2798,6 +2848,16 @@
         }
       }
     },
+    "Settings are rearranged. Saving and the labels' font have a tab of their own, Screenshots, and General keeps launching, quitting, the language and the logs. On Recording each switch shows the key that changes it for one take. Shortcuts is a cheat sheet: click a shortcut to change it; one that macOS takes first says so on its card, with Fix… next to it.\n\nClosing a shot or a video now gives the keyboard back to the app you were in, so typing no longer goes nowhere." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настройки перестроены. Сохранение и шрифт подписей переехали на свою вкладку, «Снимки экрана», а в «Основных» остались запуск, выход, язык и логи. На вкладке «Запись» у каждого переключателя видна клавиша, которая меняет его на одну запись. «Сочетания клавиш» стали шпаргалкой: нажмите на сочетание, чтобы сменить его; если его занимает macOS, это написано на карточке, рядом — «Исправить…».\n\nКогда закрываете снимок или видео, клавиатура возвращается в приложение, где вы были, и набранный текст больше не уходит в никуда."
+          }
+        }
+      }
+    },
     "Settings now has a Statistics tab: how many shots you've taken, what you draw with most, how many days in a row. It's all counted on this Mac only.\n\nCollect Logs can now be switched off — in the welcome window and in Settings → General → Diagnostics.\n\nIf something breaks, the logs reach the developer with one button: Send by Email…, in the same place." : {
       "localizations" : {
         "ru" : {
@@ -2854,6 +2914,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Видно в видео"
+          }
+        }
+      }
+    },
+    "Shows its level before you start" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уровень виден до начала записи"
           }
         }
       }
@@ -3368,6 +3438,16 @@
         }
       }
     },
+    "What every take starts with. The keys change it for one take." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "С этим начинается каждая запись. Клавиши меняют это для одной записи."
+          }
+        }
+      }
+    },
     "What happened, and what did you do just before?" : {
       "localizations" : {
         "ru" : {
@@ -3591,6 +3671,16 @@
         }
       }
     },
+    "in the editor" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "в редакторе"
+          }
+        }
+      }
+    },
     "keep another piece" : {
       "localizations" : {
         "ru" : {
@@ -3661,6 +3751,26 @@
         }
       }
     },
+    "macOS takes it" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Занято macOS"
+          }
+        }
+      }
+    },
+    "marks" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "отметка"
+          }
+        }
+      }
+    },
     "no signal" : {
       "localizations" : {
         "ru" : {
@@ -3697,6 +3807,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "вкл"
+          }
+        }
+      }
+    },
+    "overlay" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "оверлей"
           }
         }
       }
@@ -3869,6 +3989,16 @@
     },
     "⌘S" : {
       "shouldTranslate" : false
+    },
+    "⌘S puts shots and videos here; ⇧⌘S picks a name, a folder and a format just once." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘S кладёт снимки и видео сюда; ⇧⌘S один раз спрашивает имя, папку и формат."
+          }
+        }
+      }
     },
     "⌘S puts shots and videos here; ⇧⌘S picks a name, a folder and a format just once. PNG keeps every pixel, JPEG and HEIC are several times smaller." : {
       "localizations" : {

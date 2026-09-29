@@ -44,6 +44,60 @@ final class HotKeyRecorderViewTests: XCTestCase {
         )))
     }
 
+    /// A card of the Shortcuts cheat sheet takes a click anywhere to record, except its × in the
+    /// top right corner and the "Fix…" of a combination macOS takes first.
+    func testACardRecordsOnAClickExceptOnTheCrossAndFix() throws {
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 200, height: 100),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.alphaValue = 0
+        defer { window.orderOut(nil) }
+        let card = HotKeyRecorderView(binding: .regionDefault)
+        card.style = .card
+        card.title = "Capture region"
+        card.isTakenBySystem = true
+        card.frame = CGRect(x: 10, y: 10, width: 160, height: HotKeyRecorderView.cardHeight)
+        window.contentView?.addSubview(card)
+        window.orderFront(nil)
+        var fixed = 0
+        var cleared = 0
+        card.onFix = { fixed += 1 }
+        card.onClear = { cleared += 1 }
+
+        // "Fix…" follows "macOS takes it · " on the card's bottom line.
+        let lead = ("macOS takes it · " as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 10.5, weight: .semibold)])
+        try click(card, at: CGPoint(x: 10 + 10 + lead.width + 8, y: 10 + 12))
+        XCTAssertEqual(fixed, 1)
+        XCTAssertFalse(card.isRecording)
+
+        try click(card, at: CGPoint(x: 10 + 160 - 12, y: 10 + HotKeyRecorderView.cardHeight - 12))
+        XCTAssertEqual(cleared, 1)
+        XCTAssertFalse(card.isRecording)
+
+        try click(card, at: CGPoint(x: 60, y: 60))
+        XCTAssertTrue(card.isRecording)
+        XCTAssertEqual(fixed, 1)
+        XCTAssertEqual(cleared, 1)
+    }
+
+    private func click(_ view: HotKeyRecorderView, at point: CGPoint) throws {
+        try view.mouseDown(with: XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: point,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: view.window?.windowNumber ?? 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        )))
+    }
+
     /// Modifiers going down or up, as AppKit hands them to the field.
     private func modifiers(_ flags: CGEventFlags, in recorder: HotKeyRecorderView) throws {
         let event = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(kVK_Command), keyDown: true))

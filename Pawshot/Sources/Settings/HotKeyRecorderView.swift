@@ -40,6 +40,37 @@ final class HotKeyRecorderView: NSView {
         didSet { needsDisplay = true }
     }
 
+    /// A capsule in a row of a form, or a card of the Shortcuts cheat sheet (the owner's Ш-C of
+    /// 2026-09-29): big caps at the top, the action's name under them, the × in the corner.
+    enum Style {
+        case field
+        case card
+    }
+
+    var style = Style.field {
+        didSet {
+            needsDisplay = true
+            invalidateIntrinsicContentSize()
+        }
+    }
+
+    /// The action's name, drawn under the caps of a card.
+    var title = "" {
+        didSet { needsDisplay = true }
+    }
+
+    /// "Fix…" on a card macOS takes the combination of: opens Keyboard Shortcuts.
+    var onFix: (() -> Void)?
+
+    /// The macOS item that takes the combination, shown while no hint has a tooltip of its own.
+    var systemItemHelp: String? {
+        didSet {
+            if hint == nil {
+                toolTip = systemItemHelp
+            }
+        }
+    }
+
     private(set) var isRecording = false {
         didSet {
             onRecordingChange?(isRecording)
@@ -75,7 +106,10 @@ final class HotKeyRecorderView: NSView {
     }
 
     override var intrinsicContentSize: CGSize {
-        CGSize(width: 150, height: 26)
+        switch style {
+        case .field: CGSize(width: 150, height: 26)
+        case .card: CGSize(width: NSView.noIntrinsicMetric, height: Self.cardHeight)
+        }
     }
 
     override var acceptsFirstResponder: Bool {
@@ -91,6 +125,11 @@ final class HotKeyRecorderView: NSView {
     override func mouseDown(with event: NSEvent) {
         let name = logName
         let point = convert(event.locationInWindow, from: nil)
+        if !isRecording, let fix = fixRect, fix.contains(point) {
+            Self.logger.notice("shortcut field (\(name, privacy: .public)): Fix… opens Keyboard Shortcuts")
+            onFix?()
+            return
+        }
         if !isRecording, let binding, clearButtonRect.contains(point) {
             let current = binding.logString
             Self.logger.notice("shortcut field (\(name, privacy: .public)): cleared with ×, was \(current, privacy: .public)")
@@ -320,7 +359,7 @@ final class HotKeyRecorderView: NSView {
 
     private func setHint(_ text: String?) {
         hint = text
-        toolTip = nil
+        toolTip = systemItemHelp
         needsDisplay = true
     }
 
@@ -333,9 +372,13 @@ final class HotKeyRecorderView: NSView {
 
     // MARK: - Drawing
 
-    /// Where the × sits and takes a click: the right end of the capsule.
+    /// Where the × sits and takes a click: the right end of the capsule, the top right corner of
+    /// a card.
     private var clearButtonRect: CGRect {
-        CGRect(x: bounds.maxX - 24, y: 0, width: 24, height: bounds.height)
+        switch style {
+        case .field: CGRect(x: bounds.maxX - 24, y: 0, width: 24, height: bounds.height)
+        case .card: CGRect(x: bounds.maxX - 26, y: bounds.maxY - 26, width: 26, height: 26)
+        }
     }
 
     private var showsClearButton: Bool {
@@ -346,6 +389,10 @@ final class HotKeyRecorderView: NSView {
     /// accent colour and shows the modifiers held so far; a combination macOS keeps for its own
     /// screenshots gets a red outline, so the conflict is visible where the shortcut is.
     override func draw(_: CGRect) {
+        if style == .card {
+            drawCard()
+            return
+        }
         let box = bounds.insetBy(dx: 0.5, dy: 0.5)
         let capsule = NSBezierPath(roundedRect: box, xRadius: box.height / 2, yRadius: box.height / 2)
 
@@ -386,7 +433,7 @@ final class HotKeyRecorderView: NSView {
             .withSymbolConfiguration(configuration) else { return }
         let rect = clearButtonRect
         image.draw(in: CGRect(
-            x: rect.midX - image.size.width / 2 - 3,
+            x: rect.midX - image.size.width / 2 - (style == .field ? 3 : 0),
             y: rect.midY - image.size.height / 2,
             width: image.size.width,
             height: image.size.height
@@ -404,13 +451,28 @@ final class HotKeyRecorderView: NSView {
         ]
         let widths = caps.map { max(Self.capHeight, ($0 as NSString).size(withAttributes: attributes).width + 10) }
         let total = widths.reduce(0, +) + Self.capSpacing * CGFloat(max(0, caps.count - 1))
-        var x = content.minX + (content.width - total) / 2
-        let y = (bounds.height - Self.capHeight) / 2
+        drawCaps(
+            caps,
+            at: CGPoint(x: content.minX + (content.width - total) / 2, y: (bounds.height - Self.capHeight) / 2),
+            height: Self.capHeight,
+            radius: 5,
+            attributes: attributes
+        )
+    }
 
-        for (cap, width) in zip(caps, widths) {
-            let rect = CGRect(x: x, y: y, width: width, height: Self.capHeight)
+    private func drawCaps(
+        _ caps: [String],
+        at origin: CGPoint,
+        height: CGFloat,
+        radius: CGFloat,
+        attributes: [NSAttributedString.Key: Any]
+    ) {
+        var x = origin.x
+        for cap in caps {
+            let width = max(height, (cap as NSString).size(withAttributes: attributes).width + 10)
+            let rect = CGRect(x: x, y: origin.y, width: width, height: height)
             NSColor.tertiarySystemFill.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5).fill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
 
             let size = (cap as NSString).size(withAttributes: attributes)
             (cap as NSString).draw(
@@ -420,6 +482,121 @@ final class HotKeyRecorderView: NSView {
             x += width + Self.capSpacing
         }
     }
+
+    // MARK: - The card
+
+    static let cardHeight: CGFloat = 80
+    private static let cardPadding: CGFloat = 10
+    private static let cardCapHeight: CGFloat = 28
+    private static let cardCapFont = NSFont.monospacedSystemFont(ofSize: 15, weight: .semibold)
+    private static let cardTitleFont = NSFont.systemFont(ofSize: 12)
+    private static let cardNoteFont = NSFont.systemFont(ofSize: 10.5, weight: .semibold)
+
+    /// Where the caps, or the text in their place, sit: the top of the card, left of the ×.
+    private var cardCapsRow: CGRect {
+        CGRect(
+            x: Self.cardPadding,
+            y: bounds.maxY - Self.cardPadding - Self.cardCapHeight,
+            width: bounds.width - Self.cardPadding - clearButtonRect.width,
+            height: Self.cardCapHeight
+        )
+    }
+
+    /// The red line under a card's name, for a combination macOS takes first.
+    private var showsSystemNote: Bool {
+        style == .card && isTakenBySystem && hint == nil && !isRecording
+    }
+
+    private var noteLead: String {
+        String(localized: "macOS takes it") + " · "
+    }
+
+    private var noteOrigin: CGPoint {
+        CGPoint(x: Self.cardPadding, y: 7)
+    }
+
+    /// "Fix…" at the end of the red line; `nil` when there is no such line.
+    private var fixRect: CGRect? {
+        guard showsSystemNote else { return nil }
+        let lead = (noteLead as NSString).size(withAttributes: [.font: Self.cardNoteFont])
+        let fix = (String(localized: "Fix…") as NSString).size(withAttributes: [.font: Self.cardNoteFont])
+        // A little taller and wider than the words, so the click doesn't need aiming.
+        return CGRect(x: noteOrigin.x + lead.width - 3, y: noteOrigin.y - 4, width: fix.width + 6, height: fix.height + 8)
+    }
+
+    private func drawCard() {
+        let box = bounds.insetBy(dx: isRecording ? 1 : 0.25, dy: isRecording ? 1 : 0.25)
+        let shape = NSBezierPath(roundedRect: box, xRadius: Tokens.Radius.row, yRadius: Tokens.Radius.row)
+        (isRecording ? Tokens.pawNSColor.withAlphaComponent(0.12) : NSColor.controlBackgroundColor).setFill()
+        shape.fill()
+        let outline: NSColor = if isRecording {
+            Tokens.pawNSColor
+        } else if isTakenBySystem, hint == nil {
+            .systemRed
+        } else {
+            .separatorColor
+        }
+        outline.setStroke()
+        shape.lineWidth = isRecording ? 2 : (isTakenBySystem && hint == nil ? 1 : 0.5)
+        shape.stroke()
+
+        if showsClearButton {
+            drawClearButton()
+        }
+
+        let row = cardCapsRow
+        if let text = plainText {
+            let color: NSColor = isRecording || binding == nil && hint == nil ? .secondaryLabelColor : .labelColor
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 13, weight: .medium),
+                .foregroundColor: color,
+                .paragraphStyle: Self.truncating,
+            ]
+            let height = (text as NSString).size(withAttributes: attributes).height
+            (text as NSString).draw(
+                in: CGRect(x: row.minX, y: row.midY - height / 2, width: row.width, height: height),
+                withAttributes: attributes
+            )
+        } else {
+            drawCaps(
+                caps,
+                at: row.origin,
+                height: Self.cardCapHeight,
+                radius: Tokens.Radius.keyCap,
+                attributes: [
+                    .font: Self.cardCapFont,
+                    .foregroundColor: showsSystemNote ? NSColor.systemRed : NSColor.labelColor,
+                ]
+            )
+        }
+
+        let titleAttributes: [NSAttributedString.Key: Any] = [
+            .font: Self.cardTitleFont,
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: Self.truncating,
+        ]
+        let titleHeight = (title as NSString).size(withAttributes: titleAttributes).height
+        (title as NSString).draw(
+            in: CGRect(x: Self.cardPadding, y: 23, width: bounds.width - 2 * Self.cardPadding, height: titleHeight),
+            withAttributes: titleAttributes
+        )
+
+        if showsSystemNote {
+            let lead = noteLead as NSString
+            let leadAttributes: [NSAttributedString.Key: Any] = [.font: Self.cardNoteFont, .foregroundColor: NSColor.systemRed]
+            lead.draw(at: noteOrigin, withAttributes: leadAttributes)
+            (String(localized: "Fix…") as NSString).draw(
+                at: CGPoint(x: noteOrigin.x + lead.size(withAttributes: leadAttributes).width, y: noteOrigin.y),
+                withAttributes: [.font: Self.cardNoteFont, .foregroundColor: NSColor.linkColor]
+            )
+        }
+    }
+
+    private static let truncating: NSParagraphStyle = {
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byTruncatingTail
+        return style
+    }()
 
     private func drawCentered(_ text: String, color: NSColor, in content: CGRect) {
         let attributes: [NSAttributedString.Key: Any] = [

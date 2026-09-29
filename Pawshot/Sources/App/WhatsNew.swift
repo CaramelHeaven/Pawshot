@@ -14,6 +14,16 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.5.1", text: String(localized: """
+            Settings are rearranged. Saving and the labels' font have a tab of their own, \
+            Screenshots, and General keeps launching, quitting, the language and the logs. On \
+            Recording each switch shows the key that changes it for one take. Shortcuts is a cheat \
+            sheet: click a shortcut to change it; one that macOS takes first says so on its card, \
+            with Fix… next to it.
+
+            Closing a shot or a video now gives the keyboard back to the app you were in, so typing \
+            no longer goes nowhere.
+            """)),
             Entry(version: "0.5", text: String(localized: """
             Pick where ⌘S saves and in what format — PNG, JPEG or HEIC — in Settings → General → \
             Saving. Videos go to the same folder. ⇧⌘S asks for a name, a folder and a format just \

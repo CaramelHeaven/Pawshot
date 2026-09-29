@@ -22,6 +22,8 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// Set by ⌘C, ⌘S or ⌘D once the shot is handed off: the window is dissolving, and a second
     /// press in those 150 ms must not hand it off again.
     private var isClosing = false
+    /// The app the person was in before the editor took the focus; it gets it back on close.
+    private var previousApp: NSRunningApplication?
 
     /// Which edges the current live resize is dragging, and the crop it started from. Both are
     /// `nil` while no resize is running.
@@ -114,6 +116,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
 
     func show() {
         Self.openControllers.insert(self)
+        previousApp = FocusHandBack.remember()
         NSApp.activate()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -670,6 +673,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         }
 
         Self.openControllers.remove(self)
+        FocusHandBack.handBack(to: previousApp, closing: window)
     }
 
     // MARK: - Resizing the shot
