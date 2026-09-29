@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// What the pill can ask the recording to do.
@@ -23,6 +24,10 @@ struct RecordingPillActions {
 /// after three seconds with the cursor away. Out of the way, never lost.
 @MainActor
 final class RecordingPillController {
+    private static var logger: Logger {
+        .pawshot("recording")
+    }
+
     private let panel: NSPanel
     private let model = PillModel()
     private var proximityTimer: Timer?
@@ -75,6 +80,8 @@ final class RecordingPillController {
         }
         panel.ignoresMouseEvents = false
         panel.orderFrontRegardless()
+        let look = notchFrames == nil ? "floating" : "notch"
+        Self.logger.notice("pill shown: \(look, privacy: .public)")
 
         proximityTimer?.invalidate()
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in

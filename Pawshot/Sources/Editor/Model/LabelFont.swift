@@ -1,5 +1,6 @@
 import AppKit
 import CoreText
+import os
 
 /// The typeface labels are set in: the system's, or any family installed on the Mac, picked in
 /// Settings. One family for every label in every open editor — changing it re-sets what is
@@ -65,6 +66,10 @@ enum LabelFont {
 
     private static var cache: [String: [Face]] = [:]
 
+    private static var logger: Logger {
+        .pawshot("editor")
+    }
+
     /// `availableMembers` answers `[PostScript name, style name, weight 1…14, traits]`. The weight
     /// that matters is the font's own `kCTFontWeightTrait` (-1…1), the same scale `NSFont.Weight`
     /// uses, so the system font and any family share one set of steps.
@@ -91,6 +96,9 @@ enum LabelFont {
             faces.append(Face(postScriptName: postScriptName, styleName: styleName, weight: rounded))
         }
         faces.sort { $0.weight.rawValue < $1.weight.rawValue }
+        if faces.isEmpty {
+            logger.error("label family \(family, privacy: .public) has no upright faces")
+        }
         cache[family] = faces
         return faces
     }

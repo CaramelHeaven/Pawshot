@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import ImageIO
+import os
 import UniformTypeIdentifiers
 
 enum VideoExportError: LocalizedError {
@@ -22,6 +23,10 @@ enum VideoExportError: LocalizedError {
 /// Nonisolated on purpose: an export of a long take runs for seconds, and nothing of it belongs on
 /// the main thread. Progress comes back through a `@Sendable` callback.
 enum VideoExporter {
+    private static var logger: Logger {
+        .pawshot("video")
+    }
+
     static func export(
         source: URL,
         keep: KeepRanges,
@@ -52,6 +57,7 @@ enum VideoExporter {
 
             let renderedAsset = AVURLAsset(url: rendered)
             let length = try await renderedAsset.load(.duration).seconds
+            logger.notice("GIF pass 1 done: effects movie \(String(format: "%.1f", length), privacy: .public) s")
             try await exportGIF(asset: renderedAsset, keep: KeepRanges(duration: length), to: destination) {
                 progress(0.5 + $0 * 0.5)
             }
@@ -80,7 +86,13 @@ enum VideoExporter {
         }
         defer { watcher.cancel() }
 
+        let started = Date()
         try await session.export(to: destination, as: fileType)
+        let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+        let preset = session.presetName
+        logger.notice(
+            "export session \(preset, privacy: .public) → \(fileType.rawValue, privacy: .public) in \(elapsed, privacy: .public) ms"
+        )
         progress(1)
     }
 
@@ -234,7 +246,10 @@ enum VideoExporter {
             if estimate > 0 {
                 return estimate
             }
+        } catch is CancellationError {
+            return 0
         } catch {
+            logger.error("size estimate failed: \(String(describing: error), privacy: .public)")
             return 0
         }
 
@@ -330,15 +345,23 @@ enum VideoExporter {
             throw VideoExportError.gifFailed
         }
 
+        let started = Date()
         var done = 0
+        var unreadable = 0
         for await result in generator.images(for: times) {
             try Task.checkCancellation()
             if let image = try? result.image {
                 writer.add(image)
+            } else {
+                unreadable += 1
             }
             done += 1
             progress(Double(done) / Double(max(1, times.count)))
         }
+        let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+        logger.notice(
+            "GIF: \(done - unreadable, privacy: .public) of \(times.count, privacy: .public) frames, \(unreadable, privacy: .public) unreadable, \(elapsed, privacy: .public) ms"
+        )
         guard writer.finish() else { throw VideoExportError.gifFailed }
     }
 
@@ -409,6 +432,10 @@ final class GIFWriter {
 /// Where a finished video goes: the folder Settings name for saves (the Desktop by default), or
 /// a file on the clipboard.
 enum VideoHandOff {
+    private static var logger: Logger {
+        .pawshot("video")
+    }
+
     @MainActor
     static func savedURL(for preset: VideoPreset) -> URL {
         Settings.shared.saveFolder.appendingPathComponent(ExportNaming.fileName(extension: preset.fileExtension))
@@ -432,21 +459,36 @@ enum VideoHandOff {
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         item.setString(file.absoluteString, forType: .fileURL)
+        var gifBytes = 0
         if file.pathExtension == "gif", let data = try? Data(contentsOf: file) {
             item.setData(data, forType: NSPasteboard.PasteboardType(UTType.gif.identifier))
+            gifBytes = data.count
         }
-        pasteboard.writeObjects([item])
+        let written = pasteboard.writeObjects([item])
+        let ext = file.pathExtension
+        logger.notice(
+            "clipboard: \(ext, privacy: .public) file, gif data \(gifBytes, privacy: .public) B, written \(written, privacy: .public)"
+        )
     }
 
     private static func sweep(_ folder: URL, olderThan age: TimeInterval) {
         let files = (try? FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: [.contentModificationDateKey]
         )) ?? []
+        var removed = 0
+        var failed = 0
         for file in files {
             let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
             if let modified, Date().timeIntervalSince(modified) > age {
-                try? FileManager.default.removeItem(at: file)
+                if (try? FileManager.default.removeItem(at: file)) != nil {
+                    removed += 1
+                } else {
+                    failed += 1
+                }
             }
+        }
+        if removed + failed > 0 {
+            logger.notice("clips swept: \(removed, privacy: .public) removed, \(failed, privacy: .public) failed")
         }
     }
 }

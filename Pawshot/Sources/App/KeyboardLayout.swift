@@ -1,11 +1,16 @@
 import AppKit
 import Carbon.HIToolbox
+import os
 
 /// What key was pressed, regardless of the layout it was pressed in.
 ///
 /// The editor drives everything off single letters, and reading them off the character the layout
 /// produced meant that on ЙЦУКЕН `V` printed `м`, `B` printed `и`, and not one tool ever switched.
 enum KeyboardLayout {
+    private static var logger: Logger {
+        .pawshot("app")
+    }
+
     /// The Latin character on the physical key. Cyrillic `с` on the `C` key comes back as `c`.
     ///
     /// A character that is already ASCII is handed back untouched rather than re-derived from the
@@ -77,7 +82,10 @@ enum KeyboardLayout {
             let translated = latinEquivalent(of: event)
         else { return false }
 
-        return menu?.performKeyEquivalent(with: translated) == true
+        let handled = menu?.performKeyEquivalent(with: translated) == true
+        let letter = translated.charactersIgnoringModifiers ?? "?"
+        logger.notice("⌘\(letter, privacy: .public) re-sent from a non-Latin layout, handled \(handled, privacy: .public)")
+        return handled
     }
 
     /// Asks the current **ASCII-capable** layout what this key would print. That is the same

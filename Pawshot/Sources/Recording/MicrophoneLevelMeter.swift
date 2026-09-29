@@ -60,9 +60,11 @@ final class MicrophoneLevelMeter: @unchecked Sendable {
 
     func stop() {
         queue.async {
-            self.engine?.inputNode.removeTap(onBus: 0)
-            self.engine?.stop()
+            guard let engine = self.engine else { return }
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
             self.engine = nil
+            Self.logger.notice("level meter stopped")
         }
     }
 
@@ -75,6 +77,7 @@ final class MicrophoneLevelMeter: @unchecked Sendable {
         // No input device at all: installing a tap on a zero-rate format crashes, and "dead" is
         // exactly the right thing to show.
         guard format.sampleRate > 0, format.channelCount > 0 else {
+            Self.logger.error("level meter: no input device (0 Hz format)")
             report(level: 0, dead: true)
             return
         }
@@ -85,6 +88,11 @@ final class MicrophoneLevelMeter: @unchecked Sendable {
         do {
             try engine.start()
             self.engine = engine
+            let rate = Int(format.sampleRate)
+            let channels = Int(format.channelCount)
+            Self.logger.notice(
+                "level meter started: \(rate, privacy: .public) Hz, \(channels, privacy: .public) ch"
+            )
         } catch {
             Self.logger.error("level meter not started: \(String(describing: error), privacy: .public)")
             input.removeTap(onBus: 0)

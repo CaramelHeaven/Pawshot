@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// The welcome window: it opens by itself at launch until "Get Started" is pressed, and from the
@@ -12,6 +13,10 @@ struct WelcomeView: View {
     /// The first "Allow…" shows the system prompt, and the grant may reach this process late or
     /// never — so from then on a relaunch is on offer too, as in the permission window.
     @State private var askedForScreenRecording = false
+
+    private static var logger: Logger {
+        .pawshot("app")
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -52,8 +57,10 @@ struct WelcomeView: View {
             }
 
             Button("Change Shortcuts…") {
+                Self.logger.notice("welcome: change shortcuts → settings")
                 NSApp.activate()
                 openSettings()
+                Task { @MainActor in ComesForward.bringFront("settings") }
             }
             .buttonStyle(.glass)
         }
@@ -109,6 +116,7 @@ struct WelcomeView: View {
                                 .buttonStyle(.glass)
                         }
                         Button("Allow…") {
+                            Self.logger.notice("welcome: allow screen recording")
                             ScreenRecordingPermission.request()
                             askedForScreenRecording = true
                         }
@@ -121,8 +129,11 @@ struct WelcomeView: View {
                     detail: Text("Your voice in videos."),
                     isGranted: microphone
                 ) {
-                    Button("Allow…", action: MicrophonePermission.request)
-                        .buttonStyle(.glass)
+                    Button("Allow…") {
+                        Self.logger.notice("welcome: allow microphone")
+                        MicrophonePermission.request()
+                    }
+                    .buttonStyle(.glass)
                 }
                 Divider()
                 AccessRow(
@@ -130,8 +141,11 @@ struct WelcomeView: View {
                     detail: Text("Captions of the shortcuts you press in videos, like ⌘Z ×3."),
                     isGranted: inputMonitoring
                 ) {
-                    Button("Allow…", action: InputMonitoringPermission.request)
-                        .buttonStyle(.glass)
+                    Button("Allow…") {
+                        Self.logger.notice("welcome: allow input monitoring")
+                        InputMonitoringPermission.request()
+                    }
+                    .buttonStyle(.glass)
                 }
                 Divider()
                 AccessRow(
@@ -141,9 +155,12 @@ struct WelcomeView: View {
                     grantedLabel: "Free"
                 ) {
                     Button("Open…") {
-                        if let url = SystemScreenshotShortcuts.settingsURL {
-                            NSWorkspace.shared.open(url)
+                        guard let url = SystemScreenshotShortcuts.settingsURL else {
+                            Self.logger.error("welcome: no Keyboard Shortcuts URL to open")
+                            return
                         }
+                        Self.logger.notice("welcome: opening Keyboard Shortcuts")
+                        NSWorkspace.shared.open(url)
                     }
                     .buttonStyle(.glass)
                 }
@@ -179,6 +196,7 @@ struct WelcomeView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button("Get Started") {
+                    Self.logger.notice("welcome: Get Started (\(allowed, privacy: .public) of 4 allowed)")
                     settings.welcomeCompleted = true
                     // A fresh install has nothing to be told about on its next launch.
                     settings.lastSeenVersion = AboutPanel.version

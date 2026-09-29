@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import os
 import Vision
 
 enum TextRecognitionError: LocalizedError {
@@ -37,10 +38,16 @@ enum TextRecognitionService {
     static func codes(in image: CGImage) async throws -> [String] {
         let request = DetectBarcodesRequest()
         do {
-            return try await request.perform(on: image, orientation: .up).compactMap(\.payloadString)
+            let payloads = try await request.perform(on: image, orientation: .up).compactMap(\.payloadString)
+            logger.notice("\(payloads.count) codes")
+            return payloads
         } catch {
             throw TextRecognitionError.recognitionFailed(error)
         }
+    }
+
+    private static var logger: Logger {
+        .pawshot("text")
     }
 
     private static func lines(in image: CGImage) async throws -> String {
@@ -63,6 +70,7 @@ enum TextRecognitionService {
         let observations: [RecognizedTextObservation]
         do {
             observations = try await request.perform(on: image, orientation: .up)
+            logger.notice("recognised \(observations.count) lines")
         } catch {
             throw TextRecognitionError.recognitionFailed(error)
         }

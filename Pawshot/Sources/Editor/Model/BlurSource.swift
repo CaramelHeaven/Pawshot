@@ -1,5 +1,6 @@
 import AppKit
 import CoreImage
+import os
 
 enum BlurMode: CaseIterable {
     case blur
@@ -33,6 +34,8 @@ final class BlurSource {
     private var original: CGImage
     private let context = CIContext()
     private var cache: [BlurMode: NSImage] = [:]
+    /// A failed render isn't cached and is tried again on every redraw; the error is said once.
+    private var failuresLogged: Set<BlurMode> = []
 
     init(image: CGImage, frame: CGRect) {
         original = image
@@ -60,6 +63,10 @@ final class BlurSource {
     }
 
     private func render(_ mode: BlurMode) -> NSImage? {
+        let started = Date()
+        let width = original.width
+        let height = original.height
+        let name = String(describing: mode)
         let input = CIImage(cgImage: original)
         let output: CIImage?
 
@@ -81,8 +88,17 @@ final class BlurSource {
         }
 
         guard let output, let cgImage = context.createCGImage(output, from: input.extent) else {
+            if failuresLogged.insert(mode).inserted {
+                Self.logger.error("blur \(name, privacy: .public) render failed, \(width)×\(height) px — the area goes out unblurred")
+            }
             return nil
         }
+        let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+        Self.logger.notice("blur \(name, privacy: .public) rendered \(width)×\(height) px in \(elapsed) ms")
         return NSImage(cgImage: cgImage, size: imageSize)
+    }
+
+    private static var logger: Logger {
+        .pawshot("editor")
     }
 }

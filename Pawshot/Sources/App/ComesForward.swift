@@ -8,10 +8,20 @@ import SwiftUI
 /// window front among Pawshot's own only, behind the app in front. 0.4.7's What's New opened
 /// there. `NSApp.activate()` may be refused (macOS 14+ activation is cooperative), so
 /// `orderFrontRegardless()` does the work, as in `PermissionWindowController`.
+///
+/// A window opened again — from the paw's menu, or Settings, which SwiftUI reuses — never moves
+/// into a window anew, so the menu calls `bringFront(_:)` for it.
 struct ComesForward: NSViewRepresentable {
+    private static var logger: Logger {
+        .pawshot("app")
+    }
+
+    /// Each named window once its view is in it; weak, so a closed window SwiftUI lets go of goes.
+    @MainActor fileprivate static let windows = NSMapTable<NSString, NSWindow>.strongToWeakObjects()
+
     private let name: String
 
-    /// `name` is for the log only.
+    /// `name` is for the log, and what `bringFront(_:)` finds the window by.
     init(_ name: String) {
         self.name = name
     }
@@ -21,6 +31,42 @@ struct ComesForward: NSViewRepresentable {
     }
 
     func updateNSView(_: NSView, context _: Context) {}
+
+    /// For a window opened from a menu, a turn after `openWindow`. Nothing registered yet means
+    /// its first showing is still to come, and that brings it forward by itself.
+    @MainActor
+    static func bringFront(_ name: String) {
+        guard let window = windows.object(forKey: name as NSString) else { return }
+        guard window.isVisible else {
+            logger.notice("\(name, privacy: .public) window not up a turn after opening: left to its first showing")
+            return
+        }
+        guard !(NSApp.isActive && window.isKeyWindow) else {
+            logger.notice("\(name, privacy: .public) window already in front")
+            return
+        }
+        order(window, name: name, what: "brought front")
+    }
+
+    /// Activates, orders the window above everyone, and says half a second later whether it
+    /// became key — not key is the window left behind another app.
+    @MainActor
+    fileprivate static func order(_ window: NSWindow, name: String, what: String) {
+        let wasActive = NSApp.isActive
+        NSApp.activate()
+        window.orderFrontRegardless()
+        logger.notice("\(name, privacy: .public) window \(what, privacy: .public): app was active \(wasActive, privacy: .public), ordered front")
+        Task { @MainActor [weak window] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard let window, window.isVisible else { return }
+            let isActive = NSApp.isActive
+            if window.isKeyWindow {
+                Self.logger.notice("\(name, privacy: .public) window after 500 ms: key true, app active \(isActive, privacy: .public)")
+            } else {
+                Self.logger.error("\(name, privacy: .public) window after 500 ms: not key — behind another app? app active \(isActive, privacy: .public)")
+            }
+        }
+    }
 }
 
 private final class ForwardView: NSView {
@@ -41,19 +87,32 @@ private final class ForwardView: NSView {
         fatalError("init(coder:) is unused — the UI is built in code")
     }
 
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        // A selector observer goes away with the view by itself; this is for a window swapped.
+        NotificationCenter.default.removeObserver(self, name: NSWindow.willCloseNotification, object: nil)
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        guard let current = window else { return }
+        ComesForward.windows.setObject(current, forKey: name as NSString)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowWillClose(_:)),
+            name: NSWindow.willCloseNotification,
+            object: current
+        )
         // A turn later: SwiftUI puts the window up after it has built the content.
         Task { @MainActor [weak self] in
             guard let self, let window, window !== broughtForward else { return }
             broughtForward = window
-            let wasActive = NSApp.isActive
-            NSApp.activate()
-            window.orderFrontRegardless()
-            let name = name
-            Self.logger.notice(
-                "\(name, privacy: .public) window shown: app was active \(wasActive, privacy: .public), ordered front"
-            )
+            ComesForward.order(window, name: name, what: "shown")
         }
+    }
+
+    @objc private func windowWillClose(_: Notification) {
+        let name = name
+        Self.logger.notice("\(name, privacy: .public) window closed")
     }
 }

@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import os
 
 @MainActor
 protocol AnnotationCanvasDelegate: AnyObject {
@@ -20,6 +21,10 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     private(set) var tool: AnnotationTool = .select {
         didSet {
             guard tool != oldValue else { return }
+            let from = oldValue.rawValue
+            let to = tool.rawValue
+            let by = NSApp.currentEvent?.type == .keyDown ? "key" : "mouse"
+            Self.logger.notice("tool \(from, privacy: .public) → \(to, privacy: .public) by \(by, privacy: .public)")
             finishTextEditing()
             window?.invalidateCursorRects(for: self)
             delegate?.canvasDidChangeTool(self)
@@ -473,6 +478,9 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
             return boxReshaping(blur, side: side, grabbedAt: grab)
 
         default:
+            let kind = AnnotationTool.drawing(selection).rawValue
+            let name = String(describing: handle)
+            Self.logger.error("no reshaping for \(kind, privacy: .public) handle \(name, privacy: .public)")
             return nil
         }
     }
@@ -778,6 +786,11 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
             // The object has already moved during the drag; the document gets the total offset
             // for the sake of undo.
             selection.move(by: CGVector(dx: -total.dx, dy: -total.dy))
+            if total != .zero {
+                let kind = AnnotationTool.drawing(selection).rawValue
+                let commandHeld = isTemporaryMove
+                Self.logger.notice("moved \(kind, privacy: .public) by \(Int(total.dx)),\(Int(total.dy)) pt, ⌘-held \(commandHeld, privacy: .public)")
+            }
             document.move(selection, by: total)
             dragOrigin = nil
             return
@@ -801,6 +814,9 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
                 tool = .select
                 document.selection = draftAnnotation
             }
+        } else {
+            let kind = AnnotationTool.drawing(draftAnnotation).rawValue
+            Self.logger.notice("\(kind, privacy: .public) too small, dropped")
         }
         needsDisplay = true
     }
@@ -860,6 +876,9 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     /// the letters that get exported — style, outline and plate included.
     private func startTextEditing(_ annotation: TextAnnotation, isNew: Bool = false) {
         finishTextEditing()
+        let length = annotation.text.count
+        let isBox = annotation.fixedWidth != nil
+        Self.logger.notice("text edit begins: \(isNew ? "new" : "existing", privacy: .public), \(length) chars, box \(isBox, privacy: .public)")
 
         editingText = annotation
         isEditingNewText = isNew
@@ -974,6 +993,15 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         textUndoManager.removeAllActions()
 
         let isMeaningful = !typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let outcome = switch (isEditingNewText, isMeaningful) {
+        case (true, true): "added"
+        case (true, false): "discarded"
+        case (false, true): typed == textBeforeEditing ? "unchanged" : "changed"
+        case (false, false): "removed"
+        }
+        let typedLength = typed.count
+        let previousLength = isEditingNewText ? 0 : textBeforeEditing.count
+        Self.logger.notice("text edit ends: \(outcome, privacy: .public), \(typedLength) chars, was \(previousLength)")
         if isEditingNewText {
             editingText.text = typed
             if isMeaningful {
@@ -1140,10 +1168,16 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     @objc func undo(_: Any?) {
         guard let manager = activeUndoManager, manager.canUndo else { return }
         Stats.shared.add(.undos)
+        if isEditingText {
+            Self.logger.notice("undo (typing)")
+        }
         manager.undo()
     }
 
     @objc func redo(_: Any?) {
+        if isEditingText, textUndoManager.canRedo {
+            Self.logger.notice("redo (typing)")
+        }
         activeUndoManager?.redo()
     }
 
@@ -1162,6 +1196,10 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     /// The typing inside one text field — kept apart from the document, so ⌘Z while typing takes
     /// back letters rather than the last arrow.
     let textUndoManager = UndoManager()
+
+    private static var logger: Logger {
+        .pawshot("editor")
+    }
 
     /// Esc cascades: first the text input, then the tool, then the selection — and there it
     /// stops. It never closes the window: the owner lost a shot to it once too often. Closing is

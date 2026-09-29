@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import os
 import SwiftUI
 
 /// Shown on the first capture that runs into missing screen recording access — never at launch:
@@ -11,7 +12,14 @@ import SwiftUI
 final class PermissionWindowController: NSWindowController, NSWindowDelegate {
     private static var current: PermissionWindowController?
 
+    private static var logger: Logger {
+        .pawshot("permission")
+    }
+
     static func show() {
+        let reused = current != nil
+        let wasActive = NSApp.isActive
+        logger.notice("permission window shown: reused \(reused, privacy: .public), app was active \(wasActive, privacy: .public)")
         let controller = current ?? PermissionWindowController()
         current = controller
         controller.window?.center()
@@ -38,11 +46,17 @@ final class PermissionWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_: Notification) {
+        let granted = ScreenRecordingPermission.isGranted
+        Self.logger.notice("permission window closed: screen recording granted \(granted, privacy: .public)")
         Self.current = nil
     }
 }
 
 struct PermissionView: View {
+    private static var logger: Logger {
+        .pawshot("permission")
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 14) {
@@ -100,9 +114,12 @@ struct PermissionView: View {
                     .tint(Tokens.paw)
             } else {
                 Button("Open System Settings") {
-                    if let url = ScreenRecordingPermission.settingsURL {
-                        NSWorkspace.shared.open(url)
+                    guard let url = ScreenRecordingPermission.settingsURL else {
+                        Self.logger.error("permission window: no System Settings URL to open")
+                        return
                     }
+                    Self.logger.notice("permission window: opening System Settings")
+                    NSWorkspace.shared.open(url)
                 }
                 .buttonStyle(.glass)
                 // The grant may never reach this process, and then the row would stay "not
@@ -181,10 +198,18 @@ struct PermissionView: View {
     /// Also the settings window's "Relaunch" after a language change: the new process asks this
     /// one to quit through `replaceOlderInstances`, and this one quits on its own besides.
     static func relaunch() {
+        logger.notice("relaunch asked")
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
-            Task { @MainActor in NSApp.terminate(nil) }
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
+            // Called on a queue of its own: only a string crosses to the main actor.
+            let failure = error.map { String(describing: $0) }
+            Task { @MainActor in
+                if let failure {
+                    Self.logger.error("relaunch: new copy not started: \(failure, privacy: .public)")
+                }
+                NSApp.terminate(nil)
+            }
         }
     }
 }

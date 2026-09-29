@@ -134,7 +134,12 @@ final class RecordingController {
         self.engine = engine
         self.target = target
         recordedSize = CGSize(width: size.width, height: size.height)
-        Self.logger.notice("recording \(size.width, privacy: .public)×\(size.height, privacy: .public), mic \(microphone, privacy: .public)")
+        let systemAudio = settings.recordsSystemAudio
+        let native = settings.recordsAtNativeResolution
+        let penAvailable = ink != nil
+        Self.logger.notice(
+            "recording \(size.width, privacy: .public)×\(size.height, privacy: .public), mic \(microphone, privacy: .public), system audio \(systemAudio, privacy: .public), native \(native, privacy: .public), pen available \(penAvailable, privacy: .public)"
+        )
 
         let events = EventRecorder(area: Self.appKitRect(of: target)) { [weak engine] in
             guard let engine, !engine.isPaused else { return nil }
@@ -164,7 +169,15 @@ final class RecordingController {
     /// seen while recording; the outline is a Pawshot window and never reaches the video.
     func markZoom() {
         // Paused, the mark isn't recorded — and then nothing may pretend it was.
-        guard let events, let target, let time = events.markZoom() else { return }
+        guard let events, let target else { return }
+        guard let time = events.markZoom() else {
+            Self.logger.notice("zoom mark ignored: paused")
+            return
+        }
+        let marks = events.timeline.zoomMarks.count
+        Self.logger.notice(
+            "zoom mark at \(String(format: "%.1f", time), privacy: .public) s (\(marks, privacy: .public) so far)"
+        )
         var outline = (cursor: NSEvent.mouseLocation, end: time + EffectsPlanner.zoomLength)
         if let last = zoomOutline, time <= last.end + EffectsPlanner.zoomMergeGap {
             outline = (last.cursor, max(last.end, outline.end))
@@ -183,13 +196,16 @@ final class RecordingController {
     func togglePen() {
         guard let ink else { return }
         ink.setDrawing(!ink.isDrawing)
-        pill.setPen(isOn: ink.isDrawing)
+        let drawing = ink.isDrawing
+        Self.logger.notice("pen \(drawing ? "on" : "off", privacy: .public)")
+        pill.setPen(isOn: drawing)
     }
 
     func togglePause() {
         guard let engine else { return }
         let resumes = engine.isPaused
-        Self.logger.notice("recording \(resumes ? "resumed" : "paused", privacy: .public)")
+        let elapsed = String(format: "%.1f", engine.duration)
+        Self.logger.notice("recording \(resumes ? "resumed" : "paused", privacy: .public) at \(elapsed, privacy: .public) s")
         if !resumes {
             Stats.shared.add(.pauses)
         }
@@ -204,7 +220,8 @@ final class RecordingController {
     /// Throws the take away and starts again at once, with the same region and sound.
     func restart() {
         guard let engine, let target else { return }
-        Self.logger.notice("recording restarts")
+        let thrownAway = String(format: "%.1f", engine.duration)
+        Self.logger.notice("recording restarts: \(thrownAway, privacy: .public) s thrown away")
         Stats.shared.add(.restarts)
         self.engine = nil
         // Still "active" while the old take winds down, so ⇧⌘3 in between stops rather than
@@ -258,13 +275,21 @@ final class RecordingController {
         let size = recordedSize
         let timeline = events?.stop() ?? EventTimeline()
         events = nil
+        let penStrokes = ink?.strokeCount ?? 0
         teardown()
 
         Task {
             do {
                 let movie = try await engine.stop()
-                try? timeline.save(nextTo: movie)
-                Self.logger.notice("recording finished: \(movie.lastPathComponent, privacy: .public)")
+                do {
+                    try timeline.save(nextTo: movie)
+                } catch {
+                    Self.logger.error("timeline not saved: \(String(describing: error), privacy: .public)")
+                }
+                let bytes = (try? movie.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                Self.logger.notice(
+                    "recording finished: \(movie.lastPathComponent, privacy: .public), \(String(format: "%.1f", seconds), privacy: .public) s, \(Int(size.width), privacy: .public)×\(Int(size.height), privacy: .public), \(bytes, privacy: .public) B, \(timeline.clicks.count, privacy: .public) clicks, \(timeline.keys.count, privacy: .public) keys, \(timeline.zoomMarks.count, privacy: .public) zoom marks, \(penStrokes, privacy: .public) pen strokes"
+                )
                 onRecorded?(movie, size, screen)
                 Stats.shared.noteRecording(seconds: seconds)
                 if let error {

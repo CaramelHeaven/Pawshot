@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// The editor's content: the shot as a sheet of paper — rounded, with a shadow — and the toolbar.
@@ -163,6 +164,10 @@ private struct ScalableTools: View {
     @State private var availableWidth: CGFloat = 0
     @State private var dragStartScale: CGFloat?
 
+    private nonisolated static var logger: Logger {
+        .pawshot("editor")
+    }
+
     private var scale: CGFloat {
         SelectionGeometry.toolsScale(
             Settings.shared.overlayToolsScale,
@@ -191,6 +196,7 @@ private struct ScalableTools: View {
         ToolsGrip(isLeading: outward < 0)
             .onTapGesture(count: 2) {
                 Settings.shared.overlayToolsScale = 1
+                Self.logger.notice("tools scale reset to 100%")
             }
             .gesture(
                 DragGesture(minimumDistance: 1, coordinateSpace: .global)
@@ -205,7 +211,11 @@ private struct ScalableTools: View {
                             availableWidth: availableWidth
                         )
                     }
-                    .onEnded { _ in dragStartScale = nil }
+                    .onEnded { _ in
+                        dragStartScale = nil
+                        let percent = Int((Settings.shared.overlayToolsScale * 100).rounded())
+                        Self.logger.notice("tools scale \(percent)%")
+                    }
             )
     }
 }

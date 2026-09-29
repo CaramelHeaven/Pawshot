@@ -1,5 +1,6 @@
 import AppKit
 import ImageIO
+import os
 import UniformTypeIdentifiers
 
 enum ExportError: LocalizedError {
@@ -33,9 +34,17 @@ enum ExportService {
         let png = try pngData(from: image)
 
         pasteboard.clearContents()
-        pasteboard.setData(png, forType: .png)
+        if !pasteboard.setData(png, forType: .png) {
+            logger.error("clipboard write failed: PNG")
+        }
         // TIFF goes right after it: some older apps can only paste that.
-        pasteboard.setData(NSBitmapImageRep(cgImage: image).tiffRepresentation, forType: .tiff)
+        let tiff = NSBitmapImageRep(cgImage: image).tiffRepresentation
+        let tiffWritten = pasteboard.setData(tiff, forType: .tiff)
+        if tiff == nil {
+            logger.error("clipboard write failed: no TIFF representation")
+        } else if !tiffWritten {
+            logger.error("clipboard write failed: TIFF")
+        }
     }
 
     /// What ⌘D puts on the clipboard: the text read off the shot, and nothing else.
@@ -45,7 +54,13 @@ enum ExportService {
     /// earlier ⌘C instead of the words just asked for.
     static func copy(text: String, to pasteboard: NSPasteboard = .general) {
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        if !pasteboard.setString(text, forType: .string) {
+            logger.error("clipboard write failed: text, \(text.count) chars")
+        }
+    }
+
+    private static var logger: Logger {
+        .pawshot("editor")
     }
 
     /// The shot as a file of `format`. JPEG and HEIC at 0.9: screenshot text stays crisp, and the

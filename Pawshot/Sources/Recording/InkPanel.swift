@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 /// How a pen stroke fades: whole for 3.5 seconds, gone at 4. Pure, so the timing is a test.
 enum InkFade {
@@ -25,6 +26,10 @@ enum InkFade {
 /// fixed when the stream starts.
 @MainActor
 final class InkPanelController {
+    private static var logger: Logger {
+        .pawshot("recording")
+    }
+
     private let panel: InkPanel
     private let canvas: InkView
     private(set) var isDrawing = false
@@ -34,6 +39,10 @@ final class InkPanelController {
 
     var windowID: CGWindowID {
         CGWindowID(panel.windowNumber)
+    }
+
+    var strokeCount: Int {
+        canvas.strokeCount
     }
 
     /// `area` in AppKit screen coordinates.
@@ -70,6 +79,7 @@ final class InkPanelController {
             }
             try? await Task.sleep(for: .milliseconds(10))
         }
+        Self.logger.error("pen panel not on screen after 1 s — the pen won't be recorded")
     }
 
     func setDrawing(_ drawing: Bool) {
@@ -111,6 +121,7 @@ private final class InkView: NSView {
     }
 
     private var strokes: [Stroke] = []
+    private(set) var strokeCount = 0
     private var fadeTimer: Timer?
     private let style = AnnotationStyle.default
 
@@ -128,6 +139,7 @@ private final class InkView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         strokes.append(Stroke(points: [convert(event.locationInWindow, from: nil)], started: Date()))
+        strokeCount += 1
         startFading()
         needsDisplay = true
     }

@@ -78,11 +78,17 @@ struct PawshotApp: App {
 private struct AppCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
+    private static var logger: Logger {
+        .pawshot("app")
+    }
+
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button("About Pawshot") {
+                Self.logger.notice("main menu: about")
                 NSApp.activate()
                 openWindow(id: WindowID.about)
+                Task { @MainActor in ComesForward.bringFront("about") }
             }
         }
 
@@ -101,6 +107,10 @@ private struct AppCommands: Commands {
 /// canvas re-dispatches them on a non-Latin layout (`AnnotationCanvasView.performKeyEquivalent`).
 /// ⌘C, ⌘Z and ⌘⇧Z come from the standard Edit menu SwiftUI builds.
 private struct EditorCommands: Commands {
+    private static var logger: Logger {
+        .pawshot("app")
+    }
+
     var body: some Commands {
         // SwiftUI's save group also holds Close; replacing the group without it took ⌘W away.
         CommandGroup(replacing: .saveItem) {
@@ -155,6 +165,10 @@ private struct EditorCommands: Commands {
 
     @MainActor
     private func send(_ action: Selector) {
-        NSApp.sendAction(action, to: nil, from: nil)
+        // No window in front that answers it: the key did nothing, and this is the only trace.
+        if !NSApp.sendAction(action, to: nil, from: nil) {
+            let name = NSStringFromSelector(action)
+            Self.logger.notice("menu command \(name, privacy: .public): nobody took it")
+        }
     }
 }

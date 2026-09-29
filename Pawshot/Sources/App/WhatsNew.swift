@@ -14,6 +14,13 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.5.3", text: String(localized: """
+            About Pawshot, Settings and Open Pawshot from the paw's menu now open in front of \
+            other apps, even when the window was already open behind them.
+
+            The log saved from Settings → General → Diagnostics tells much more about what \
+            happened, so a problem you send is easier to find.
+            """)),
             Entry(version: "0.5.2", text: String(localized: """
             Dragging the edge of the editor window adds the neighbouring part of the screen to the \
             shot again. On some Macs the window grew with grey around the shot instead.

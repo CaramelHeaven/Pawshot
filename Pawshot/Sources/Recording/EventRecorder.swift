@@ -26,6 +26,7 @@ final class EventRecorder {
     private var clickMonitor: Any?
     private var keyTap: CFMachPort?
     private var keySource: CFRunLoopSource?
+    private var tapReenabled = 0
 
     init(area: CGRect, clock: @escaping () -> Double?) {
         self.area = area
@@ -42,6 +43,9 @@ final class EventRecorder {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             MainActor.assumeIsolated { self?.recordClick() }
         }
+        if clickMonitor == nil {
+            Self.logger.error("click monitor not installed: no click rings in this take")
+        }
 
         if recordingKeys, CGPreflightListenEventAccess() {
             startKeyTap()
@@ -51,6 +55,13 @@ final class EventRecorder {
     }
 
     func stop() -> EventTimeline {
+        if cursorTimer != nil {
+            let recorded = timeline
+            let reenabled = tapReenabled
+            Self.logger.notice(
+                "events: \(recorded.cursor.count, privacy: .public) cursor, \(recorded.clicks.count, privacy: .public) clicks, \(recorded.keys.count, privacy: .public) keys, \(recorded.zoomMarks.count, privacy: .public) zooms, tap re-enabled \(reenabled, privacy: .public)×"
+            )
+        }
         cursorTimer?.invalidate()
         cursorTimer = nil
         if let clickMonitor {
@@ -104,9 +115,12 @@ final class EventRecorder {
 
     /// The system switches a tap off when a callback is slow or on some user input; it has to be
     /// switched back on, or the keys silently stop being recorded mid-take.
-    fileprivate func reenableKeyTap() {
+    fileprivate func reenableKeyTap(reason: String) {
         if let keyTap {
             CGEvent.tapEnable(tap: keyTap, enable: true)
+            tapReenabled += 1
+            let count = tapReenabled
+            Self.logger.notice("key tap switched off by the system (\(reason, privacy: .public)), back on (\(count, privacy: .public)×)")
         }
     }
 
@@ -156,7 +170,8 @@ private func keyTapCallback(
         else { break }
         MainActor.assumeIsolated { recorder.recordKey(label: label) }
     case .tapDisabledByTimeout, .tapDisabledByUserInput:
-        MainActor.assumeIsolated { recorder.reenableKeyTap() }
+        let reason = type == .tapDisabledByTimeout ? "timeout" : "user input"
+        MainActor.assumeIsolated { recorder.reenableKeyTap(reason: reason) }
     default:
         break
     }

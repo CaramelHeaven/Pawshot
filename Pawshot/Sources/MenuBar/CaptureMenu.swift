@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// What the menu can ask the app to do. The capture and recording pipelines live in
@@ -27,6 +28,10 @@ struct CaptureMenu: View {
     @Environment(\.openSettings) private var openSettings
     private let settings = Settings.shared
     private let state = AppState.shared
+
+    private static var logger: Logger {
+        .pawshot("app")
+    }
 
     var body: some View {
         // A menu-style menu bar item can't stop on a plain click, so while a take runs, stopping
@@ -88,22 +93,28 @@ struct CaptureMenu: View {
         Toggle("Launch at Login", isOn: LoginItem.menuBinding)
             .disabled(!LoginItem.isInApplicationsFolder)
 
+        // An accessory app is never active on its own, and activation may be refused: without
+        // `ComesForward` the window opens — or an open one stays — behind whatever was in front.
         Button("Open Pawshot") {
+            Self.logger.notice("paw menu: open pawshot")
             NSApp.activate()
             openWindow(id: WindowID.welcome)
+            Task { @MainActor in ComesForward.bringFront("welcome") }
         }
 
         Button("Settings…") {
-            // An accessory app is never active on its own: without this the window opens behind
-            // whatever was in front.
+            Self.logger.notice("paw menu: settings")
             NSApp.activate()
             openSettings()
+            Task { @MainActor in ComesForward.bringFront("settings") }
         }
         .keyboardShortcut(",")
 
         Button("About Pawshot") {
+            Self.logger.notice("paw menu: about")
             NSApp.activate()
             openWindow(id: WindowID.about)
+            Task { @MainActor in ComesForward.bringFront("about") }
         }
 
         Button("Check for Updates…") {
@@ -113,6 +124,7 @@ struct CaptureMenu: View {
         Divider()
 
         Button("Quit Pawshot") {
+            Self.logger.notice("paw menu: quit")
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q")

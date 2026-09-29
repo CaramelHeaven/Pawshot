@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import os
 
 /// Which of macOS's own shortcuts that take ours are switched on right now: the screenshot ones,
 /// and "Move focus to next window".
@@ -98,7 +99,24 @@ struct SystemScreenshotShortcuts: Equatable {
             "AppleSymbolicHotKeys" as CFString,
             "com.apple.symbolichotkeys" as CFString
         )
-        return value as? [String: Any]
+        let table = value as? [String: Any]
+        if table == nil {
+            let isFirst = unreadableReported.withLock { reported in
+                defer { reported = true }
+                return !reported
+            }
+            if isFirst {
+                logger.error("macOS shortcuts unreadable: no AppleSymbolicHotKeys in com.apple.symbolichotkeys, factory defaults assumed")
+            }
+        }
+        return table
+    }
+
+    /// Read on every redraw of Settings and the welcome window: said once per process.
+    private static let unreadableReported = OSAllocatedUnfairLock(initialState: false)
+
+    private static var logger: Logger {
+        .pawshot("hotkey")
     }
 
     /// Every macOS shortcut in the preferences that is switched on and holds ⌘, ⌥ or ⌃ — any

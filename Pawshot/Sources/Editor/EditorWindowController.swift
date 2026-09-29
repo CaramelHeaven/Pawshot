@@ -214,6 +214,8 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             returnFocusToCanvas()
         }
         chrome.pickCustomColor = { [weak self] color in
+            let hex = ColorHex.string(color)
+            Self.editorLogger.notice("custom colour \(hex, privacy: .public)")
             Settings.shared.pickCustomColor(color)
             self?.editorDocument.updateStyle { $0.color = color }
             self?.syncChrome()
@@ -366,6 +368,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
 
     private func rotate(clockwise: Bool) {
         canvas.finishTextEditing()
+        let direction = clockwise ? "right" : "left"
+        let target = editorDocument.selection.map { AnnotationTool.drawing($0).rawValue } ?? "shot"
+        Self.editorLogger.notice("rotate \(direction, privacy: .public): \(target, privacy: .public)")
         if editorDocument.selection != nil {
             editorDocument.rotateSelection(clockwise: clockwise)
         } else {
@@ -389,7 +394,11 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// ⇧⌘S: a name, a folder and a format picked once, in the system's save sheet. The folder and
     /// format in Settings stay as they are.
     @objc func saveDocumentAs(_: Any?) {
-        guard let window, !isClosing else { return }
+        guard let window else { return }
+        guard !isClosing else {
+            Self.editorLogger.notice("save as ignored: window closing")
+            return
+        }
         canvas.finishTextEditing()
         let settings = Settings.shared
         let panel = NSSavePanel()
@@ -403,8 +412,12 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         panel.accessoryView = NSHostingView(rootView: picker)
         Self.editorLogger.notice("save as: sheet opened")
         panel.beginSheetModal(for: window) { [weak self, weak panel] response in
-            guard response == .OK, let panel, let url = panel.url else {
+            guard response == .OK, let panel else {
                 Self.editorLogger.notice("save as: cancelled")
+                return
+            }
+            guard let url = panel.url else {
+                Self.editorLogger.error("save as: OK with no URL")
                 return
             }
             // The picker keeps the panel's one allowed type in step with the format it shows.
@@ -419,7 +432,11 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     @objc func copyText(_: Any?) {
         // ⌘D is a key somebody leans on, and reading a 5K shot is not free. A second press while
         // the first is still working used to start a second reading of the very same picture.
-        guard textReadingTask == nil, !isClosing else { return }
+        guard textReadingTask == nil, !isClosing else {
+            let reason = isClosing ? "window closing" : "reading already running"
+            Self.logger.notice("⌘D ignored: \(reason, privacy: .public)")
+            return
+        }
 
         canvas.finishTextEditing()
 
@@ -488,9 +505,19 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
 
         warmUpTask = Task {
             let started = Date()
-            let text = try await recognizeText(image)
-            Self.logger.notice("warm-up took \(Self.milliseconds(since: started)) ms")
-            return text
+            do {
+                let text = try await recognizeText(image)
+                Self.logger.notice("warm-up took \(Self.milliseconds(since: started)) ms")
+                return text
+            } catch {
+                let elapsed = Self.milliseconds(since: started)
+                if error is CancellationError || Task.isCancelled {
+                    Self.logger.notice("warm-up cancelled after \(elapsed) ms")
+                } else {
+                    Self.logger.error("warm-up failed after \(elapsed) ms: \(String(describing: error), privacy: .public)")
+                }
+                throw error
+            }
         }
     }
 
@@ -503,8 +530,13 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             editorDocument.annotations.isEmpty,
             warmUpCrop == editorDocument.cropRect
         {
+            Self.logger.notice("read: first read reused")
             return try await warmUpTask.value
         }
+
+        let objects = editorDocument.annotations.count
+        let cropChanged = warmUpCrop != editorDocument.cropRect
+        Self.logger.notice("read: fresh render, \(objects) objects, crop changed \(cropChanged, privacy: .public)")
 
         guard let image = AnnotationRenderer.render(editorDocument) else {
             throw TextRecognitionError.renderFailed

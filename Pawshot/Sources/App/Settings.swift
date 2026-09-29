@@ -163,7 +163,18 @@ final class Settings {
     /// goes quiet at once (`Logger.pawshot`).
     var collectsLogs: Bool {
         get { flag(.collectsLogs, default: true) }
-        set { setFlag(newValue, for: .collectsLogs) }
+        set {
+            // Logged while the log is on: before the switch goes off, after it goes on.
+            let key = Key.collectsLogs.rawValue
+            if !newValue {
+                Self.logger.notice("\(key, privacy: .public) → false")
+            }
+            defaults.set(newValue, forKey: key)
+            revision += 1
+            if newValue {
+                Self.logger.notice("\(key, privacy: .public) → true")
+            }
+        }
     }
 
     /// The microphone goes into recordings. Off by default: the app asks for nothing until the
@@ -242,6 +253,7 @@ final class Settings {
             return defaults.string(forKey: Key.videoPreset.rawValue).flatMap(VideoPreset.init(rawValue:)) ?? .original
         }
         set {
+            Self.logger.notice("video preset → \(newValue.rawValue, privacy: .public)")
             defaults.set(newValue.rawValue, forKey: Key.videoPreset.rawValue)
             revision += 1
         }
@@ -333,6 +345,7 @@ final class Settings {
                 if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
                     return URL(fileURLWithPath: path, isDirectory: true)
                 }
+                Self.reportOnce("save folder \(path) is gone: saving to the Desktop")
             }
             return Self.desktop
         }
@@ -432,7 +445,21 @@ final class Settings {
         if data == Self.clearedMarker {
             return nil
         }
-        return (try? JSONDecoder().decode(HotKeyBinding.self, from: data)) ?? fallback
+        do {
+            return try JSONDecoder().decode(HotKeyBinding.self, from: data)
+        } catch {
+            Self.reportOnce("shortcut \(key.rawValue) doesn't decode, using the default \(fallback.logString): \(String(describing: error))")
+            return fallback
+        }
+    }
+
+    /// Fallbacks that happen on every read, logged once per process — the getters run on every
+    /// redraw.
+    private static var reported: Set<String> = []
+
+    private static func reportOnce(_ message: String) {
+        guard reported.insert(message).inserted else { return }
+        logger.error("\(message, privacy: .public)")
     }
 
     private func store(_ binding: HotKeyBinding?, for key: Key, default fallback: HotKeyBinding) {

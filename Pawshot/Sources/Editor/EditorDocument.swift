@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 /// The editor's state: the captured frame, the crop, the list of annotations, the selection and
 /// the current style. Every change goes through here so undo lives in one place instead of being
@@ -39,6 +40,8 @@ final class EditorDocument {
     var selection: Annotation? {
         didSet {
             if selection !== oldValue {
+                let kind = selection.map(Self.kind) ?? "none"
+                Self.logger.notice("selected \(kind, privacy: .public)")
                 settlePreview()
                 onChange?()
             }
@@ -75,7 +78,11 @@ final class EditorDocument {
     ///   presses to undo a single gesture. The window registers one step per gesture through
     ///   `registerCropUndo(from:)` instead.
     func setCrop(_ rect: CGRect, undoable: Bool = true) {
-        guard rect != cropRect, let cutout = Self.cutout(of: frame, cropRect: rect) else { return }
+        guard rect != cropRect else { return }
+        guard let cutout = Self.cutout(of: frame, cropRect: rect) else {
+            Self.logger.error("crop \(Int(rect.width))×\(Int(rect.height)) at \(Int(rect.minX)),\(Int(rect.minY)) could not be cut out")
+            return
+        }
 
         let previous = cropRect
         cropRect = rect
@@ -127,7 +134,12 @@ final class EditorDocument {
         guard
             let turnedFrame = frame.rotatedQuarter(clockwise: clockwise),
             let cutout = Self.cutout(of: turnedFrame, cropRect: turnedCrop)
-        else { return }
+        else {
+            let width = frame.image.width
+            let height = frame.image.height
+            Self.logger.error("rotate: turning the \(width)×\(height) px frame failed")
+            return
+        }
 
         frame = turnedFrame
         cropRect = turnedCrop
@@ -172,6 +184,7 @@ final class EditorDocument {
     /// and this records the whole gesture as one step of ⌘Z.
     func finishReshaping<Object: Reshapable>(_ object: Object, from previous: Object.Shape) {
         guard object.shape != previous else { return }
+        Self.logger.notice("reshaped \(Self.kind(object), privacy: .public)")
         registerUndo { document in
             document.setShape(previous, of: object)
         }
@@ -190,7 +203,10 @@ final class EditorDocument {
     /// The button beside a selected line: its heads go one stop further — at the end, at the
     /// start, at both. Only this line changes, not the style new lines are drawn with.
     func turnHeads(of arrow: ArrowAnnotation) {
-        setHeads(arrow.heads.next, of: arrow)
+        let next = arrow.heads.next
+        let name = next.lineEnds == .both ? "both" : next.pointsBack ? "start" : "end"
+        Self.logger.notice("line heads → \(name, privacy: .public)")
+        setHeads(next, of: arrow)
     }
 
     private func setHeads(_ heads: ArrowAnnotation.Heads, of arrow: ArrowAnnotation) {
@@ -215,6 +231,8 @@ final class EditorDocument {
 
     func add(_ annotation: Annotation) {
         annotations.append(annotation)
+        let count = annotations.count
+        Self.logger.notice("added \(Self.kind(annotation), privacy: .public), \(count) on the shot")
         Stats.shared.noteDrawn(annotation)
         registerUndo { document in
             document.remove(annotation)
@@ -238,6 +256,7 @@ final class EditorDocument {
 
     func removeSelection() {
         guard let selection else { return }
+        Self.logger.notice("deleted \(Self.kind(selection), privacy: .public)")
         remove(selection)
     }
 
@@ -247,6 +266,7 @@ final class EditorDocument {
         guard !annotations.isEmpty else { return }
 
         let previous = annotations
+        Self.logger.notice("cleared \(previous.count) objects")
         annotations.removeAll()
         selection = nil
 
@@ -306,13 +326,17 @@ final class EditorDocument {
             style = base.style
             base.selection?.style = base.selectionStyle ?? base.style
         }
+        let before = style
         transform(&style)
 
         if let selection {
-            var changed = selection.style
+            let previous = selection.style
+            var changed = previous
             transform(&changed)
+            Self.logStyleChange(from: previous, to: changed, on: Self.kind(selection))
             apply(style: changed, to: selection)
         } else {
+            Self.logStyleChange(from: before, to: style, on: "new objects")
             onChange?()
         }
     }
@@ -340,6 +364,7 @@ final class EditorDocument {
         guard let base = previewBase else { return }
         previewBase = nil
         guard let annotation = base.selection, let previous = base.selectionStyle, annotation.style != previous else { return }
+        Self.logger.notice("fill slider settled on selection change")
         registerUndo { document in
             document.apply(style: previous, to: annotation)
         }
@@ -384,9 +409,52 @@ final class EditorDocument {
     private func registerUndo(_ action: @escaping @MainActor (EditorDocument) -> Void) {
         undoManager?.registerUndo(withTarget: self) { document in
             MainActor.assumeIsolated {
+                let redoing = document.undoManager?.isRedoing ?? false
+                Self.logger.notice("\(redoing ? "redo" : "undo", privacy: .public)")
                 action(document)
             }
         }
+    }
+
+    // MARK: - Log
+
+    private static var logger: Logger {
+        .pawshot("editor")
+    }
+
+    private static func kind(_ annotation: Annotation) -> String {
+        AnnotationTool.drawing(annotation).rawValue
+    }
+
+    /// Only the fields that changed, before → after.
+    private static func logStyleChange(from old: AnnotationStyle, to new: AnnotationStyle, on target: String) {
+        var changes: [String] = []
+        if old.color != new.color {
+            changes.append("colour \(ColorHex.string(old.color)) → \(ColorHex.string(new.color))")
+        }
+        if old.lineWidth != new.lineWidth {
+            changes.append("width \(old.lineWidth) → \(new.lineWidth)")
+        }
+        if old.fillOpacity != new.fillOpacity {
+            changes.append("fill \(Int((old.fillOpacity * 100).rounded()))% → \(Int((new.fillOpacity * 100).rounded()))%")
+        }
+        if old.textStyle != new.textStyle {
+            changes.append("text \(old.textStyle) → \(new.textStyle)")
+        }
+        if old.textSize != new.textSize {
+            changes.append("size \(old.textSize) → \(new.textSize)")
+        }
+        if old.textWeight != new.textWeight {
+            changes.append("weight \(old.textWeight.rawValue) → \(new.textWeight.rawValue)")
+        }
+        if old.lineEnds != new.lineEnds {
+            changes.append("ends \(old.lineEnds) → \(new.lineEnds)")
+        }
+        if old.shapeKind != new.shapeKind {
+            changes.append("shape \(old.shapeKind) → \(new.shapeKind)")
+        }
+        let line = changes.isEmpty ? "no change" : changes.joined(separator: ", ")
+        logger.notice("style: \(line, privacy: .public) on \(target, privacy: .public)")
     }
 }
 

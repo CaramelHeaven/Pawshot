@@ -59,6 +59,11 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var lastFrame: CMSampleBuffer?
     private var lastFrameTime: CMTime = .zero
     private var isFinishing = false
+    /// For the stop line in the log; on `queue`, like the rest.
+    private var framesWritten = 0
+    private var framesDropped = 0
+    private var audioDropped = 0
+    private var appendFailures = 0
 
     /// Told when the system ends the stream on its own: a display unplugged, access revoked.
     var onUnexpectedStop: (@MainActor @Sendable (Error) -> Void)?
@@ -143,7 +148,10 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         }
         // Samples are retimed to start at zero, so the session starts there too.
         writer.startSession(atSourceTime: .zero)
+        let started = Date()
         try await stream?.startCapture()
+        let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+        Self.logger.notice("stream started in \(elapsed, privacy: .public) ms")
     }
 
     func pause() {
@@ -165,26 +173,30 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
 
     /// Ends the recording and returns the finished file.
     func stop() async throws -> URL {
-        try? await stream?.stopCapture()
+        await stopCapture()
 
-        let hasFrames = await withCheckedContinuation { continuation in
+        let (hasFrames, counts): (Bool, String) = await withCheckedContinuation { continuation in
             queue.async {
                 self.isFinishing = true
                 self.extendLastFrame(to: self.clock.duration(at: Self.now))
                 self.videoInput.markAsFinished()
                 self.systemAudioInput?.markAsFinished()
                 self.microphoneInput?.markAsFinished()
-                continuation.resume(returning: self.clock.origin != nil)
+                let counts = "\(self.framesWritten) frames written, \(self.framesDropped) dropped (writer busy), \(self.audioDropped) audio dropped, append failures \(self.appendFailures)"
+                continuation.resume(returning: (self.clock.origin != nil, counts))
             }
         }
 
         guard hasFrames else {
+            Self.logger.error("recording stopped with no frames: \(counts, privacy: .public)")
             writer.cancelWriting()
-            try? FileManager.default.removeItem(at: outputURL)
+            removeOutput()
             throw RecordingError.noFrames
         }
 
         await writer.finishWriting()
+        let status = Self.describe(writer.status)
+        Self.logger.notice("recording stopped: \(counts, privacy: .public), writer status \(status, privacy: .public)")
         guard writer.status == .completed else {
             throw RecordingError.writerFailed(writer.error)
         }
@@ -193,7 +205,7 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
 
     /// Throws the take away: stops, and deletes whatever was written.
     func cancel() async {
-        try? await stream?.stopCapture()
+        await stopCapture()
         await withCheckedContinuation { continuation in
             queue.async {
                 self.isFinishing = true
@@ -201,7 +213,36 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             }
         }
         writer.cancelWriting()
-        try? FileManager.default.removeItem(at: outputURL)
+        removeOutput()
+    }
+
+    private func stopCapture() async {
+        do {
+            try await stream?.stopCapture()
+        } catch {
+            Self.logger.error("stream stop failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    private func removeOutput() {
+        do {
+            try FileManager.default.removeItem(at: outputURL)
+        } catch CocoaError.fileNoSuchFile {
+            // `cancelWriting` already took it.
+        } catch {
+            Self.logger.error("recording file not removed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    private static func describe(_ status: AVAssetWriter.Status) -> String {
+        switch status {
+        case .unknown: "unknown"
+        case .writing: "writing"
+        case .completed: "completed"
+        case .failed: "failed"
+        case .cancelled: "cancelled"
+        @unknown default: "\(status.rawValue)"
+        }
     }
 
     // MARK: - Samples
@@ -217,8 +258,12 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                   let time = clock.outputTime(for: sampleBuffer.presentationTimeStamp, isVideo: true),
                   let retimed = sampleBuffer.retimed(to: time)
             else { return }
-            if videoInput.isReadyForMoreMediaData {
-                videoInput.append(retimed)
+            if !videoInput.isReadyForMoreMediaData {
+                framesDropped += 1
+            } else if videoInput.append(retimed) {
+                framesWritten += 1
+            } else {
+                appendFailures += 1
             }
             lastFrame = sampleBuffer
             lastFrameTime = time
@@ -238,10 +283,15 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         guard
             let input,
             let time = clock.outputTime(for: sampleBuffer.presentationTimeStamp, isVideo: false),
-            let retimed = sampleBuffer.retimed(to: time),
-            input.isReadyForMoreMediaData
+            let retimed = sampleBuffer.retimed(to: time)
         else { return }
-        input.append(retimed)
+        guard input.isReadyForMoreMediaData else {
+            audioDropped += 1
+            return
+        }
+        if !input.append(retimed) {
+            appendFailures += 1
+        }
     }
 
     /// ScreenCaptureKit sends a frame only when something on screen changes. A recording that ends

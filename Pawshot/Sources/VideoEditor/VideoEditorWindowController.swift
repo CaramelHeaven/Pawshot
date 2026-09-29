@@ -88,6 +88,10 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         Self.openControllers.insert(self)
         let file = movieURL.lastPathComponent
         Self.logger.notice("video editor opens: \(file, privacy: .public)")
+        let timeline = model.timeline
+        Self.logger.notice(
+            "timeline loaded: \(timeline.cursor.count, privacy: .public) cursor, \(timeline.clicks.count, privacy: .public) clicks, \(timeline.keys.count, privacy: .public) keys, \(timeline.zoomMarks.count, privacy: .public) zooms"
+        )
         Settings.shared.recordVideoEditorOpen()
         guard let window else { return }
         window.setFrameOrigin(Self.origin(for: window, on: openingScreen))
@@ -124,7 +128,14 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
 
     private func load() async {
         let asset = AVURLAsset(url: movieURL)
-        guard let duration = try? await asset.load(.duration).seconds, duration > 0 else {
+        let duration: TimeInterval
+        do {
+            duration = try await asset.load(.duration).seconds
+        } catch {
+            Self.logger.error("video editor: duration not read: \(String(describing: error), privacy: .public)")
+            return
+        }
+        guard duration > 0 else {
             Self.logger.error("video editor: the recording has no duration")
             return
         }
@@ -149,6 +160,9 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
             if let image = try? result.image {
                 images.append(image)
             }
+        }
+        if images.count < count {
+            Self.logger.error("thumbnails: \(images.count, privacy: .public) of \(count, privacy: .public)")
         }
         model.thumbnails = images
     }
@@ -188,10 +202,14 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         playTask = Task { [weak self] in
             guard let self else { return }
             if model.spliceKeep != keep {
-                guard
-                    let item = try? await VideoExporter.previewItem(source: source, keep: keep),
-                    !Task.isCancelled
-                else { return finishStarting() }
+                let item: AVPlayerItem
+                do {
+                    item = try await VideoExporter.previewItem(source: source, keep: keep)
+                } catch {
+                    Self.logger.error("playback splice failed: \(String(describing: error), privacy: .public)")
+                    return finishStarting()
+                }
+                guard !Task.isCancelled else { return finishStarting() }
                 splicePlayer.replaceCurrentItem(with: item)
                 observeEnd(of: item)
                 model.spliceKeep = keep
@@ -203,6 +221,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
             model.isPlaying = true
             model.showsSplice = true
             splicePlayer.play()
+            Self.logger.notice("playing from \(String(format: "%.1f", start), privacy: .public) s")
         }
     }
 
@@ -243,6 +262,9 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
             $0.sourceTime(forOutput: splicePlayer.currentTime().seconds)
         } ?? model.currentTime
         model.currentTime = target
+        if wasPlaying {
+            Self.logger.notice("playback stopped at \(String(format: "%.1f", target), privacy: .public) s")
+        }
         Task { [weak self] in
             guard let self else { return }
             await player.seek(to: Self.time(target), toleranceBefore: .zero, toleranceAfter: .zero)
@@ -291,13 +313,21 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
     /// The hand let go: what the pieces were before is one step back.
     func commitKeep(before: KeepRanges) {
         registerUndo(restoring: before)
+        let keep = model.keep
+        Self.logger.notice(
+            "pieces: \(before.pieces.count, privacy: .public) → \(keep.pieces.count, privacy: .public), kept \(String(format: "%.1f", keep.totalLength), privacy: .public) of \(String(format: "%.1f", keep.duration), privacy: .public) s"
+        )
     }
 
     /// ⌫: the selected piece goes, unless it is the only one.
     private func removeSelectedPiece() -> Bool {
         guard let selected = model.selectedPiece else { return false }
         var keep = model.keep
-        guard keep.remove(at: selected) else { return false }
+        guard keep.remove(at: selected) else {
+            Self.logger.notice("piece not removed: it is the last one")
+            return false
+        }
+        Self.logger.notice("piece \(selected + 1, privacy: .public) removed, \(keep.pieces.count, privacy: .public) left")
         let before = model.keep
         model.selectedPiece = nil
         editKeep(keep)
@@ -311,8 +341,10 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
             MainActor.assumeIsolated {
                 let current = controller.model.keep
                 controller.model.selectedPiece = nil
+                let direction = controller.piecesUndoManager.isUndoing ? "undo" : "redo"
                 controller.editKeep(keep)
                 controller.registerUndo(restoring: current)
+                Self.logger.notice("pieces \(direction, privacy: .public) → \(keep.pieces.count, privacy: .public) pieces")
             }
         }
     }
@@ -327,6 +359,9 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
 
     private func setEffects(_ effects: EffectsOptions) {
         model.effects = effects
+        Self.logger.notice(
+            "effects → clicks \(effects.clicks, privacy: .public), keys \(effects.keys, privacy: .public), zooms \(effects.zooms, privacy: .public)"
+        )
     }
 
     /// Asked again after every change, a moment after the hand stops: dragging a bracket would
@@ -390,7 +425,12 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
 
     private func export(_ preset: VideoPreset, to destination: Destination) {
         guard exportTask == nil, !isClosing, model.keep.duration > 0 else {
-            Self.logger.notice("video export ignored: one is running, the window is closing, or nothing is kept")
+            let running = exportTask != nil
+            let closing = isClosing
+            let kept = String(format: "%.1f", model.keep.duration)
+            Self.logger.notice(
+                "video export ignored: running \(running, privacy: .public), closing \(closing, privacy: .public), recording \(kept, privacy: .public) s"
+            )
             return
         }
         stopPlayback()
@@ -411,6 +451,10 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         let timeline = model.timeline
         let effects = model.effects
         let started = Date()
+        let target = String(describing: destination)
+        Self.logger.notice(
+            "export \(preset.rawValue, privacy: .public) to \(target, privacy: .public): \(keep.pieces.count, privacy: .public) pieces, \(String(format: "%.1f", keep.totalLength), privacy: .public) of \(String(format: "%.1f", keep.duration), privacy: .public) s, effects clicks \(effects.clicks, privacy: .public) keys \(effects.keys, privacy: .public) zooms \(effects.zooms, privacy: .public), events \(timeline.clicks.count, privacy: .public) clicks \(timeline.keys.count, privacy: .public) keys \(timeline.zoomMarks.count, privacy: .public) zooms"
+        )
         exportTask = Task { [weak self] in
             do {
                 try await VideoExporter.export(
@@ -422,9 +466,16 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
                     VideoHandOff.copy(url)
                 }
                 let elapsed = Int(Date().timeIntervalSince(started) * 1000)
-                Self.logger.notice("exported \(preset.rawValue, privacy: .public) in \(elapsed, privacy: .public) ms")
+                let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                Self.logger.notice(
+                    "exported \(preset.rawValue, privacy: .public) to \(target, privacy: .public) in \(elapsed, privacy: .public) ms, \(bytes, privacy: .public) B"
+                )
                 self?.exportDidFinish(nil)
             } catch {
+                let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+                Self.logger.error(
+                    "export \(preset.rawValue, privacy: .public) to \(target, privacy: .public) failed after \(elapsed, privacy: .public) ms: \(String(describing: error), privacy: .public)"
+                )
                 self?.exportDidFinish(error)
             }
         }
@@ -436,7 +487,6 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         model.exportStarted = nil
 
         if let error {
-            Self.logger.error("export failed: \(String(describing: error), privacy: .public)")
             presentFailure(error)
             if windowIsClosed {
                 discard()
@@ -533,8 +583,16 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
     private func discard() {
         let file = movieURL.lastPathComponent
         Self.logger.notice("recording discarded: \(file, privacy: .public)")
-        try? FileManager.default.removeItem(at: movieURL)
-        try? FileManager.default.removeItem(at: EventTimeline.url(forMovie: movieURL))
+        for url in [movieURL, EventTimeline.url(forMovie: movieURL)] {
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch CocoaError.fileNoSuchFile {
+                // Already gone — a take with no timeline has none to remove.
+            } catch {
+                let name = url.lastPathComponent
+                Self.logger.error("\(name, privacy: .public) not removed: \(String(describing: error), privacy: .public)")
+            }
+        }
         Self.openControllers.remove(self)
     }
 

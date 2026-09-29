@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import os
 
 /// The numbers on Settings → Statistics: counted on this Mac, never sent anywhere. The owner picked
 /// the set and the tiles (L-B) on 2026-09-28; everything starts at zero with the build that brought
@@ -44,6 +45,10 @@ final class Stats {
 
     @ObservationIgnored private let defaults: UserDefaults
     private var revision = 0
+
+    private static var logger: Logger {
+        .pawshot("settings")
+    }
 
     private static let hoursKey = "stats.hours"
     private static let sinceKey = "stats.since"
@@ -110,6 +115,7 @@ final class Stats {
     /// Everything back to zero, counting from now. Other `stats.` keys — the capture count behind
     /// the hints — are not ours to clear.
     func reset() {
+        Self.logger.notice("statistics reset")
         for counter in Counter.allCases {
             defaults.removeObject(forKey: key(counter))
         }

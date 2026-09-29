@@ -117,7 +117,10 @@ enum ScreenCaptureService {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard
             let entries = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]
-        else { return [] }
+        else {
+            logger.error("window list unavailable")
+            return []
+        }
 
         let ownPID = ProcessInfo.processInfo.processIdentifier
 
@@ -163,7 +166,10 @@ enum ScreenCaptureService {
         do {
             let started = Date()
             let content = try await shareableContent(including: [])
-            guard let display = content.displays.first else { return }
+            guard let display = content.displays.first else {
+                logger.notice("warm-up: no displays in shareable content")
+                return
+            }
 
             _ = try await capture(display)
 

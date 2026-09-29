@@ -50,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         registerHotKeys()
+        logLaunchWindows()
         // A release with nothing to tell opens no window, so nothing would record it as seen, and
         // the next What's New would name a "version before the update" the person had long left.
         // Not in the test host: it shares the owner's defaults.
@@ -99,6 +100,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private var spaceObserver: NSObjectProtocol?
+
+    /// What `PawshotApp` decided to open by itself, from the same values, read before anything
+    /// here records the version as seen.
+    private func logLaunchWindows() {
+        let welcomeDone = settings.welcomeCompleted
+        let lastSeen = settings.lastSeenVersion ?? "none"
+        let now = AboutPanel.version
+        let welcome = welcomeDone || Self.isTestHost ? "suppressed" : "shown"
+        let whatsNew = WhatsNew.showsAtLaunch && !Self.isTestHost ? "shown" : "suppressed"
+        Self.logger.notice("welcome at launch: \(welcome, privacy: .public)")
+        Self.logger.notice(
+            "what's new at launch: \(whatsNew, privacy: .public) (last seen \(lastSeen, privacy: .public), now \(now, privacy: .public), welcome done \(welcomeDone, privacy: .public))"
+        )
+    }
 
     /// What a saved log has to open with: which build, on what, allowed to do what.
     private func logLaunch() {

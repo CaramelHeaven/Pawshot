@@ -290,6 +290,12 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         // Coordinates inside the view already run top to bottom; all that's left is to shift them
         // by the screen origin.
         let globalRect = rect.offsetBy(dx: origin.x, dy: origin.y)
+        let kind = windowID == nil ? "region" : "window"
+        let width = Int(rect.width.rounded())
+        let height = Int(rect.height.rounded())
+        Self.logger.notice(
+            "selection: \(kind, privacy: .public) \(width, privacy: .public)×\(height, privacy: .public) pt on display \(displayID, privacy: .public)"
+        )
 
         finish(with: Selection(
             displayID: displayID,
@@ -317,6 +323,12 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         case .start, .aspect:
             break
         }
+        let mic = settings.recordsMicrophone
+        let system = settings.recordsSystemAudio
+        let native = settings.recordsAtNativeResolution
+        Self.logger.notice(
+            "overlay option \(String(describing: option), privacy: .public) → mic \(mic, privacy: .public), system audio \(system, privacy: .public), native \(native, privacy: .public)"
+        )
         syncRecordingBar()
     }
 
@@ -354,6 +366,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         let wantsMeter = purpose == .recording && settings.recordsMicrophone && MicrophonePermission.isGranted
         if wantsMeter, levelMeter == nil {
             let meter = MicrophoneLevelMeter { level, silent in
+                if OverlayHUD.recordingBar.microphoneIsSilent != silent {
+                    Self.logger.notice("mic meter: \(silent ? "silent" : "hearing sound", privacy: .public)")
+                }
                 OverlayHUD.recordingBar.level = level
                 OverlayHUD.recordingBar.microphoneIsSilent = silent
             }

@@ -146,11 +146,17 @@ final class SelectionView: NSView {
     /// otherwise the region. ↩, R and the Record button all end here.
     func commitRecording() {
         if mode == .window {
-            guard let highlightedWindow else { return }
+            guard let highlightedWindow else {
+                Self.logger.notice("record asked with no window under the cursor")
+                return
+            }
             delegate?.selectionView(self, didSelect: highlightedWindow, windowID: highlightedWindowID)
             return
         }
-        guard let region = recordingRegion else { return }
+        guard let region = recordingRegion else {
+            Self.logger.notice("record asked with no region")
+            return
+        }
         delegate?.selectionView(self, didSelect: region, windowID: nil)
     }
 
@@ -469,6 +475,7 @@ final class SelectionView: NSView {
 
         if mode == .window {
             guard let highlightedWindow else {
+                Self.logger.notice("cancel: no window under the click")
                 delegate?.selectionViewDidCancel(self)
                 return
             }
@@ -477,6 +484,7 @@ final class SelectionView: NSView {
         }
 
         guard let selection, !SelectionGeometry.isTooSmall(selection) else {
+            Self.logger.notice("cancel: region too small")
             delegate?.selectionViewDidCancel(self)
             return
         }
@@ -489,6 +497,8 @@ final class SelectionView: NSView {
     /// An edge dragged onto its opposite leaves a region too small to grab again; it goes back to
     /// what it was before that drag.
     private func finishAdjusting() {
+        let handle = grabbedHandle
+        let drewNothing = selection.map { SelectionGeometry.isTooSmall($0) } ?? true
         if let selection, SelectionGeometry.isTooSmall(selection) {
             if let grabbedHandle, grabbedHandle != .inside {
                 self.selection = grabbedSelection
@@ -504,10 +514,18 @@ final class SelectionView: NSView {
             updateCursor(at: cursorPoint)
         }
         needsDisplay = true
+        let gesture = switch handle {
+        case nil: drewNothing ? "click (ghost back)" : "drawn"
+        case .inside?: "moved"
+        case let handle?: "resized by \(handle)"
+        }
+        let size = selection.map { "\(Int($0.width))×\(Int($0.height)) pt" } ?? "none"
+        Self.logger.notice("region \(gesture, privacy: .public): \(size, privacy: .public)")
     }
 
     override func rightMouseDown(with _: NSEvent) {
         OverlayDiagnostics.received("rightMouseDown")
+        Self.logger.notice("cancel: right click")
         reset()
         delegate?.selectionViewDidCancel(self)
     }
@@ -525,6 +543,8 @@ final class SelectionView: NSView {
         // M is read off the physical key, like every letter in the app: on ЙЦУКЕН it prints "ь".
         if purpose == .screenshot, mode == .region, KeyboardLayout.latinCharacter(for: event)?.lowercased() == "m" {
             showsLoupe.toggle()
+            let loupe = showsLoupe ? "on" : "off"
+            Self.logger.notice("loupe \(loupe, privacy: .public)")
             OverlayHUD.hints.loupeIsOn = showsLoupe
             needsDisplay = true
             return
@@ -566,6 +586,8 @@ final class SelectionView: NSView {
         case .aspect:
             guard mode == .region else { return true }
             aspect = aspect.next
+            let label = aspect.label ?? "free"
+            Self.logger.notice("aspect → \(label, privacy: .public)")
             if let ratio = aspect.ratio, let selection, !selection.isEmpty {
                 self.selection = SelectionGeometry.applying(aspect: ratio, to: selection, within: bounds)
             }
@@ -590,7 +612,11 @@ final class SelectionView: NSView {
             sizeInput.clear()
             needsDisplay = true
         }
-        guard let size = sizeInput.size else { return }
+        let typed = sizeInput.text
+        guard let size = sizeInput.size else {
+            Self.logger.notice("typed size dropped: unreadable (\(typed, privacy: .public))")
+            return
+        }
 
         let center = selection.flatMap { $0.isEmpty ? nil : CGPoint(x: $0.midX, y: $0.midY) }
             ?? cursorPoint
@@ -601,10 +627,16 @@ final class SelectionView: NSView {
             outputScale: outputScale,
             around: center,
             within: bounds
-        ) else { return }
+        ) else {
+            Self.logger.notice(
+                "typed size dropped: \(size.width, privacy: .public)×\(size.height, privacy: .public) px is bigger than the display"
+            )
+            return
+        }
 
         aspect = .free
         selection = exact
+        Self.logger.notice("typed size \(size.width, privacy: .public)×\(size.height, privacy: .public) px applied")
     }
 
     override func cancelOperation(_: Any?) {
@@ -614,6 +646,7 @@ final class SelectionView: NSView {
             needsDisplay = true
             return
         }
+        Self.logger.notice("cancel: Esc")
         reset()
         delegate?.selectionViewDidCancel(self)
     }

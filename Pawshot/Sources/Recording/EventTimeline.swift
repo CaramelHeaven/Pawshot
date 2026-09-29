@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import os
 
 /// What happened during a recording, for the effects added at export: where the cursor was, the
 /// clicks, the shortcuts pressed and the moments marked for a zoom.
@@ -22,6 +23,10 @@ struct EventTimeline: Codable, Equatable {
     var clicks: [Point] = []
     var keys: [Keystroke] = []
     var zoomMarks: [Double] = []
+
+    private static var logger: Logger {
+        .pawshot("recording")
+    }
 
     var isEmpty: Bool {
         clicks.isEmpty && keys.isEmpty && zoomMarks.isEmpty
@@ -56,7 +61,12 @@ struct EventTimeline: Codable, Equatable {
 
     static func load(nextTo movie: URL) -> EventTimeline {
         guard let data = try? Data(contentsOf: url(forMovie: movie)) else { return EventTimeline() }
-        return (try? JSONDecoder().decode(EventTimeline.self, from: data)) ?? EventTimeline()
+        do {
+            return try JSONDecoder().decode(EventTimeline.self, from: data)
+        } catch {
+            logger.error("timeline not read: \(String(describing: error), privacy: .public)")
+            return EventTimeline()
+        }
     }
 }
 

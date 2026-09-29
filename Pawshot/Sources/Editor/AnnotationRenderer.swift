@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 /// Flattens the shot and the annotations into one picture — the thing that goes to the clipboard
 /// and to a file.
@@ -10,7 +11,11 @@ enum AnnotationRenderer {
         let pixelWidth = document.image.width
         let pixelHeight = document.image.height
 
-        guard pixelWidth > 0, pixelHeight > 0, document.imageSize.width > 0 else { return nil }
+        let points = "\(Int(document.imageSize.width))×\(Int(document.imageSize.height)) pt"
+        guard pixelWidth > 0, pixelHeight > 0, document.imageSize.width > 0 else {
+            logger.error("render: empty shot, \(pixelWidth)×\(pixelHeight) px, \(points, privacy: .public)")
+            return nil
+        }
 
         guard let context = CGContext(
             data: nil,
@@ -20,7 +25,10 @@ enum AnnotationRenderer {
             bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
+        ) else {
+            logger.error("render: no bitmap context for \(pixelWidth)×\(pixelHeight) px, \(points, privacy: .public)")
+            return nil
+        }
 
         // Annotations live in the captured frame's coordinates with the origin at the top left —
         // the same as in the canvas. Hence the Y axis flip and the `flipped: true` flag on
@@ -48,6 +56,14 @@ enum AnnotationRenderer {
             annotation.draw()
         }
 
-        return context.makeImage()
+        guard let image = context.makeImage() else {
+            logger.error("render: no image out of \(pixelWidth)×\(pixelHeight) px, \(points, privacy: .public)")
+            return nil
+        }
+        return image
+    }
+
+    private static var logger: Logger {
+        .pawshot("editor")
     }
 }

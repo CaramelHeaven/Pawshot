@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// The colour of one's own, behind the fifth swatch: saturation and brightness in a square, hue in
@@ -22,6 +23,10 @@ struct ColorPickerPopover: View {
 
     private static let squareSize = CGSize(width: 200, height: 130)
 
+    private nonisolated static var logger: Logger {
+        .pawshot("editor")
+    }
+
     private var color: NSColor {
         NSColor(hue: hue, saturation: saturation, brightness: brightness, alpha: 1)
     }
@@ -40,14 +45,22 @@ struct ColorPickerPopover: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 90)
                     .onSubmit {
-                        guard let parsed = ColorHex.color(hex) else { return }
+                        guard let parsed = ColorHex.color(hex) else {
+                            let length = hex.count
+                            Self.logger.notice("hex rejected: \(length) chars")
+                            return
+                        }
                         load(parsed)
                         onPick(color)
                     }
                 Spacer(minLength: 0)
                 Button("Eyedropper", systemImage: "eyedropper") {
                     sampler.show { picked in
-                        guard let picked else { return }
+                        guard let picked else {
+                            Self.logger.notice("eyedropper: cancelled")
+                            return
+                        }
+                        Self.logger.notice("eyedropper: picked")
                         MainActor.assumeIsolated {
                             load(picked)
                             onPick(color)

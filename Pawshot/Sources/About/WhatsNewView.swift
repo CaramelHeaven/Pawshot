@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// The window after an update, the owner's W-C of 2026-09-28: a timeline of every version the
@@ -12,12 +13,17 @@ struct WhatsNewView: View {
     /// after that would have nothing left in it.
     @State private var from = Settings.shared.lastSeenVersion
 
+    private static var logger: Logger {
+        .pawshot("app")
+    }
+
     var body: some View {
         WhatsNewContent(
             from: from,
             current: AboutPanel.version,
             entries: WhatsNew.entries(in: WhatsNew.history, since: from)
         ) {
+            Self.logger.notice("what's new: Got It")
             dismissWindow(id: WindowID.whatsNew)
         }
         .background(ComesForward("what's new"))

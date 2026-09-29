@@ -6,6 +6,10 @@ import os
 /// and never for a recording that doesn't use it.
 @MainActor
 enum MicrophonePermission {
+    private static var logger: Logger {
+        .pawshot("permission")
+    }
+
     static var status: AVAuthorizationStatus {
         AVCaptureDevice.authorizationStatus(for: .audio)
     }
@@ -23,6 +27,8 @@ enum MicrophonePermission {
         if status == .notDetermined {
             Task { _ = await resolve(wanted: true) }
         } else if let settingsURL {
+            let raw = status.rawValue
+            logger.notice("microphone: opening System Settings (status \(raw, privacy: .public))")
             NSWorkspace.shared.open(settingsURL)
         }
     }
@@ -36,12 +42,11 @@ enum MicrophonePermission {
             return true
         case .notDetermined:
             let granted = await AVCaptureDevice.requestAccess(for: .audio)
-            Logger.pawshot("permission")
-                .notice("microphone asked for: \(granted ? "granted" : "refused", privacy: .public)")
+            logger.notice("microphone asked for: \(granted ? "granted" : "refused", privacy: .public)")
             return granted
         default:
-            Logger.pawshot("permission")
-                .notice("microphone wanted but not allowed: recording without it")
+            let raw = status.rawValue
+            logger.notice("microphone wanted but not allowed (status \(raw, privacy: .public)): recording without it")
             return false
         }
     }

@@ -25,6 +25,7 @@ struct SettingsView: View {
             }
         }
         .frame(width: 520)
+        .background(ComesForward("settings"))
     }
 }
 
@@ -127,6 +128,10 @@ private struct ScreenshotSettings: View {
     @Bindable private var settings = Settings.shared
     @State private var isPickingFont = false
 
+    private static var logger: Logger {
+        .pawshot("settings")
+    }
+
     var body: some View {
         Form {
             Section {
@@ -211,7 +216,10 @@ private struct ScreenshotSettings: View {
         panel.directoryURL = settings.saveFolder
         panel.prompt = String(localized: "Choose")
         panel.begin { response in
-            guard response == .OK, let url = panel.url else { return }
+            guard response == .OK, let url = panel.url else {
+                Self.logger.notice("save folder: panel cancelled")
+                return
+            }
             Settings.shared.saveFolder = url
         }
     }
@@ -315,6 +323,10 @@ private struct LabelFontPreview: View {
 private struct RecordingSettings: View {
     @Bindable private var settings = Settings.shared
 
+    private static var logger: Logger {
+        .pawshot("settings")
+    }
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
             Form {
@@ -351,6 +363,7 @@ private struct RecordingSettings: View {
                 accessRow(
                     "Microphone access",
                     granted: MicrophonePermission.isGranted,
+                    log: "microphone",
                     action: MicrophonePermission.request
                 )
             }
@@ -391,6 +404,7 @@ private struct RecordingSettings: View {
                 accessRow(
                     "Input Monitoring access",
                     granted: CGPreflightListenEventAccess(),
+                    log: "input monitoring",
                     action: InputMonitoringPermission.request
                 )
             }
@@ -467,13 +481,21 @@ private struct RecordingSettings: View {
     }
 
     /// "Microphone access — Allowed", or a button to get there.
-    private func accessRow(_ title: LocalizedStringKey, granted: Bool, action: @escaping () -> Void) -> some View {
+    private func accessRow(
+        _ title: LocalizedStringKey,
+        granted: Bool,
+        log: StaticString,
+        action: @escaping () -> Void
+    ) -> some View {
         LabeledContent {
             if granted {
                 Label("Allowed", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             } else {
-                Button("Allow…", action: action)
+                Button("Allow…") {
+                    Self.logger.notice("settings: allow \(log, privacy: .public)")
+                    action()
+                }
             }
         } label: {
             Text(title)
@@ -490,6 +512,7 @@ private struct RecordingSettings: View {
         } set: { isOn in
             settings.showsKeystrokes = isOn
             if isOn, !CGPreflightListenEventAccess() {
+                Self.logger.notice("input monitoring: asked for (shortcut captions on)")
                 _ = CGRequestListenEventAccess()
             }
         }
@@ -669,6 +692,10 @@ private struct ShortcutSettings: View {
 /// started/stopped" to `AppDelegate` through `Settings.onHotKeyRecordingChange`, so the global
 /// hotkeys step aside meanwhile.
 private struct RecorderField: NSViewRepresentable {
+    private static var logger: Logger {
+        .pawshot("settings")
+    }
+
     let binding: HotKeyBinding?
     let title: String
     let logName: String
@@ -684,9 +711,11 @@ private struct RecorderField: NSViewRepresentable {
             Settings.shared.onHotKeyRecordingChange?(isRecording)
         }
         view.onFix = {
-            if let url = SystemScreenshotShortcuts.settingsURL {
-                NSWorkspace.shared.open(url)
+            guard let url = SystemScreenshotShortcuts.settingsURL else {
+                Self.logger.error("shortcut field: Fix… has no Keyboard Shortcuts URL to open")
+                return
             }
+            NSWorkspace.shared.open(url)
         }
         return view
     }

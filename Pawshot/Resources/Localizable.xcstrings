@@ -331,6 +331,16 @@
         }
       }
     },
+    "About Pawshot, Settings and Open Pawshot from the paw's menu now open in front of other apps, even when the window was already open behind them.\n\nThe log saved from Settings → General → Diagnostics tells much more about what happened, so a problem you send is easier to find." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«О программе Pawshot», «Настройки…» и «Открыть Pawshot» из меню лапы теперь открываются поверх других приложений, даже если окно уже было открыто позади них.\n\nЛог, сохранённый в Настройки → Основные → Диагностика, рассказывает о случившемся гораздо подробнее, так что присланную проблему проще найти."
+          }
+        }
+      }
+    },
     "Access" : {
       "localizations" : {
         "ru" : {

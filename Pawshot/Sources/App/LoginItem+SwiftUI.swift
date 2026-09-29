@@ -3,6 +3,10 @@ import os
 import SwiftUI
 
 extension LoginItem {
+    private static var logger: Logger {
+        .pawshot("settings")
+    }
+
     /// A toggle's binding over the system state. The getter asks `SMAppService` every time, so a
     /// view that re-renders shows what System Settings says, not what it said at launch.
     @MainActor
@@ -10,7 +14,6 @@ extension LoginItem {
         Binding(
             get: { current.isOn },
             set: { enable in
-                let logger = Logger.pawshot("settings")
                 logger.notice("launch at login → \(enable, privacy: .public)")
                 do {
                     try setEnabled(enable)
@@ -18,6 +21,8 @@ extension LoginItem {
                     logger.error("launch at login not changed: \(String(describing: error), privacy: .public)")
                     presentFailure(error, enabling: enable)
                 }
+                let now = String(describing: current)
+                logger.notice("launch at login now \(now, privacy: .public)")
             }
         )
     }

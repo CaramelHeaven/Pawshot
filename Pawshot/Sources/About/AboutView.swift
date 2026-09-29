@@ -53,6 +53,7 @@ struct AboutView: View {
         .padding(.top, 28)
         .padding(.bottom, 24)
         .frame(minWidth: 320)
+        .background(ComesForward("about"))
     }
 
     private var shotsLine: String {

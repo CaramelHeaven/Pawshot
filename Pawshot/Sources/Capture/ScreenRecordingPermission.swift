@@ -30,7 +30,8 @@ enum ScreenRecordingPermission {
         } else {
             logger.notice("screen recording: asked for from a button")
             askedFromAButton = true
-            _ = CGRequestScreenCaptureAccess()
+            let granted = CGRequestScreenCaptureAccess()
+            logger.notice("screen recording: request returned \(granted, privacy: .public)")
         }
     }
 
@@ -45,7 +46,8 @@ enum ScreenRecordingPermission {
         // The system prompt is shown once per app installation; after that all we can do is send
         // the user to Settings.
         logger.notice("screen recording: preflight says no, asking the system")
-        _ = CGRequestScreenCaptureAccess()
+        let granted = CGRequestScreenCaptureAccess()
+        logger.notice("screen recording: request returned \(granted, privacy: .public)")
 
         if isGranted {
             logger.notice("screen recording: granted after the request")
