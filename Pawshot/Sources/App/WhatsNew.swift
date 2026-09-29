@@ -14,6 +14,10 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.5.2", text: String(localized: """
+            Dragging the edge of the editor window adds the neighbouring part of the screen to the \
+            shot again. On some Macs the window grew with grey around the shot instead.
+            """)),
             Entry(version: "0.5.1", text: String(localized: """
             Settings are rearranged. Saving and the labels' font have a tab of their own, \
             Screenshots, and General keeps launching, quitting, the language and the logs. On \

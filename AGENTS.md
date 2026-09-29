@@ -254,7 +254,11 @@ very same moment. The captured display is the hard limit; the window simply stop
 Annotations don't move, an annotation left outside the crop stays alive and only gets clipped, one
 drag is one `⌘Z`, and the whole thing switches itself off once the shot no longer fits in the
 window — there dragging the window means "show more", not "capture more". The shot is always
-displayed at its own size; there is no zoom in the editor.
+displayed at its own size; there is no zoom in the editor. That switch reads the window as it is
+at the start of the drag, so the window refits whenever the shot stops fitting outside a resize,
+not only once after it opens: on a tester's M1 (8 GB, 60 Hz) the toolbar landed after that one
+refit, ate the bottom of the shot, and every drag grew grey around it. Each drag logs
+`resize begins: edges …, follows …` — an `.error` when the shot will not follow.
 
 The finished result leaves the app in four ways: `⌘C` to the clipboard, `⌘S` as a file
 `pawshot-<date>-<time>-<UUID tail>.png` (or `.jpg`, `.heic`) in the save folder — the Desktop until

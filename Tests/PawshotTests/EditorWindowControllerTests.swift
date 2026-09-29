@@ -256,6 +256,35 @@ final class EditorWindowControllerTests: XCTestCase {
         XCTAssertEqual(window.contentLayoutRect.height, 300 + margin, accuracy: 0.5)
     }
 
+    /// On a slow Mac the toolbar landed after the refit in `show()` and ate the bottom of the shot:
+    /// the shot no longer fitted, and dragging the window's edge grew grey around it instead of
+    /// the shot (a tester's M1, 2026-09-29). Shrinking the content outside a resize stands in for
+    /// that late toolbar.
+    func testShotRefitsWhenItsContentShrinksOutsideAResize() async throws {
+        let screen = try XCTUnwrap(NSScreen.main)
+        let document = try makeDocument(pointSize: CGSize(width: 900, height: 300), scale: 1)
+        let controller = EditorWindowController(
+            document: document,
+            on: screen
+        )
+        controller.recognizeText = { _ in "" }
+        let window = try XCTUnwrap(controller.window)
+        window.alphaValue = 0
+        controller.show()
+        defer { controller.close() }
+
+        // Let the refit in `show()` run first: before it the height is already right, and a shrink
+        // made then is undone by that refit — the test stayed green without the fix.
+        try await Task.sleep(for: .milliseconds(300))
+        let margin = EditorView.shotPadding * 2
+        XCTAssertEqual(window.contentLayoutRect.height, 300 + margin, accuracy: 0.5)
+
+        window.setContentSize(CGSize(width: window.contentLayoutRect.width, height: window.contentLayoutRect.height - 24))
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(window.contentLayoutRect.height, 300 + margin, accuracy: 0.5)
+    }
+
     /// ⌘Z sends `undo:` down the responder chain. Since the content became an `NSHostingController`,
     /// `NSWindow` answers it with an undo manager SwiftUI supplies — not the one the document
     /// records into — and ⌘Z silently did nothing. The canvas, first in the chain, has to answer.

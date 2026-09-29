@@ -35,6 +35,7 @@ UI_TESTS := \
 	VideoEditorWindowControllerTests \
 	VideoEditorOrderingTests \
 	EditorWindowControllerTests/testShotStillFitsItsWindowAfterTheToolbarArrives \
+	EditorWindowControllerTests/testShotRefitsWhenItsContentShrinksOutsideAResize \
 	EditorWindowControllerTests/testUndoSentDownTheResponderChainUndoesTheLastChange \
 	EditorWindowControllerTests/testWindowOpensCentredOnItsScreen \
 	EditorWindowControllerTests/testHugeShotOpensScrolledToItsMiddle \

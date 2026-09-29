@@ -1137,6 +1137,16 @@
         }
       }
     },
+    "Dragging the edge of the editor window adds the neighbouring part of the screen to the shot again. On some Macs the window grew with grey around the shot instead." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если потянуть край окна редактора, к снимку снова добавляется соседняя часть экрана. На некоторых Mac вместо этого окно росло, а вокруг снимка оставалось серое поле."
+          }
+        }
+      }
+    },
     "Draw something and we'll see." : {
       "localizations" : {
         "ru" : {

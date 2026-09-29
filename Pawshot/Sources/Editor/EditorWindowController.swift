@@ -177,6 +177,26 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         hosting.view.frame = CGRect(origin: .zero, size: size)
         window.contentViewController = hosting
         window.setContentSize(size)
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(scrollViewFrameDidChange),
+            name: NSView.frameDidChangeNotification,
+            object: scrollView
+        )
+    }
+
+    /// The SwiftUI toolbar takes its height out of the content whenever it lands — on a slow Mac
+    /// after the refit in `show()` has already run. The shot then no longer fits, and a drag of
+    /// the window's edge silently meant "show more" instead of "capture more" (a tester's M1,
+    /// 2026-09-29). So the window refits whenever the shot stops fitting outside a resize.
+    @objc private func scrollViewFrameDidChange() {
+        guard let window, window.isVisible, !window.inLiveResize, !canFollowResize else { return }
+
+        let content = Self.points(scrollView.contentSize)
+        let shot = Self.points(editorDocument.imageSize)
+        Self.editorLogger.notice("refit: the shot no longer fitted (content \(content, privacy: .public), shot \(shot, privacy: .public))")
+        fitWindowToShot(onlyIfItFits: true)
     }
 
     /// Every button of the toolbar lands on the same entry points as the keys.
@@ -672,6 +692,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             warmUpTask = nil
         }
 
+        NotificationCenter.default.removeObserver(self, name: NSView.frameDidChangeNotification, object: scrollView)
         Self.openControllers.remove(self)
         FocusHandBack.handBack(to: previousApp, closing: window)
     }
@@ -696,12 +717,15 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     func windowWillStartLiveResize(_: Notification) {
         resizeEdges = nil
 
-        guard let window, canFollowResize else { return }
+        guard let window else { return }
 
-        let edges = Self.grabbedEdges(of: window, at: NSEvent.mouseLocation)
+        let follows = canFollowResize
+        let mouse = NSEvent.mouseLocation
+        let edges = Self.grabbedEdges(of: window, at: mouse)
+        logResizeBegins(of: window, mouse: mouse, edges: edges, follows: follows)
         // No edge under the cursor means this resize isn't ours to interpret — leave the window
         // alone rather than pin it to its current size.
-        guard !edges.isEmpty else { return }
+        guard follows, !edges.isEmpty else { return }
 
         resizeEdges = edges
         cropBeforeResize = editorDocument.cropRect
@@ -817,8 +841,42 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             canvas.needsDisplay = true
         }
 
-        guard let start = cropBeforeResize else { return }
+        guard let start = cropBeforeResize else {
+            Self.editorLogger.notice("resize ends: window resized, the shot did not follow")
+            return
+        }
+        let before = Self.points(start.size)
+        let after = Self.points(editorDocument.cropRect.size)
+        Self.editorLogger.notice("resize ends: crop \(before, privacy: .public) → \(after, privacy: .public)")
         editorDocument.registerCropUndo(from: start)
+    }
+
+    /// One line per gesture: whether the shot follows, and why not. "Window grows, grey around"
+    /// is either a shot that didn't fit or an edge grabbed further than `grabbedEdges` looks.
+    private func logResizeBegins(of window: NSWindow, mouse: CGPoint, edges: ResizeEdges, follows: Bool) {
+        let frame = window.frame
+        let grabbed = [
+            edges.left ? "left" : nil,
+            edges.right ? "right" : nil,
+            edges.top ? "top" : nil,
+            edges.bottom ? "bottom" : nil,
+        ].compactMap(\.self).joined(separator: " ")
+        let off = [mouse.x - frame.minX, frame.maxX - mouse.x, frame.maxY - mouse.y, mouse.y - frame.minY]
+            .map { String(Int($0)) }
+            .joined(separator: "/")
+        let line = "resize begins: edges \(grabbed.isEmpty ? "none" : grabbed), follows \(follows), "
+            + "shot \(Self.points(editorDocument.imageSize)), content \(Self.points(scrollView.contentSize)), "
+            + "mouse off edges l/r/t/b \(off) pt"
+
+        if follows, !edges.isEmpty {
+            Self.editorLogger.notice("\(line, privacy: .public)")
+        } else {
+            Self.editorLogger.error("\(line, privacy: .public)")
+        }
+    }
+
+    private static func points(_ size: CGSize) -> String {
+        "\(Int(size.width))×\(Int(size.height)) pt"
     }
 
     /// The crop changed: the canvas re-cuts the shot, then the window sizes itself to it. The
