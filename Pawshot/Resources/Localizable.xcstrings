@@ -311,6 +311,16 @@
         }
       }
     },
+    "A halo round the cursor while you record: press ⇧⌘K, or the new button on the pill after the pen. It follows the mouse, and every click spreads rings like water. Only you see it — it is never in the video.\n\nIt goes by itself after five clicks. Settings → Recording → Shown on the screen changes that to 1, 3 or 4 clicks, or keeps it until you switch it off. The contact address for sending logs is now capi.hev@gmail.com." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кружок у курсора во время записи: нажмите ⇧⌘K или новую кнопку на пилюле после пера. Он следует за мышью, а каждый клик расходится кругами, как по воде. Видите его только вы — в видео его нет.\n\nОн пропадает сам после пяти кликов. В «Настройки → Запись → Показано на экране» это меняется на 1, 3 или 4 клика, или кружок остаётся, пока вы его не выключите. Адрес для отправки логов теперь capi.hev@gmail.com."
+          }
+        }
+      }
+    },
     "A hidden zone is outside the region now" : {
       "localizations" : {
         "ru" : {
@@ -427,6 +437,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Добавьте ⌘, ⌥ или ⌃"
+          }
+        }
+      }
+    },
+    "After %lld click(s)" : {
+      "localizations" : {
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "После %lld клика"
+                }
+              },
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "После %lld кликов"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "После %lld кликов"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "После %lld кликов"
+                }
+              }
+            }
           }
         }
       }
@@ -1659,6 +1703,36 @@
     "HEX" : {
       "shouldTranslate" : false
     },
+    "Halo round the cursor" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кружок у курсора"
+          }
+        }
+      }
+    },
+    "Halo round the cursor goes" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кружок у курсора пропадает"
+          }
+        }
+      }
+    },
+    "Halo round the cursor — only you see it" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кружок у курсора — видите только вы"
+          }
+        }
+      }
+    },
     "Hidden in the video" : {
       "localizations" : {
         "ru" : {
@@ -2033,6 +2107,16 @@
         }
       }
     },
+    "Never — until switched off" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Никогда — пока не выключите"
+          }
+        }
+      }
+    },
     "New while a recording runs.\n\nHold the zoom shortcut instead of tapping it, and the video stays zoomed in for as long as you hold, following the cursor. A tap still marks a short zoom.\n\nSaid something wrong? ⇧⌘8, or the scissors on the pill, marks the last 10 seconds as a bad take: the recording goes on, and the editor opens with them already cut. ⌘Z there brings them back.\n\n⇧⌘2 during a recording copies the picture being recorded to the clipboard, without stopping.\n\nThe pill shows how much the recording weighs, and warns when the disk has about five minutes of room left. In Settings → Recording, Aim for picks a length to fit into: the pill then shows the time against it." : {
       "localizations" : {
         "ru" : {
@@ -2169,6 +2253,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Только с ⌘, ⌥ или ⌃"
+          }
+        }
+      }
+    },
+    "Only you see it; clicks spread rings like water" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Видите только вы; клики расходятся кругами, как по воде"
           }
         }
       }
@@ -3364,6 +3458,16 @@
         }
       }
     },
+    "Shown on the screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показано на экране"
+          }
+        }
+      }
+    },
     "Shows its level before you start" : {
       "localizations" : {
         "ru" : {
@@ -4297,6 +4401,16 @@
         }
       }
     },
+    "halo round the cursor" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "кружок у курсора"
+          }
+        }
+      }
+    },
     "hide a zone" : {
       "localizations" : {
         "ru" : {
@@ -4650,6 +4764,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "чтобы выйти"
+          }
+        }
+      }
+    },
+    "while recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "во время записи"
           }
         }
       }

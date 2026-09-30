@@ -28,5 +28,5 @@ enum AboutPanel {
         Bundle.main.object(forInfoDictionaryKey: "NSHumanReadableCopyright") as? String ?? ""
     }
 
-    static let contactEmail = "srg.fominov@gmail.com"
+    static let contactEmail = "capi.hev@gmail.com"
 }

@@ -333,6 +333,7 @@ private struct RecordingSettings: View {
                 profiles
                 sound
                 shownInTheVideo
+                shownOnTheScreen
                 quality
             }
             .formStyle(.grouped)
@@ -458,6 +459,30 @@ private struct RecordingSettings: View {
             .help(help)
         } header: {
             Text("Shown in the video")
+        }
+    }
+
+    /// What only the person recording sees: the halo round the cursor, never in the video.
+    private var shownOnTheScreen: some View {
+        Section {
+            Picker(selection: $settings.cursorHaloClicks) {
+                ForEach(Settings.cursorHaloChoices, id: \.self) { clicks in
+                    if clicks == 0 {
+                        Text("Never — until switched off").tag(0)
+                    } else {
+                        Text("After \(clicks) click(s)").tag(clicks)
+                    }
+                }
+            } label: {
+                title(
+                    "Halo round the cursor goes",
+                    subtitle: "Only you see it; clicks spread rings like water",
+                    icon: "circle.circle",
+                    hint: settings.cursorHaloHotKey.map { KeyHint(key: $0.displayString, place: "while recording") }
+                )
+            }
+        } header: {
+            Text("Shown on the screen")
         }
     }
 
@@ -635,6 +660,7 @@ private struct ShortcutSettings: View {
     private static let duringRecordingRows: [Row] = [
         ("Zoom in here", "mark a zoom", \.zoomMarkHotKey),
         ("Pen on / off", "switch the pen", \.penHotKey),
+        ("Halo round the cursor", "switch the cursor halo", \.cursorHaloHotKey),
         ("Restart", "restart the take", \.restartHotKey),
         ("Cut the last 10 seconds", "mark a bad take", \.badTakeHotKey),
         ("Hold: spotlight", "hold the spotlight", \.spotlightHotKey),

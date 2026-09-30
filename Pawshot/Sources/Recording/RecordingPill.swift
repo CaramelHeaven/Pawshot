@@ -9,6 +9,8 @@ struct RecordingPillActions {
     var stop: @MainActor () -> Void
     var zoom: @MainActor () -> Void
     var togglePen: @MainActor () -> Void
+    /// The halo round the cursor, on the screen only.
+    var toggleCursorHalo: @MainActor () -> Void
     var badTake: @MainActor () -> Void
     /// From the hint "you are talking, and the microphone is off": start over with it on.
     var recordWithMicrophone: @MainActor () -> Void
@@ -46,7 +48,8 @@ final class RecordingPillController {
 
     /// Wide and tall enough for six buttons with their shortcuts written under them, the time
     /// against a goal and the size of the file.
-    private static let size = CGSize(width: 540, height: 58)
+    /// One button wider since the halo's button came in (0.6.6).
+    private static let size = CGSize(width: 576, height: 58)
     private static let nearDistance: CGFloat = 90
     private static let compactAfter: TimeInterval = 3
     private static let notchButtonsHeight: CGFloat = 56
@@ -83,6 +86,7 @@ final class RecordingPillController {
         model.penAvailable = penAvailable
         model.stopShortcut = stopShortcut
         model.penIsOn = false
+        model.haloIsOn = false
         model.isCompact = false
         model.isExpanded = false
         lastNearDate = Date()
@@ -131,6 +135,10 @@ final class RecordingPillController {
 
     func setPen(isOn: Bool) {
         model.penIsOn = isOn
+    }
+
+    func setCursorHalo(isOn: Bool) {
+        model.haloIsOn = isOn
     }
 
     /// How long the take is meant to be; 0 for no goal.
@@ -300,6 +308,7 @@ final class PillModel {
     var notchHeight: CGFloat = 32
     var penAvailable = false
     var penIsOn = false
+    var haloIsOn = false
     var zoomFlash = false
     var cutFlash = false
     /// Seconds the take is meant to last; 0 for none.
@@ -493,6 +502,14 @@ struct RecordingPillView: View {
             ) {
                 actions.togglePen()
             }
+        }
+        pillButton(
+            "circle.circle",
+            help: "Halo round the cursor — only you see it",
+            shortcut: settings.cursorHaloHotKey,
+            isOn: model.haloIsOn
+        ) {
+            actions.toggleCursorHalo()
         }
         pillButton(
             "scissors",

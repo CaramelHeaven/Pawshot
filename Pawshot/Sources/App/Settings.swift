@@ -31,6 +31,8 @@ final class Settings {
         case spotlightHotKey = "hotkey.spotlight"
         case blurHotKey = "hotkey.blur"
         case muteHotKey = "hotkey.mute"
+        case cursorHaloHotKey = "hotkey.cursorHalo"
+        case cursorHaloClicks = "recording.cursorHaloClicks"
         case noticesTalkingWhileMuted = "recording.noticesTalkingWhileMuted"
         case recordingGoal = "recording.goal"
         case recordsMicrophone = "recording.microphone"
@@ -151,6 +153,29 @@ final class Settings {
         set { store(newValue, for: .muteHotKey, default: .muteDefault) }
     }
 
+    /// The halo round the cursor, on the screen only. Only registered during a take.
+    var cursorHaloHotKey: HotKeyBinding? {
+        get { binding(for: .cursorHaloHotKey, default: .cursorHaloDefault) }
+        set { store(newValue, for: .cursorHaloHotKey, default: .cursorHaloDefault) }
+    }
+
+    /// After how many clicks the halo round the cursor goes by itself; 0 keeps it until it is
+    /// switched off. Five by default — the owner's pick.
+    static let cursorHaloChoices = [1, 3, 4, 5, 0]
+
+    var cursorHaloClicks: Int {
+        get {
+            _ = revision
+            guard defaults.object(forKey: Key.cursorHaloClicks.rawValue) != nil else { return 5 }
+            return defaults.integer(forKey: Key.cursorHaloClicks.rawValue)
+        }
+        set {
+            Self.logger.notice("cursor halo goes after \(newValue, privacy: .public) click(s) (0: never)")
+            defaults.set(newValue, forKey: Key.cursorHaloClicks.rawValue)
+            revision += 1
+        }
+    }
+
     /// A take recorded with the microphone off still listens to it, to say once in the pill
     /// "you are talking, and the microphone is off". On by default — the owner's call of
     /// 2026-09-30, knowing the price: macOS shows its orange microphone dot for the whole take,
@@ -181,7 +206,7 @@ final class Settings {
         [
             regionHotKey, fullScreenHotKey, recordRegionHotKey, recordFullScreenHotKey,
             zoomMarkHotKey, penHotKey, restartHotKey, badTakeHotKey,
-            spotlightHotKey, blurHotKey, muteHotKey,
+            spotlightHotKey, blurHotKey, muteHotKey, cursorHaloHotKey,
         ].compactMap(\.self)
     }
 
@@ -506,6 +531,7 @@ final class Settings {
         defaults.removeObject(forKey: Key.spotlightHotKey.rawValue)
         defaults.removeObject(forKey: Key.blurHotKey.rawValue)
         defaults.removeObject(forKey: Key.muteHotKey.rawValue)
+        defaults.removeObject(forKey: Key.cursorHaloHotKey.rawValue)
         revision += 1
         onHotKeysChange?()
     }

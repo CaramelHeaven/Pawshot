@@ -56,6 +56,9 @@ final class RecordingController {
     private var spotlightHotKey: GlobalHotKey?
     private var blurHotKey: GlobalHotKey?
     private var muteHotKey: GlobalHotKey?
+    /// The halo round the cursor (⇧⌘K by default), on the same terms.
+    private var cursorHaloHotKey: GlobalHotKey?
+    private let cursorHalo = CursorHaloController()
     /// When each held effect's key went down, in the file's time.
     private var heldSince: [EventRecorder.HeldEffect: TimeInterval] = [:]
     private let heldIndicator = HeldEffectIndicator()
@@ -91,6 +94,7 @@ final class RecordingController {
         stop: { [weak self] in self?.stop() },
         zoom: { [weak self] in self?.markZoom() },
         togglePen: { [weak self] in self?.togglePen() },
+        toggleCursorHalo: { [weak self] in self?.toggleCursorHalo(source: "the pill") },
         badTake: { [weak self] in self?.markBadTake() },
         recordWithMicrophone: { [weak self] in self?.restartWithMicrophone() },
         dismissMicrophoneHint: { [weak self] in self?.closeMicrophoneHint() }
@@ -495,6 +499,36 @@ final class RecordingController {
         pill.setPen(isOn: drawing)
     }
 
+    /// The halo round the cursor on or off — the shortcut or the pill. It goes by itself after
+    /// the clicks set in Settings → Recording; the pill's button follows.
+    func toggleCursorHalo(source: String) {
+        guard engine != nil else {
+            Self.logger.notice("cursor halo asked with no take running")
+            return
+        }
+        if cursorHalo.isShown {
+            let clicks = cursorHalo.hide()
+            Self.logger.notice("cursor halo off by \(source, privacy: .public) after \(clicks, privacy: .public) click(s)")
+            pill.setCursorHalo(isOn: false)
+            return
+        }
+        let limit = settings.cursorHaloClicks
+        cursorHalo.onGone = { [weak self] clicks in
+            Self.logger.notice("cursor halo gone by itself after \(clicks, privacy: .public) click(s)")
+            self?.pill.setCursorHalo(isOn: false)
+        }
+        cursorHalo.show(clicksBeforeItGoes: limit)
+        Self.logger.notice("cursor halo on by \(source, privacy: .public), goes after \(limit, privacy: .public) click(s) (0: never)")
+        pill.setCursorHalo(isOn: true)
+    }
+
+    private func hideCursorHalo(because reason: String) {
+        guard cursorHalo.isShown else { return }
+        let clicks = cursorHalo.hide()
+        Self.logger.notice("cursor halo off: \(reason, privacy: .public), after \(clicks, privacy: .public) click(s)")
+        pill.setCursorHalo(isOn: false)
+    }
+
     func togglePause() {
         guard let engine else {
             Self.logger.notice("pause pressed with no take running")
@@ -628,6 +662,7 @@ final class RecordingController {
         events = nil
         // The frame stays: the region is the same, and closing it would flash the bare screen.
         grabFrame.close()
+        hideCursorHalo(because: "the take restarts")
         closeInk()
         zoomIndicator.close()
         unregisterRecordingHotKeys()
@@ -744,6 +779,9 @@ final class RecordingController {
         restartHotKey = GlobalHotKey.register(settings.restartHotKey, for: "restart the take") { [weak self] in
             self?.restart()
         }
+        cursorHaloHotKey = GlobalHotKey.register(settings.cursorHaloHotKey, for: "switch the cursor halo") { [weak self] in
+            self?.toggleCursorHalo(source: "the shortcut")
+        }
         if ink != nil {
             penHotKey = GlobalHotKey.register(settings.penHotKey, for: "switch the pen") { [weak self] in
                 self?.togglePen()
@@ -760,6 +798,7 @@ final class RecordingController {
         spotlightHotKey = nil
         blurHotKey = nil
         muteHotKey = nil
+        cursorHaloHotKey = nil
         releaseHeldKeys()
         // A zoom key that was down has nobody left to hear its release.
         zoomFollowTimer?.invalidate()
@@ -772,6 +811,7 @@ final class RecordingController {
         unregisterRecordingHotKeys()
         closeInk()
         grabFrame.close()
+        hideCursorHalo(because: "the take ended")
         frame.close()
         zoomIndicator.close()
         heldIndicator.hide()

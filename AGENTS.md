@@ -224,6 +224,15 @@ edges and corners, and ↩ (or R, or the Record button) starts. It behaves the w
   `isOnActiveSpace` (it did already, for the log) and builds a fresh window in its place; half a
   second on, an overlay still on no active Space is closed so the next press starts afresh. The
   log line carries each window's age and how many captures it served.
+- **A halo round the cursor** (0.6.6, the owner's К-A of 2026-09-30, picked from a page of four):
+  ⇧⌘K during a take, or the pill's button after the pen, puts a soft ring in the paw colour round
+  the cursor; every click spreads three rings like water. **On the screen only** — a Pawshot window,
+  so the recording filter keeps it out of the video — and silent. It goes after the clicks set in
+  Settings → Recording → Shown on the screen (1, 3, 4, 5 — five by default — or never, until
+  switched off). One click-through panel over the cursor's screen, the ring a layer moved sixty
+  times a second, clicks from a global monitor (no permission); a click on a Pawshot window isn't
+  counted (`Recording/CursorHalo.swift`). ⇧⌘K is also Finder's, Xcode's and Slack's — the owner's
+  call, knowing that while a take runs they don't get it.
 - **The keyboard follows the hand** (0.6.5): a press on the overlay of another display makes that
   overlay key, so ↩, `H`, the arrows and `A` act on the region last touched; Record on the toolbar
   records that region too (`SelectionOverlayController.viewWithRegion`). With a region restored on
@@ -686,6 +695,7 @@ Paths are given relative to `Pawshot/Sources/`.
 | What the overlay warns about before a take            | `Recording/RecordingPreflight.swift`    |
 | Recording profiles (Bug report, Demo)                 | `Recording/RecordingProfile.swift`      |
 | The frame a paused region is moved by                 | `Recording/RegionMoveFrame.swift`       |
+| The halo round the cursor and its click rings         | `Recording/CursorHalo.swift`            |
 | Zones to hide: drawing / storing / blurring           | `Overlay/SelectionView.swift` / `EventTimeline.masks` / `EffectsLayerBuilder.maskZone` |
 | The video editor window, its keys, hand-off, closing  | `VideoEditor/VideoEditorWindowController.swift` |
 | Player, film strip, piece brackets, hints, footer     | `VideoEditor/VideoEditorView.swift`     |

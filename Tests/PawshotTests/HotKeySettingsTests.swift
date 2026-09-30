@@ -220,7 +220,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(announced, 1, "cleared means re-registered without it")
         XCTAssertNil(Settings(defaults: defaults).fullScreenHotKey, "a new instance reads it back as none")
         XCTAssertEqual(Settings(defaults: defaults).regionHotKey, .regionDefault)
-        XCTAssertEqual(settings.allHotKeys.count, 10, "nothing to register, nothing to collide with")
+        XCTAssertEqual(settings.allHotKeys.count, 11, "nothing to register, nothing to collide with")
 
         settings.resetHotKeysToDefaults()
 
@@ -267,7 +267,8 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings.spotlightHotKey, .spotlightDefault)
         XCTAssertEqual(settings.blurHotKey, .blurDefault)
         XCTAssertEqual(settings.muteHotKey, .muteDefault)
-        XCTAssertEqual(settings.allHotKeys.count, 11, "no separate stop: the start shortcut stops")
+        XCTAssertEqual(settings.cursorHaloHotKey?.displayString, "⇧⌘K")
+        XCTAssertEqual(settings.allHotKeys.count, 12, "no separate stop: the start shortcut stops")
         let all = settings.allHotKeys
         for (index, binding) in all.enumerated() {
             XCTAssertFalse(all[(index + 1)...].contains(binding), "\(binding.displayString) is used twice")

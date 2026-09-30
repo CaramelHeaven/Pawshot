@@ -14,6 +14,15 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.6", text: String(localized: """
+            A halo round the cursor while you record: press ⇧⌘K, or the new button on the pill \
+            after the pen. It follows the mouse, and every click spreads rings like water. Only \
+            you see it — it is never in the video.
+
+            It goes by itself after five clicks. Settings → Recording → Shown on the screen \
+            changes that to 1, 3 or 4 clicks, or keeps it until you switch it off. The contact \
+            address for sending logs is now capi.hev@gmail.com.
+            """)),
             Entry(version: "0.6.5", text: String(localized: """
             Fixes for recording.
 

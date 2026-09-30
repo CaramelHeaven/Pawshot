@@ -450,3 +450,41 @@ final class HeldEffectsRenderTests: XCTestCase {
         XCTAssertEqual(brightness(plain, 80, 120), brightness(plain, 280, 120), accuracy: 0.05, "before the key was held nothing is dimmed")
     }
 }
+
+/// The halo round the cursor during a take: it goes after the clicks set, or never.
+final class CursorHaloTests: XCTestCase {
+    func testTheHaloGoesAfterTheClicksSet() {
+        for limit in [1, 3, 4, 5] {
+            var counter = CursorHaloCounter(clicksBeforeItGoes: limit)
+            for click in 1 ..< limit {
+                XCTAssertTrue(counter.click(), "still on after click \(click) of \(limit)")
+            }
+            XCTAssertFalse(counter.click(), "gone at click \(limit)")
+            XCTAssertEqual(counter.clicks, limit)
+        }
+    }
+
+    func testNeverMeansUntilSwitchedOff() {
+        var counter = CursorHaloCounter(clicksBeforeItGoes: 0)
+        XCTAssertNil(counter.limit)
+        for _ in 0 ..< 50 {
+            XCTAssertTrue(counter.click())
+        }
+    }
+
+    /// Five by default, ⇧⌘K by default — the owner's picks — and ⇧⌘K does nothing else of ours.
+    @MainActor
+    func testTheDefaultsAreFiveClicksAndShiftCommandK() throws {
+        let suite = "pawshot.halo-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let settings = Settings(defaults: defaults)
+
+        XCTAssertEqual(settings.cursorHaloClicks, 5)
+        settings.cursorHaloClicks = 0
+        XCTAssertEqual(settings.cursorHaloClicks, 0, "\"never\" is kept, not read back as the default")
+        XCTAssertEqual(settings.cursorHaloHotKey?.displayString, "⇧⌘K")
+        let others = settings.allHotKeys.filter { $0 != settings.cursorHaloHotKey }
+        XCTAssertEqual(others.count, settings.allHotKeys.count - 1, "no other shortcut of ours is ⇧⌘K")
+    }
+}
