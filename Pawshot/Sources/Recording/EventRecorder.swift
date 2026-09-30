@@ -59,7 +59,7 @@ final class EventRecorder {
             let recorded = timeline
             let reenabled = tapReenabled
             Self.logger.notice(
-                "events: \(recorded.cursor.count, privacy: .public) cursor, \(recorded.clicks.count, privacy: .public) clicks, \(recorded.keys.count, privacy: .public) keys, \(recorded.zoomMarks.count, privacy: .public) zooms, tap re-enabled \(reenabled, privacy: .public)×"
+                "events: \(recorded.cursor.count, privacy: .public) cursor, \(recorded.clicks.count, privacy: .public) clicks, \(recorded.keys.count, privacy: .public) keys, \(recorded.zoomMarks.count, privacy: .public) zoom marks, \(recorded.zoomHolds.count, privacy: .public) zooms held, \(recorded.badTakes.count, privacy: .public) bad takes, tap re-enabled \(reenabled, privacy: .public)×"
             )
         }
         cursorTimer?.invalidate()
@@ -85,6 +85,24 @@ final class EventRecorder {
         guard let time = clock() else { return nil }
         timeline.zoomMarks.append(time)
         return time
+    }
+
+    /// The zoom key turned out to be held, not tapped: the mark its press left at `start`
+    /// becomes a zoom that lasts until `end`.
+    func holdZoom(from start: TimeInterval, to end: TimeInterval) {
+        if let index = timeline.zoomMarks.lastIndex(of: start) {
+            timeline.zoomMarks.remove(at: index)
+        }
+        timeline.zoomHolds.append(.init(start: start, end: max(start, end)))
+    }
+
+    /// Marks the last seconds as a bad take. `nil` while paused, or with nothing left to cut.
+    @discardableResult
+    func markBadTake() -> EventTimeline.Span? {
+        guard let time = clock(), let span = EventTimeline.badTake(endingAt: time, after: timeline.badTakes)
+        else { return nil }
+        timeline.badTakes.append(span)
+        return span
     }
 
     // MARK: - Samples

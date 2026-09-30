@@ -9,10 +9,12 @@ struct RecordingPillActions {
     var stop: @MainActor () -> Void
     var zoom: @MainActor () -> Void
     var togglePen: @MainActor () -> Void
+    var badTake: @MainActor () -> Void
 }
 
-/// The whole interface of a recording in progress: the dot, the time, pause, zoom, pen, restart
-/// and stop.
+/// The whole interface of a recording in progress: the dot, the time — against the length aimed
+/// for, when there is one — how much the take weighs, pause, zoom, pen, "cut the last seconds",
+/// restart and stop.
 ///
 /// It lives in a borderless panel that never becomes active, so clicking it leaves the app being
 /// recorded in front. The recording filter leaves every Pawshot window out, so the pill is never in
@@ -34,12 +36,13 @@ final class RecordingPillController {
     private var lastNearDate = Date()
     private var notchFrames: (collapsed: CGRect, expanded: CGRect)?
 
-    /// Wide and tall enough for five buttons with their shortcuts written under them.
-    private static let size = CGSize(width: 380, height: 58)
+    /// Wide and tall enough for six buttons with their shortcuts written under them, the time
+    /// against a goal and the size of the file.
+    private static let size = CGSize(width: 540, height: 58)
     private static let nearDistance: CGFloat = 90
     private static let compactAfter: TimeInterval = 3
     private static let notchButtonsHeight: CGFloat = 56
-    private static let notchExpandedWidth: CGFloat = 360
+    private static let notchExpandedWidth: CGFloat = 440
 
     init(actions: RecordingPillActions) {
         panel = NSPanel(
@@ -106,6 +109,41 @@ final class RecordingPillController {
 
     func setPen(isOn: Bool) {
         model.penIsOn = isOn
+    }
+
+    /// How long the take is meant to be; 0 for no goal.
+    func setGoal(_ goal: TimeInterval) {
+        model.goal = goal
+    }
+
+    /// What the take weighs so far — or, `isWarning`, that the disk is running out.
+    func setDetail(_ text: String?, isWarning: Bool) {
+        if model.detail != text {
+            model.detail = text
+        }
+        if model.detailIsWarning != isWarning {
+            model.detailIsWarning = isWarning
+        }
+    }
+
+    /// A word that something just happened — "Frame copied" — in place of the size for a moment.
+    func flash(notice: String) {
+        model.notice = notice
+        Task { @MainActor [model] in
+            try? await Task.sleep(for: .milliseconds(1600))
+            if model.notice == notice {
+                model.notice = nil
+            }
+        }
+    }
+
+    /// The scissors light up for a moment: the last seconds are marked.
+    func flashBadTake() {
+        model.cutFlash = true
+        Task { @MainActor [model] in
+            try? await Task.sleep(for: .milliseconds(450))
+            model.cutFlash = false
+        }
     }
 
     /// The magnifier lights up for a moment: the zoom mark took.
@@ -205,6 +243,14 @@ final class PillModel {
     var penAvailable = false
     var penIsOn = false
     var zoomFlash = false
+    var cutFlash = false
+    /// Seconds the take is meant to last; 0 for none.
+    var goal: TimeInterval = 0
+    /// The size of the file so far, or a warning about the disk.
+    var detail: String?
+    var detailIsWarning = false
+    /// Said for a moment in place of `detail`.
+    var notice: String?
     var stopShortcut: HotKeyBinding?
     /// Where the mouse is over the pill, from its top left; `nil` when it is elsewhere.
     var hoverPoint: CGPoint?
@@ -242,6 +288,7 @@ struct RecordingPillView: View {
                 HStack(spacing: 8) {
                     dot(status, size: 10)
                     time(status)
+                    detail
                     Divider().frame(height: 18)
                     buttons(status)
                 }
@@ -268,6 +315,7 @@ struct RecordingPillView: View {
 
             if model.isExpanded {
                 HStack(spacing: 8) {
+                    detail
                     buttons(status)
                 }
                 .frame(height: 56)
@@ -286,10 +334,48 @@ struct RecordingPillView: View {
             .shadow(color: status.isPaused ? .clear : .red.opacity(0.7), radius: 4)
     }
 
+    /// The time — and, with a goal, the goal after it and a bar underneath that fills up and
+    /// turns red for the last ten seconds and beyond. The take is never stopped by it.
     private func time(_ status: AppState.RecordingStatus) -> some View {
-        Text(status.elapsedText)
-            .font(.system(size: 14, weight: .semibold).monospacedDigit())
-            .frame(minWidth: 44, alignment: .trailing)
+        let goal = RecordingBudget.goal(elapsed: status.elapsed, goal: model.goal)
+        return VStack(spacing: 3) {
+            HStack(spacing: 4) {
+                Text(status.elapsedText)
+                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                    .frame(minWidth: 44, alignment: .trailing)
+                if goal != nil {
+                    Text(verbatim: "/ " + AppState.RecordingStatus(elapsed: model.goal, isPaused: false).elapsedText)
+                        .font(.system(size: 12, weight: .medium).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let goal {
+                Capsule()
+                    .fill(.white.opacity(0.2))
+                    .frame(height: 2.5)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { proxy in
+                            Capsule()
+                                .fill(goal.isClose ? Color.red : Tokens.paw)
+                                .frame(width: proxy.size.width * goal.fraction)
+                        }
+                    }
+            }
+        }
+        .fixedSize()
+    }
+
+    /// The size of the file, a warning that the disk is running out, or a word about what just
+    /// happened. Nothing until the first part of the file is written.
+    @ViewBuilder
+    private var detail: some View {
+        if let text = model.notice ?? model.detail {
+            Text(text)
+                .font(.system(size: 12, weight: .medium).monospacedDigit())
+                .foregroundStyle(model.notice == nil && model.detailIsWarning ? Color.red : Color.secondary)
+                .lineLimit(1)
+                .fixedSize()
+        }
     }
 
     @ViewBuilder
@@ -314,6 +400,14 @@ struct RecordingPillView: View {
             ) {
                 actions.togglePen()
             }
+        }
+        pillButton(
+            "scissors",
+            help: "Cut the last 10 seconds — a bad take",
+            shortcut: settings.badTakeHotKey,
+            isOn: model.cutFlash
+        ) {
+            actions.badTake()
         }
         pillButton("arrow.counterclockwise", help: "Restart — the take is thrown away", shortcut: settings.restartHotKey) {
             actions.restart()

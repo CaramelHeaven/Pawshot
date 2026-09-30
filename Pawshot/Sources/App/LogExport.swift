@@ -115,6 +115,7 @@ enum LogExport {
             ("Mark a zoom (while recording)", settings.zoomMarkHotKey),
             ("Pen (while recording)", settings.penHotKey),
             ("Restart (while recording)", settings.restartHotKey),
+            ("Bad take (while recording)", settings.badTakeHotKey),
         ]
         let ownPID = ProcessInfo.processInfo.processIdentifier
         let others = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")

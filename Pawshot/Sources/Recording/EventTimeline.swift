@@ -2,11 +2,16 @@ import AppKit
 import Carbon.HIToolbox
 import os
 
-/// What happened during a recording, for the effects added at export: where the cursor was, the
-/// clicks, the shortcuts pressed and the moments marked for a zoom.
+/// What happened during a recording, for the effects added at export and for the editor: where
+/// the cursor was, the clicks, the shortcuts pressed, the zooms — marked with a tap or held — and
+/// the stretches marked as a bad take.
 ///
 /// Times are seconds of the file — pauses already taken out. Positions are fractions of the
 /// recorded area, 0…1, origin top left, so they survive any output size.
+///
+/// The file has no version. What is added later is read as empty when it is missing
+/// (`init(from:)` below): a synthesized decoder would refuse the whole file for one absent key,
+/// and a recording made by an older build would lose its clicks to a newer one.
 struct EventTimeline: Codable, Equatable {
     struct Point: Codable, Equatable {
         var time: Double
@@ -19,17 +24,41 @@ struct EventTimeline: Codable, Equatable {
         var label: String
     }
 
+    /// From one moment of the file to another.
+    struct Span: Codable, Equatable {
+        var start: Double
+        var end: Double
+    }
+
     var cursor: [Point] = []
     var clicks: [Point] = []
     var keys: [Keystroke] = []
+    /// A tap of the zoom key: the export zooms in there for `EffectsPlanner.zoomLength`.
     var zoomMarks: [Double] = []
+    /// The zoom key held: zoomed in from the press to the release, following the cursor.
+    var zoomHolds: [Span] = []
+    /// Stretches marked as a bad take while recording: the editor opens with them cut out.
+    var badTakes: [Span] = []
 
     private static var logger: Logger {
         .pawshot("recording")
     }
 
     var isEmpty: Bool {
-        clicks.isEmpty && keys.isEmpty && zoomMarks.isEmpty
+        clicks.isEmpty && keys.isEmpty && !hasZooms
+    }
+
+    var hasZooms: Bool {
+        !zoomMarks.isEmpty || !zoomHolds.isEmpty
+    }
+
+    /// What a "bad take" mark at `time` cuts: the `length` seconds before it — not before the
+    /// take began, and never back into a stretch already marked, so a second press cuts only
+    /// what came after the first. `nil` when that leaves less than a piece can be.
+    static func badTake(endingAt time: Double, after earlier: [Span], length: Double = 10) -> Span? {
+        let start = max(0, time - length, earlier.map(\.end).max() ?? 0)
+        guard time - start >= KeepRanges.minimumLength else { return nil }
+        return Span(start: start, end: time)
     }
 
     /// Where the cursor was at `time`: the last sample at or before it, or the first one.
@@ -67,6 +96,19 @@ struct EventTimeline: Codable, Equatable {
             logger.error("timeline not read: \(String(describing: error), privacy: .public)")
             return EventTimeline()
         }
+    }
+}
+
+extension EventTimeline {
+    /// Every array is optional in the file, see the type's comment.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cursor = try container.decodeIfPresent([Point].self, forKey: .cursor) ?? []
+        clicks = try container.decodeIfPresent([Point].self, forKey: .clicks) ?? []
+        keys = try container.decodeIfPresent([Keystroke].self, forKey: .keys) ?? []
+        zoomMarks = try container.decodeIfPresent([Double].self, forKey: .zoomMarks) ?? []
+        zoomHolds = try container.decodeIfPresent([Span].self, forKey: .zoomHolds) ?? []
+        badTakes = try container.decodeIfPresent([Span].self, forKey: .badTakes) ?? []
     }
 }
 

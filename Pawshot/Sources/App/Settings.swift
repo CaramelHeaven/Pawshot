@@ -27,6 +27,8 @@ final class Settings {
         case zoomMarkHotKey = "hotkey.zoomMark"
         case penHotKey = "hotkey.pen"
         case restartHotKey = "hotkey.restart"
+        case badTakeHotKey = "hotkey.badTake"
+        case recordingGoal = "recording.goal"
         case recordsMicrophone = "recording.microphone"
         case microphoneDevice = "recording.microphoneDevice"
         case recordsSystemAudio = "recording.systemAudio"
@@ -121,13 +123,33 @@ final class Settings {
         set { store(newValue, for: .restartHotKey, default: .restartDefault) }
     }
 
+    /// Marks the last seconds as a bad take. Only registered during a take.
+    var badTakeHotKey: HotKeyBinding? {
+        get { binding(for: .badTakeHotKey, default: .badTakeDefault) }
+        set { store(newValue, for: .badTakeHotKey, default: .badTakeDefault) }
+    }
+
+    /// How long a take is meant to be, in seconds; 0 aims for nothing. The pill shows the time
+    /// against it and a bar that fills up — the take is never stopped by it.
+    var recordingGoal: TimeInterval {
+        get {
+            _ = revision
+            return defaults.double(forKey: Key.recordingGoal.rawValue)
+        }
+        set {
+            Self.logger.notice("recording goal → \(Int(newValue), privacy: .public) s")
+            defaults.set(newValue, forKey: Key.recordingGoal.rawValue)
+            revision += 1
+        }
+    }
+
     /// Every hotkey the app registers, for the "the same combination can't do two things" check.
     /// The recording-time ones count too: they would collide the moment a take starts. One cleared
     /// with the field's × isn't here — it registers nothing.
     var allHotKeys: [HotKeyBinding] {
         [
             regionHotKey, fullScreenHotKey, recordRegionHotKey, recordFullScreenHotKey,
-            zoomMarkHotKey, penHotKey, restartHotKey,
+            zoomMarkHotKey, penHotKey, restartHotKey, badTakeHotKey,
         ].compactMap(\.self)
     }
 
@@ -448,6 +470,7 @@ final class Settings {
         defaults.removeObject(forKey: Key.zoomMarkHotKey.rawValue)
         defaults.removeObject(forKey: Key.penHotKey.rawValue)
         defaults.removeObject(forKey: Key.restartHotKey.rawValue)
+        defaults.removeObject(forKey: Key.badTakeHotKey.rawValue)
         revision += 1
         onHotKeysChange?()
     }

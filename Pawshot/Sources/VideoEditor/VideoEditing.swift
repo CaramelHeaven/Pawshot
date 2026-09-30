@@ -72,6 +72,34 @@ struct KeepRanges: Equatable {
         return index
     }
 
+    /// Cuts `from…to` out of every piece it overlaps — what a stretch marked as a bad take while
+    /// recording does when the editor opens. What is left of a piece under `minimumLength` goes
+    /// with the cut: a sliver can't be grabbed. Refused, with `false`, when it would leave
+    /// nothing or changes nothing.
+    @discardableResult
+    mutating func cut(from: TimeInterval, to: TimeInterval) -> Bool {
+        let low = max(0, min(from, to))
+        let high = min(duration, max(from, to))
+        guard high > low else { return false }
+
+        var left: [Piece] = []
+        for piece in pieces {
+            guard piece.end > low, piece.start < high else {
+                left.append(piece)
+                continue
+            }
+            if low - piece.start >= Self.minimumLength {
+                left.append(Piece(start: piece.start, end: low))
+            }
+            if piece.end - high >= Self.minimumLength {
+                left.append(Piece(start: high, end: piece.end))
+            }
+        }
+        guard !left.isEmpty, left != pieces else { return false }
+        pieces = left
+        return true
+    }
+
     /// Removes a piece; the last one stays — a recording with nothing kept is not a recording.
     @discardableResult
     mutating func remove(at index: Int) -> Bool {

@@ -230,6 +230,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Capture
 
     func beginCapture() {
+        // During a take the same key copies the picture being recorded: a frame of the take,
+        // without the overlay and the editor getting in the way of what is being shown.
+        if recordingController.isActive {
+            Self.logger.notice("capture-region shortcut while recording: the frame goes to the clipboard")
+            recordingController.copyFrame()
+            return
+        }
         startOverlayCapture(purpose: .screenshot) { [weak self] selection in
             self?.openEditor(for: selection)
         }

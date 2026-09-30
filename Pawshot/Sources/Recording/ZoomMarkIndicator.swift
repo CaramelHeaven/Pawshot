@@ -43,6 +43,39 @@ final class ZoomMarkIndicator {
         }
     }
 
+    /// The outline while the zoom key is held: it goes where the cursor goes and stays until
+    /// `letGo()`. `cursor` and `area` in AppKit screen coordinates.
+    func follow(_ cursor: CGPoint, in area: CGRect, scale: CGFloat) {
+        let panel = panel ?? Self.makePanel()
+        self.panel = panel
+        // Any fade of an earlier mark is off: this outline has no end yet.
+        generation += 1
+        panel.setFrame(SelectionGeometry.zoomPreviewRect(cursor: cursor, area: area, scale: scale), display: true)
+        if panel.alphaValue < 1 || !panel.isVisible {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0
+                panel.animator().alphaValue = 1
+            }
+            panel.orderFrontRegardless()
+        }
+    }
+
+    /// The zoom key was let go: the outline fades out.
+    func letGo() {
+        guard let panel else { return }
+        generation += 1
+        let current = generation
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.3
+            panel.animator().alphaValue = 0
+        } completionHandler: {
+            Task { @MainActor in
+                guard self.generation == current else { return }
+                panel.orderOut(nil)
+            }
+        }
+    }
+
     func close() {
         generation += 1
         panel?.orderOut(nil)

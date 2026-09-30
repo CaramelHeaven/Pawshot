@@ -225,6 +225,16 @@
         }
       }
     },
+    "1 minute" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 минута"
+          }
+        }
+      }
+    },
     "1x / 2x" : {
       "shouldTranslate" : false
     },
@@ -234,6 +244,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1–5 в редакторе меняют цвет."
+          }
+        }
+      }
+    },
+    "2 minutes" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2 минуты"
+          }
+        }
+      }
+    },
+    "30 seconds" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30 секунд"
+          }
+        }
+      }
+    },
+    "5 minutes" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 минут"
           }
         }
       }
@@ -357,6 +397,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Добавьте ⌘, ⌥ или ⌃"
+          }
+        }
+      }
+    },
+    "Aim for" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уложиться в"
           }
         }
       }
@@ -1077,6 +1127,26 @@
         }
       }
     },
+    "Cut the last 10 seconds" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вырезать последние 10 секунд"
+          }
+        }
+      }
+    },
+    "Cut the last 10 seconds — a bad take" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вырезать последние 10 секунд: неудачный дубль"
+          }
+        }
+      }
+    },
     "D is the pencil." : {
       "localizations" : {
         "ru" : {
@@ -1370,6 +1440,16 @@
         }
       }
     },
+    "Frame copied" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кадр скопирован"
+          }
+        }
+      }
+    },
     "Free" : {
       "localizations" : {
         "ru" : {
@@ -1577,6 +1657,16 @@
         }
       }
     },
+    "Last %lld s cut" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последние %lld с вырезаны"
+          }
+        }
+      }
+    },
     "Launch at Login" : {
       "localizations" : {
         "ru" : {
@@ -1730,6 +1820,16 @@
         }
       }
     },
+    "New while a recording runs.\n\nHold the zoom shortcut instead of tapping it, and the video stays zoomed in for as long as you hold, following the cursor. A tap still marks a short zoom.\n\nSaid something wrong? ⇧⌘8, or the scissors on the pill, marks the last 10 seconds as a bad take: the recording goes on, and the editor opens with them already cut. ⌘Z there brings them back.\n\n⇧⌘2 during a recording copies the picture being recorded to the clipboard, without stopping.\n\nThe pill shows how much the recording weighs, and warns when the disk has about five minutes of room left. In Settings → Recording, Aim for picks a length to fit into: the pill then shows the time against it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое во время записи.\n\nУдерживайте сочетание зума вместо короткого нажатия: видео остаётся увеличенным, пока вы держите клавиши, и идёт за курсором. Короткое нажатие по-прежнему ставит короткий зум.\n\nОговорились? ⇧⌘8 или ножницы на пилюле помечают последние 10 секунд как неудачный дубль: запись идёт дальше, а редактор откроется уже без них. ⌘Z там вернёт их.\n\n⇧⌘2 во время записи копирует в буфер кадр, который сейчас записывается, и запись не останавливается.\n\nПилюля показывает, сколько весит запись, и предупреждает, когда на диске остаётся места примерно на пять минут. В Настройки → Запись пункт «Уложиться в» задаёт длину, в которую хотите попасть: пилюля покажет время рядом с ней."
+          }
+        }
+      }
+    },
     "Night owl: the best shots come at night." : {
       "localizations" : {
         "ru" : {
@@ -1746,6 +1846,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ни одна клавиша не дошла до Pawshot. Если вы её нажимали, это сочетание раньше забирает macOS или другое приложение: выберите другое или освободите его там."
+          }
+        }
+      }
+    },
+    "No length in mind" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без ограничения"
           }
         }
       }
@@ -3305,6 +3415,16 @@
         }
       }
     },
+    "The pill shows the time against it. The take is never stopped." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пилюля показывает время рядом с этой длиной. Запись сама не останавливается."
+          }
+        }
+      }
+    },
     "The recording couldn't be written. %@" : {
       "localizations" : {
         "ru" : {
@@ -3740,6 +3860,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "копировать"
+          }
+        }
+      }
+    },
+    "disk: about %lld min left" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "диск: осталось около %lld мин"
           }
         }
       }

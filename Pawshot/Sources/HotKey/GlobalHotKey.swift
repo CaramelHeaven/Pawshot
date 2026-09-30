@@ -45,6 +45,8 @@ final class GlobalHotKey {
     private let id: UInt32
     private var hotKeyRef: EventHotKeyRef?
     private let action: () -> Void
+    /// Told when the keys are let go — for the one shortcut that means something held: the zoom.
+    private let onRelease: (() -> Void)?
 
     /// Registers a global hotkey, or explains why it couldn't.
     ///
@@ -53,6 +55,7 @@ final class GlobalHotKey {
     static func register(
         _ binding: HotKeyBinding,
         name: String? = nil,
+        onRelease: (() -> Void)? = nil,
         action: @escaping () -> Void
     ) throws -> GlobalHotKey {
         installSharedHandlerIfNeeded()
@@ -80,7 +83,7 @@ final class GlobalHotKey {
                 : RegistrationError.failed(status)
         }
 
-        let hotKey = GlobalHotKey(id: id, ref: ref, label: shortcut, action: action)
+        let hotKey = GlobalHotKey(id: id, ref: ref, label: shortcut, action: action, onRelease: onRelease)
         registry[id] = WeakHotKey(value: hotKey)
         // `.public`: this line is how the owner checks that a hotkey took — by default the logger
         // redacts interpolated strings and prints `<private>` instead.
@@ -95,6 +98,7 @@ final class GlobalHotKey {
     static func register(
         _ binding: HotKeyBinding?,
         for name: String,
+        onRelease: (() -> Void)? = nil,
         action: @escaping () -> Void
     ) -> GlobalHotKey? {
         guard let binding else {
@@ -102,7 +106,7 @@ final class GlobalHotKey {
             return nil
         }
         do {
-            return try register(binding, name: name, action: action)
+            return try register(binding, name: name, onRelease: onRelease, action: action)
         } catch {
             // `register` has already logged the Carbon status; this names what is now dead.
             logger.error("\(name, privacy: .public): \(binding.logString, privacy: .public) not registered: \(String(describing: error), privacy: .public) — this action has no shortcut until it is changed")
@@ -113,11 +117,18 @@ final class GlobalHotKey {
     /// The combination, for the log.
     private let label: String
 
-    private init(id: UInt32, ref: EventHotKeyRef, label: String, action: @escaping () -> Void) {
+    private init(
+        id: UInt32,
+        ref: EventHotKeyRef,
+        label: String,
+        action: @escaping () -> Void,
+        onRelease: (() -> Void)?
+    ) {
         self.id = id
         hotKeyRef = ref
         self.label = label
         self.action = action
+        self.onRelease = onRelease
     }
 
     /// `isolated deinit` — otherwise a plain deinit can touch neither `hotKeyRef`
@@ -134,10 +145,11 @@ final class GlobalHotKey {
     private static func installSharedHandlerIfNeeded() {
         guard eventHandler == nil else { return }
 
-        var eventType = EventTypeSpec(
-            eventClass: OSType(kEventClassKeyboard),
-            eventKind: UInt32(kEventHotKeyPressed)
-        )
+        // The release too: a hotkey with `onRelease` is one that can be held.
+        var eventTypes = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased)),
+        ]
 
         let status = InstallEventHandler(
             GetApplicationEventTarget(),
@@ -162,9 +174,19 @@ final class GlobalHotKey {
                     return OSStatus(eventNotHandledErr)
                 }
 
+                let released = GetEventKind(event) == UInt32(kEventHotKeyReleased)
                 // Carbon delivers hotkeys on the main thread, so the isolation here is real and
                 // not just a promise made to the compiler.
                 MainActor.assumeIsolated {
+                    if released {
+                        // Most hotkeys only care about the press; their release says nothing.
+                        if let hotKey = GlobalHotKey.registry[hotKeyID.id]?.value, let onRelease = hotKey.onRelease {
+                            let shortcut = hotKey.label
+                            GlobalHotKey.logger.notice("hotkey let go: \(shortcut, privacy: .public)")
+                            onRelease()
+                        }
+                        return
+                    }
                     guard let hotKey = GlobalHotKey.registry[hotKeyID.id]?.value else {
                         // Pressed, but whoever registered it is gone: from the outside, a dead key.
                         GlobalHotKey.logger.error("hotkey \(hotKeyID.id) pressed with nobody behind it")
@@ -177,8 +199,8 @@ final class GlobalHotKey {
                 }
                 return noErr
             },
-            1,
-            &eventType,
+            eventTypes.count,
+            &eventTypes,
             nil,
             &eventHandler
         )

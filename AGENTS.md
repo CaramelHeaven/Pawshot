@@ -23,17 +23,25 @@ While a region records, everything around it stays dimmed and the region sits cl
 red corners, the way macOS shows it; the dimming lets clicks through and never reaches the video.
 A recording is a `SCStream` feeding an `AVAssetWriter` (not `SCRecordingOutput`: no pause, and a
 broken file with the microphone on). A glass pill by the recorded area holds the time, pause, zoom,
-pen, restart and stop; on a screen with a camera notch it becomes a black band around the notch
-that drops its buttons down on hover. The menu bar shows the time instead of the paw. While a take
-runs, **⇧⌘6** marks a zoom — an orange outline shows for 2.5 s exactly the part the export will
-zoom to — **⇧⌘7** switches the pen (the mouse draws on the screen, into the video, every stroke
-fades after four seconds, Esc gives the mouse back), **⇧⌘5** restarts, and the shortcut that
-started the take (⇧⌘3 or ⇧⌘4) stops it — there is no separate stop. ⌃⌥ + letter was tried first
-and dropped as awkward mid-take. The
-pill writes each shortcut under its button. These four are registered only during a recording —
-not ⌘R/⌘D, which a global hotkey would take away from the app being recorded — and like the rest
-they are set in Settings → Shortcuts. No Pawshot window is ever in the video — the filter leaves
-the whole app out.
+pen, "cut the last seconds", restart and stop; on a screen with a camera notch it becomes a black
+band around the notch that drops its buttons down on hover. Next to the time it shows what the
+take weighs so far — a warning instead, once the disk has under five minutes of room at this
+rate — and, with a length picked in Settings → Recording ("Aim for"), the time against it and a
+bar that fills up and turns red for the last ten seconds; the take is never stopped by it. The
+menu bar shows the time instead of the paw. While a take
+runs, **⇧⌘6** tapped marks a zoom — an orange outline shows for 2.5 s exactly the part the export
+will zoom to — and **held** zooms for as long as it is held, the outline and the export following
+the cursor; **⇧⌘7** switches the pen (the mouse draws on the screen, into the video, every stroke
+fades after four seconds, Esc gives the mouse back); **⇧⌘8** marks the last 10 seconds as a bad
+take — the take goes on, and the video editor opens with them already cut, one ⌘Z away (the
+digit is the agent's pick of 2026-09-30, not the owner's); **⇧⌘5** restarts, and the shortcut that
+started the take (⇧⌘3 or ⇧⌘4) stops it — there is no separate stop. **⇧⌘2 during a take** copies
+the picture being recorded to the clipboard instead of opening the overlay. ⌃⌥ + letter was tried
+first and dropped as awkward mid-take. The
+pill writes each shortcut under its button. The recording-time ones are registered only during a
+recording — not ⌘R/⌘D, which a global hotkey would take away from the app being recorded — and
+like the rest they are set in Settings → Shortcuts. No Pawshot window is ever in the video — the
+filter leaves the whole app out.
 
 **The welcome window opens by itself at launch until "Get Started" is pressed** (`app.welcomeCompleted`;
 closing it any other way is not an answer, so it comes back next launch), and after that from the
@@ -596,7 +604,9 @@ Paths are given relative to `Pawshot/Sources/`.
 | Export presets, audio mixing, GIF, clipboard files    | `VideoEditor/VideoExporter.swift`       |
 | What is recorded for effects: cursor, clicks, keys    | `Recording/EventRecorder.swift`         |
 | The timeline file, shortcut labels                    | `Recording/EventTimeline.swift`         |
-| Zoom segments, shortcut captions                      | `VideoEditor/EffectsPlanner.swift`      |
+| Zoom segments, held zooms, shortcut captions          | `VideoEditor/EffectsPlanner.swift`      |
+| The take's size, the disk warning, the length aimed for | `Recording/RecordingBudget.swift`     |
+| Cutting the bad takes when the editor opens           | `VideoEditor/VideoEditing.swift` (`KeepRanges.cut`), `VideoEditorWindowController.load` |
 | The effects' layer tree (export and preview)          | `VideoEditor/EffectsLayerBuilder.swift` |
 | Which window the cursor is over                       | `Overlay/WindowPicker.swift`            |
 | The About window / the version it shows               | `About/AboutView.swift` / `App/AboutPanel.swift` |
@@ -904,6 +914,24 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
   ScreenCaptureKit lists the window with a zero frame and `isOnScreen == false`; 0.3 s later it is
   there. `InkPanelController.waitUntilOnScreen()` polls `CGWindowList` and yields the run loop —
   12–49 ms on the owner's machine. `InkPanelCaptureTests` went red without it.
+- **A held key needs the hotkey's release.** Carbon sends `kEventHotKeyReleased` as well as the
+  press; `GlobalHotKey` hears both, and a hotkey registered with `onRelease` is one that can be
+  held. The zoom key leaves its mark on the press — a tap is nothing more — and if it is still
+  down after 0.35 s (`EffectsPlanner.zoomHoldAfter`), the release turns that mark into a span in
+  `zoomHolds`. Whether Carbon repeats the press of a held hotkey was not measured; a second
+  press while one is down is ignored either way. Not tried on a live take by the agent.
+- **The timeline file has no version, so nothing in it may be required.** `EventTimeline` decodes
+  every array with `decodeIfPresent` (`init(from:)` in an extension, which keeps the memberwise
+  initialiser). With the synthesized decoder, one key a newer build added would have made every
+  older recording's timeline unreadable — silently: `load` answers an empty one.
+  `TakeMarksTests.testATimelineWrittenByAnOlderBuildIsStillRead` pins it.
+- **A held zoom follows the cursor, a marked one stays put.** `EffectsPlanner.zoomPath` gives the
+  centres — one for a mark, the cursor's place every tenth of a second for a hold — and the
+  builder turns them into one keyframe animation per kept piece. The way out comes after the
+  release, so a hold's segment ends `zoomRamp` later than its span.
+- **The file's size is read once a second, and means nothing for the first five.** The movie is
+  written in 5 s fragments, so the size on disk grows in steps; the pill shows nothing until the
+  first one lands, and the rate for the disk warning is bytes so far over seconds so far.
 - **The zoom outline follows the export's merge, not the cursor.** `EffectsPlanner.zoomSegments`
   folds a mark within `zoomMergeGap` of the previous zoom into it, centred on the first mark, so a
   second ⇧⌘6 close behind only extends the outline where it already is. A mark while paused is

@@ -14,6 +14,23 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.1", text: String(localized: """
+            New while a recording runs.
+
+            Hold the zoom shortcut instead of tapping it, and the video stays zoomed in for as \
+            long as you hold, following the cursor. A tap still marks a short zoom.
+
+            Said something wrong? ⇧⌘8, or the scissors on the pill, marks the last 10 seconds as \
+            a bad take: the recording goes on, and the editor opens with them already cut. ⌘Z \
+            there brings them back.
+
+            ⇧⌘2 during a recording copies the picture being recorded to the clipboard, without \
+            stopping.
+
+            The pill shows how much the recording weighs, and warns when the disk has about five \
+            minutes of room left. In Settings → Recording, Aim for picks a length to fit into: \
+            the pill then shows the time against it.
+            """)),
             Entry(version: "0.6", text: String(localized: """
             Recording a region works the way ⇧⌘5 does. After ⇧⌘3 the region you recorded last \
             time is there at once: drag it by its middle to move it, by an edge or a corner to \

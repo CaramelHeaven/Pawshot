@@ -167,6 +167,23 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         queue.async { self.clock.resume(at: Self.now) }
     }
 
+    /// The picture being recorded right now, as it goes into the file — for a frame copied out
+    /// of a take. `nil` before the first frame has arrived.
+    func snapshot() async -> CGImage? {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                guard let buffer = self.lastFrame?.imageBuffer else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let image = CIImage(cvPixelBuffer: buffer)
+                continuation.resume(returning: Self.snapshotContext.createCGImage(image, from: image.extent))
+            }
+        }
+    }
+
+    private static let snapshotContext = CIContext()
+
     /// Seconds in the file so far, pauses excluded.
     var duration: TimeInterval {
         queue.sync { clock.duration(at: Self.now).seconds }

@@ -7,6 +7,8 @@ struct ZoomSegment: Equatable {
     var end: Double
     /// Timeline fraction, origin top left.
     var center: CGPoint
+    /// The zoom key was held: the zoom goes where the cursor goes instead of staying where it began.
+    var follows = false
 }
 
 /// A shortcut shown in the capsule at the bottom: `⌘Z ×3`.
@@ -31,20 +33,58 @@ enum EffectsPlanner {
     /// How long a caption stays after its last press.
     static let keyHold: Double = 1.2
 
-    /// One segment per mark, merged where they touch, cut at the end of the video, centred where
-    /// the cursor was at the first mark of each.
+    /// The zoom key held this long is a hold, not a tap: a tap leaves a mark, a hold zooms from
+    /// the press to the release.
+    static let zoomHoldAfter: TimeInterval = 0.35
+
+    static func isZoomHold(heldFor held: TimeInterval) -> Bool {
+        held > zoomHoldAfter
+    }
+
+    /// How often a held zoom looks at where the cursor went.
+    static let zoomFollowStep: Double = 0.1
+
+    /// One segment per mark and per hold, merged where they touch, cut at the end of the video,
+    /// centred where the cursor was at the start of each. A mark lasts `zoomLength`; a hold lasts
+    /// until its release, and the way out comes after that.
     static func zoomSegments(timeline: EventTimeline, duration: Double) -> [ZoomSegment] {
+        let marks = timeline.zoomMarks.map { (start: $0, end: $0 + zoomLength, follows: false) }
+        let holds = timeline.zoomHolds.map { (start: $0.start, end: $0.end + zoomRamp, follows: true) }
+
         var segments: [ZoomSegment] = []
-        for mark in timeline.zoomMarks.sorted() where mark < duration {
-            let end = min(duration, mark + zoomLength)
-            if let last = segments.last, mark <= last.end + zoomMergeGap {
+        for zoom in (marks + holds).sorted(by: { $0.start < $1.start }) where zoom.start < duration {
+            let end = min(duration, zoom.end)
+            if let last = segments.last, zoom.start <= last.end + zoomMergeGap {
                 segments[segments.count - 1].end = max(last.end, end)
+                segments[segments.count - 1].follows = last.follows || zoom.follows
                 continue
             }
-            let center = timeline.cursorPosition(at: mark) ?? CGPoint(x: 0.5, y: 0.5)
-            segments.append(ZoomSegment(start: mark, end: end, center: center))
+            let center = timeline.cursorPosition(at: zoom.start) ?? CGPoint(x: 0.5, y: 0.5)
+            segments.append(ZoomSegment(start: zoom.start, end: end, center: center, follows: zoom.follows))
         }
         return segments
+    }
+
+    /// Where a segment's zoom is centred between two moments of the recording, as steps in time:
+    /// the one place it began for a marked zoom, the cursor's place every `zoomFollowStep` for a
+    /// held one.
+    static func zoomPath(
+        of segment: ZoomSegment,
+        from start: Double,
+        to end: Double,
+        timeline: EventTimeline
+    ) -> [(time: Double, center: CGPoint)] {
+        guard segment.follows, end > start else {
+            return [(start, segment.center), (max(start, end), segment.center)]
+        }
+        var path: [(time: Double, center: CGPoint)] = []
+        var time = start
+        while time < end {
+            path.append((time, timeline.cursorPosition(at: time) ?? segment.center))
+            time += zoomFollowStep
+        }
+        path.append((end, timeline.cursorPosition(at: end) ?? segment.center))
+        return path
     }
 
     /// Captions for the shortcuts. A repeat within a second becomes `×2`, `×3` on the same

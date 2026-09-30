@@ -39,6 +39,16 @@ final class RecordingController {
     private var penHotKey: GlobalHotKey?
     /// Restart (⇧⌘5), on the same terms. Stopping is the shortcut that started the take.
     private var restartHotKey: GlobalHotKey?
+    /// "Cut the last seconds" (⇧⌘8), on the same terms.
+    private var badTakeHotKey: GlobalHotKey?
+    /// The zoom key is down: the mark its press left, and when it went down. Held past
+    /// `EffectsPlanner.zoomHoldAfter`, the mark becomes a zoom that lasts until the release.
+    private var zoomPress: (mark: TimeInterval, at: Date)?
+    private var zoomFollowTimer: Timer?
+    /// Counts the ticks, a quarter of a second each: the file's size is looked at once a second.
+    private var ticks = 0
+    private var diskWarningLogged = false
+    private var sizeFailureLogged = false
     private var ink: InkPanelController?
     /// The dimming around a recorded region, the way macOS shows a region being recorded.
     private let frame = RecordingFrameController()
@@ -55,7 +65,8 @@ final class RecordingController {
         restart: { [weak self] in self?.restart() },
         stop: { [weak self] in self?.stop() },
         zoom: { [weak self] in self?.markZoom() },
-        togglePen: { [weak self] in self?.togglePen() }
+        togglePen: { [weak self] in self?.togglePen() },
+        badTake: { [weak self] in self?.markBadTake() }
     ))
 
     /// Handed the finished take — the raw file, its pixel size, and the screen it was recorded on —
@@ -168,6 +179,12 @@ final class RecordingController {
             penAvailable: ink != nil,
             stopShortcut: startedBy
         )
+        pill.setGoal(settings.recordingGoal)
+        pill.setDetail(nil, isWarning: false)
+        let goal = Int(settings.recordingGoal)
+        if goal > 0 {
+            Self.logger.notice("the take aims for \(goal, privacy: .public) s")
+        }
         startTicker()
         if stopWhenStarted {
             stop()
@@ -177,12 +194,13 @@ final class RecordingController {
     /// The moment to zoom in on at export, centred where the cursor is now. The part of the
     /// screen the zoom will show is outlined for as long as it will last, so the mark can be
     /// seen while recording; the outline is a Pawshot window and never reaches the video.
-    func markZoom() {
+    @discardableResult
+    func markZoom() -> TimeInterval? {
         // Paused, the mark isn't recorded — and then nothing may pretend it was.
-        guard let events, let target else { return }
+        guard let events, let target else { return nil }
         guard let time = events.markZoom() else {
             Self.logger.notice("zoom mark ignored: paused")
-            return
+            return nil
         }
         let marks = events.timeline.zoomMarks.count
         Self.logger.notice(
@@ -200,6 +218,80 @@ final class RecordingController {
             for: outline.end - time
         )
         pill.flashZoom()
+        return time
+    }
+
+    /// The zoom key went down. It is a mark at once — a tap is nothing more — and the start of a
+    /// hold if the key stays down: then the outline follows the cursor until the release.
+    private func zoomKeyDown() {
+        // A held key may repeat; only the first press counts.
+        guard zoomPress == nil, let mark = markZoom() else { return }
+        zoomPress = (mark, Date())
+        let timer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.followHeldZoom() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        zoomFollowTimer = timer
+    }
+
+    private func followHeldZoom() {
+        guard let zoomPress, let target else { return }
+        guard EffectsPlanner.isZoomHold(heldFor: Date().timeIntervalSince(zoomPress.at)) else { return }
+        zoomIndicator.follow(NSEvent.mouseLocation, in: Self.appKitRect(of: target), scale: EffectsPlanner.zoomScale)
+    }
+
+    /// The zoom key came up. Held long enough, the mark of its press becomes a zoom from the
+    /// press to now; let go sooner, it was a tap and the mark stands.
+    private func zoomKeyUp() {
+        zoomFollowTimer?.invalidate()
+        zoomFollowTimer = nil
+        guard let press = zoomPress else { return }
+        zoomPress = nil
+        let held = Date().timeIntervalSince(press.at)
+        guard EffectsPlanner.isZoomHold(heldFor: held), let engine, let events else { return }
+
+        let end = engine.duration
+        events.holdZoom(from: press.mark, to: end)
+        zoomOutline = nil
+        zoomIndicator.letGo()
+        Self.logger.notice(
+            "zoom held \(String(format: "%.1f", press.mark), privacy: .public)–\(String(format: "%.1f", end), privacy: .public) s (the key was down \(String(format: "%.1f", held), privacy: .public) s)"
+        )
+    }
+
+    /// The last seconds were no good: they are marked, the take goes on, and the editor opens
+    /// with them already cut.
+    func markBadTake() {
+        guard let events else { return }
+        guard let span = events.markBadTake() else {
+            Self.logger.notice("bad take ignored: paused, or nothing new to cut")
+            return
+        }
+        let marks = events.timeline.badTakes.count
+        Self.logger.notice(
+            "bad take: \(String(format: "%.1f", span.start), privacy: .public)–\(String(format: "%.1f", span.end), privacy: .public) s will be cut (\(marks, privacy: .public) so far)"
+        )
+        pill.flashBadTake()
+        pill.flash(notice: String(localized: "Last \(Int((span.end - span.start).rounded())) s cut"))
+    }
+
+    /// The picture being recorded, onto the clipboard — ⇧⌘2 during a take. The take goes on, and
+    /// no window opens: a Pawshot window would not be in the video, but it would be in the way.
+    func copyFrame() {
+        guard let engine else { return }
+        Task {
+            guard let image = await engine.snapshot() else {
+                Self.logger.error("frame not copied: the take has no picture yet")
+                return
+            }
+            do {
+                try ExportService.copy(image)
+                Self.logger.notice("frame copied from the take: \(image.width, privacy: .public)×\(image.height, privacy: .public) px")
+                pill.flash(notice: String(localized: "Frame copied"))
+            } catch {
+                Self.logger.error("frame not copied: \(String(describing: error), privacy: .public)")
+            }
+        }
     }
 
     /// Drawing on the screen, into the video. While it is on, the mouse draws instead of clicking.
@@ -325,8 +417,14 @@ final class RecordingController {
         // restart the new ones would fail while the old ones were still alive.
         unregisterRecordingHotKeys()
         guard engine != nil else { return }
-        zoomHotKey = GlobalHotKey.register(settings.zoomMarkHotKey, for: "mark a zoom") { [weak self] in
-            self?.markZoom()
+        zoomHotKey = GlobalHotKey.register(
+            settings.zoomMarkHotKey,
+            for: "mark a zoom",
+            onRelease: { [weak self] in self?.zoomKeyUp() },
+            action: { [weak self] in self?.zoomKeyDown() }
+        )
+        badTakeHotKey = GlobalHotKey.register(settings.badTakeHotKey, for: "mark a bad take") { [weak self] in
+            self?.markBadTake()
         }
         restartHotKey = GlobalHotKey.register(settings.restartHotKey, for: "restart the take") { [weak self] in
             self?.restart()
@@ -343,6 +441,11 @@ final class RecordingController {
         zoomHotKey = nil
         penHotKey = nil
         restartHotKey = nil
+        badTakeHotKey = nil
+        // A zoom key that was down has nobody left to hear its release.
+        zoomFollowTimer?.invalidate()
+        zoomFollowTimer = nil
+        zoomPress = nil
     }
 
     private func teardown() {
@@ -446,6 +549,9 @@ final class RecordingController {
 
     private func startTicker() {
         stopTicker()
+        ticks = 0
+        diskWarningLogged = false
+        sizeFailureLogged = false
         let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -463,6 +569,45 @@ final class RecordingController {
         let status = AppState.RecordingStatus(elapsed: engine.duration, isPaused: engine.isPaused)
         if state.recording != status {
             state.recording = status
+        }
+        ticks += 1
+        if ticks % 4 == 0 {
+            showFileSize(of: engine, elapsed: status.elapsed)
+        }
+    }
+
+    /// Once a second: what the take weighs so far, or — with under five minutes of room left at
+    /// this rate — that the disk is running out. Said in the pill while there is still time to
+    /// wrap up; logged once.
+    private func showFileSize(of engine: RecordingEngine, elapsed: TimeInterval) {
+        let values: URLResourceValues
+        do {
+            values = try engine.outputURL.resourceValues(forKeys: [.fileSizeKey, .volumeAvailableCapacityForImportantUsageKey])
+        } catch {
+            if !sizeFailureLogged {
+                sizeFailureLogged = true
+                Self.logger.error("the take's size can't be read: \(String(describing: error), privacy: .public)")
+            }
+            return
+        }
+        let written = Int64(values.fileSize ?? 0)
+        // The file is written in parts; before the first one lands there is nothing to show.
+        guard written > 0 else { return }
+
+        let left = values.volumeAvailableCapacityForImportantUsage.flatMap {
+            RecordingBudget.secondsLeft(freeBytes: $0, writtenBytes: written, elapsed: elapsed)
+        }
+        if RecordingBudget.isRunningOut(secondsLeft: left), let left {
+            let minutes = max(1, Int(left / 60))
+            pill.setDetail(String(localized: "disk: about \(minutes) min left"), isWarning: true)
+            if !diskWarningLogged {
+                diskWarningLogged = true
+                Self.logger.error(
+                    "the disk is running out: about \(Int(left), privacy: .public) s of recording left, \(written, privacy: .public) B written in \(Int(elapsed), privacy: .public) s"
+                )
+            }
+        } else {
+            pill.setDetail(RecordingBudget.sizeText(bytes: written), isWarning: false)
         }
     }
 

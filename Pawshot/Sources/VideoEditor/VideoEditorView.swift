@@ -159,7 +159,7 @@ struct VideoEditorView: View {
             if !timeline.keys.isEmpty {
                 effectToggle("command", "Shortcuts", isOn: model.effects.keys) { $0.keys.toggle() }
             }
-            if !timeline.zoomMarks.isEmpty {
+            if timeline.hasZooms {
                 effectToggle("plus.magnifyingglass", "Zooms", isOn: model.effects.zooms) { $0.zooms.toggle() }
             }
         }

@@ -140,7 +140,21 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
             return
         }
         Self.logger.notice("video editor: \(duration, privacy: .public) s loaded")
-        model.keep = KeepRanges(duration: duration)
+        // The stretches marked as a bad take while recording are already cut when the editor
+        // opens — and one ⌘Z brings them all back, as any cut made here.
+        let whole = KeepRanges(duration: duration)
+        var keep = whole
+        let marked = model.timeline.badTakes
+        let cut = marked.count(where: { keep.cut(from: $0.start, to: $0.end) })
+        model.keep = keep
+        if cut > 0 {
+            registerUndo(restoring: whole)
+        }
+        if !marked.isEmpty {
+            Self.logger.notice(
+                "bad takes: \(marked.count, privacy: .public) marked, \(cut, privacy: .public) cut, \(String(format: "%.1f", keep.totalLength), privacy: .public) of \(String(format: "%.1f", duration), privacy: .public) s kept"
+            )
+        }
         window?.title = String(localized: "Recording · \(VideoEditing.durationText(duration))")
         refreshEstimate()
         await loadThumbnails(of: asset, duration: duration)

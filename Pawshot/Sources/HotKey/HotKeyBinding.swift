@@ -209,6 +209,15 @@ extension HotKeyBinding {
         label: "5"
     )
 
+    /// ⇧⌘8 marks the last seconds of a recording as a bad take. Registered only while a take
+    /// runs. The next digit of the row, picked by the agent on 2026-09-30, not by the owner —
+    /// it is one click to change in Settings → Shortcuts.
+    static let badTakeDefault = HotKeyBinding(
+        keyCode: UInt32(kVK_ANSI_8),
+        carbonModifiers: UInt32(cmdKey | shiftKey),
+        label: "8"
+    )
+
     /// ⇧⌘7 switches the pen in a recording. Registered only while a take runs.
     static let penDefault = HotKeyBinding(
         keyCode: UInt32(kVK_ANSI_7),

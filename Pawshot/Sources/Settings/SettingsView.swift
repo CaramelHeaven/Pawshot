@@ -437,6 +437,20 @@ private struct RecordingSettings: View {
                 } label: {
                     title("Save and copy as", icon: "film", hint: KeyHint(key: "P", place: "in the editor"))
                 }
+                Picker(selection: $settings.recordingGoal) {
+                    Text("No length in mind").tag(TimeInterval(0))
+                    Text("30 seconds").tag(TimeInterval(30))
+                    Text("1 minute").tag(TimeInterval(60))
+                    Text("2 minutes").tag(TimeInterval(120))
+                    Text("5 minutes").tag(TimeInterval(300))
+                } label: {
+                    title(
+                        "Aim for",
+                        subtitle: "The pill shows the time against it. The take is never stopped.",
+                        icon: "timer",
+                        hint: nil
+                    )
+                }
             }
             .help(Text("""
             A 1x video is about four times smaller, with softer text. X switches it on the \
@@ -582,6 +596,7 @@ private struct ShortcutSettings: View {
         ("Zoom in here", "mark a zoom", \.zoomMarkHotKey),
         ("Pen on / off", "switch the pen", \.penHotKey),
         ("Restart", "restart the take", \.restartHotKey),
+        ("Cut the last 10 seconds", "mark a bad take", \.badTakeHotKey),
     ]
 
     private static var rows: [Row] {

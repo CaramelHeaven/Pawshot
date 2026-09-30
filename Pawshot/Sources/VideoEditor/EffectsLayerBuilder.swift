@@ -13,7 +13,7 @@ struct EffectsOptions: Equatable {
     func isEmpty(for timeline: EventTimeline) -> Bool {
         (!clicks || timeline.clicks.isEmpty)
             && (!keys || timeline.keys.isEmpty)
-            && (!zooms || timeline.zoomMarks.isEmpty)
+            && (!zooms || !timeline.hasZooms)
     }
 }
 
@@ -70,11 +70,19 @@ enum EffectsLayerBuilder {
 
         if options.zooms {
             for segment in EffectsPlanner.zoomSegments(timeline: timeline, duration: keep.duration) {
-                for (index, span) in spans(from: segment.start, to: segment.end, in: keep).enumerated() {
+                // Piece by piece, like `spans` — but a held zoom also needs the recording's own
+                // time of each part, to know where the cursor was during it.
+                var index = 0
+                for piece in keep.pieces {
+                    let low = max(segment.start, piece.start)
+                    let high = min(segment.end, piece.end)
+                    guard high - low > 0.05, let output = keep.outputTime(forSource: low) else { continue }
+                    let path = EffectsPlanner.zoomPath(of: segment, from: low, to: high, timeline: timeline)
                     content.add(
-                        zoom(center: segment.center, from: span.start, to: span.end, videoSize: videoSize),
+                        zoom(along: path, startingAt: output, videoSize: videoSize),
                         forKey: "zoom-\(segment.start)-\(index)"
                     )
+                    index += 1
                 }
             }
         }
@@ -141,22 +149,43 @@ enum EffectsLayerBuilder {
         return layer
     }
 
-    private static func zoom(center normalized: CGPoint, from start: Double, to end: Double, videoSize: CGSize) -> CAAnimation {
+    /// The way in, the zoom held on each centre of `path` in turn, the way out. A marked zoom's
+    /// path is one place; a held zoom's is where the cursor went, a step every tenth of a second,
+    /// and the picture glides from one to the next.
+    private static func zoom(
+        along path: [(time: Double, center: CGPoint)],
+        startingAt start: Double,
+        videoSize: CGSize
+    ) -> CAAnimation {
         let scale = EffectsPlanner.zoomScale
-        let center = SelectionGeometry.layerPoint(normalized, in: videoSize)
-        let offset = SelectionGeometry.zoomOffset(center: center, scale: scale, size: videoSize)
-        let zoomed = CATransform3DScale(CATransform3DMakeTranslation(offset.x, offset.y, 0), scale, scale, 1)
+        func zoomed(on normalized: CGPoint) -> CATransform3D {
+            let center = SelectionGeometry.layerPoint(normalized, in: videoSize)
+            let offset = SelectionGeometry.zoomOffset(center: center, scale: scale, size: videoSize)
+            return CATransform3DScale(CATransform3DMakeTranslation(offset.x, offset.y, 0), scale, scale, 1)
+        }
+        let first = path[0].time
+        let length = max(0.01, path[path.count - 1].time - first)
+        let ramp = min(EffectsPlanner.zoomRamp, length / 2)
+        func center(at time: Double) -> CGPoint {
+            path.last { $0.time <= time }?.center ?? path[0].center
+        }
 
-        let length = end - start
-        let ramp = min(EffectsPlanner.zoomRamp, length / 2) / length
-        let animation = CAKeyframeAnimation(keyPath: "transform")
-        animation.values = [CATransform3DIdentity, zoomed, zoomed, CATransform3DIdentity].map { NSValue(caTransform3D: $0) }
-        animation.keyTimes = [0, ramp, 1 - ramp, 1].map { NSNumber(value: $0) }
-        animation.timingFunctions = [
-            CAMediaTimingFunction(name: .easeInEaseOut),
-            CAMediaTimingFunction(name: .linear),
-            CAMediaTimingFunction(name: .easeInEaseOut),
+        var frames: [(time: Double, transform: CATransform3D)] = [
+            (0, CATransform3DIdentity),
+            (ramp, zoomed(on: center(at: first + ramp))),
         ]
+        for step in path where step.time > first + ramp && step.time < first + length - ramp {
+            frames.append((step.time - first, zoomed(on: step.center)))
+        }
+        frames.append((length - ramp, zoomed(on: center(at: first + length - ramp))))
+        frames.append((length, CATransform3DIdentity))
+
+        let animation = CAKeyframeAnimation(keyPath: "transform")
+        animation.values = frames.map { NSValue(caTransform3D: $0.transform) }
+        animation.keyTimes = frames.map { NSNumber(value: $0.time / length) }
+        animation.timingFunctions = [CAMediaTimingFunction(name: .easeInEaseOut)]
+            + Array(repeating: CAMediaTimingFunction(name: .linear), count: frames.count - 3)
+            + [CAMediaTimingFunction(name: .easeInEaseOut)]
         animation.beginTime = begin(start)
         animation.duration = length
         animation.isRemovedOnCompletion = false
