@@ -59,12 +59,11 @@ final class RecordingController {
     /// The zoom's halo round the cursor: ⇧⌘6 or the pill's magnifier put it up, and every click
     /// while it is up is a zoom there.
     private let cursorHalo = CursorHaloController()
+    /// Two-click zoom, after its first click: when it was in the file and on the clock, and where.
+    private var firstZoomClick: (fileTime: TimeInterval, uptime: TimeInterval, point: CGPoint)?
     /// When each held effect's key went down, in the file's time.
     private var heldSince: [EventRecorder.HeldEffect: TimeInterval] = [:]
     private let heldIndicator = HeldEffectIndicator()
-    /// Listens to the microphone during a take recorded without it, to tell when somebody talks.
-    private var talkMeter: MicrophoneLevelMeter?
-    private var speech = SpeechWatch()
     /// Counts the ticks, a quarter of a second each: the file's size is looked at once a second.
     private var ticks = 0
     private var diskWarningLogged = false
@@ -86,9 +85,7 @@ final class RecordingController {
         stop: { [weak self] in self?.stop() },
         zoom: { [weak self] in self?.toggleZoom(source: "the pill") },
         togglePen: { [weak self] in self?.togglePen() },
-        badTake: { [weak self] in self?.markBadTake() },
-        recordWithMicrophone: { [weak self] in self?.restartWithMicrophone() },
-        dismissMicrophoneHint: { [weak self] in self?.closeMicrophoneHint() }
+        badTake: { [weak self] in self?.markBadTake() }
     ))
 
     /// Handed the finished take — the raw file, its pixel size, and the screen it was recorded on —
@@ -218,7 +215,6 @@ final class RecordingController {
         if goal > 0 {
             Self.logger.notice("the take aims for \(goal, privacy: .public) s")
         }
-        listenForTalking(takeHasMicrophone: microphone)
         startTicker()
         if stopWhenStarted {
             stop()
@@ -236,43 +232,72 @@ final class RecordingController {
             return
         }
         if cursorHalo.isShown {
-            let clicks = cursorHalo.hide()
-            Self.logger.notice("zoom halo off by \(source, privacy: .public) after \(clicks, privacy: .public) zoom(s)")
-            pill.setZooming(false)
+            hideZoomHalo(because: "\(source) pressed again")
             return
         }
-        let limit = settings.zoomClicks
-        cursorHalo.onClick = { [weak self] in self?.zoomAtClick() ?? false }
-        cursorHalo.onGone = { [weak self] clicks in
-            Self.logger.notice("zoom halo gone by itself after \(clicks, privacy: .public) zoom(s)")
+        let clicks = settings.zoomClicks
+        firstZoomClick = nil
+        cursorHalo.onClick = { [weak self] in self?.zoomAtClick(of: clicks) ?? false }
+        cursorHalo.onGone = { [weak self] made in
+            Self.logger.notice("zoom halo gone after \(made, privacy: .public) click(s)")
+            self?.firstZoomClick = nil
             self?.pill.setZooming(false)
         }
-        cursorHalo.show(clicksBeforeItGoes: limit)
-        Self.logger.notice("zoom halo on by \(source, privacy: .public): the next click(s) zoom, \(limit, privacy: .public) (0: until switched off)")
+        cursorHalo.show(clicksBeforeItGoes: clicks)
+        Self.logger.notice("zoom halo on by \(source, privacy: .public): \(clicks, privacy: .public) click(s)")
         pill.setZooming(true)
     }
 
-    /// A click with the halo up: a zoom at this moment, centred where the click is — the cursor's
-    /// place now, which is what the export centres a mark on. `false` when paused: the mark isn't
-    /// recorded, so the click neither ripples nor counts.
-    private func zoomAtClick() -> Bool {
+    /// A click with the halo up. The first is a zoom at this moment, centred where the click is —
+    /// the cursor's place now, which is what the export centres a mark on. With two clicks set, the
+    /// second moves that zoom to where it is. `false` when the click is not the zoom's: during a
+    /// pause (nothing is recorded), or the app's own double click right after the first (then the
+    /// halo waits on for the real second click). Such a click neither ripples nor counts.
+    private func zoomAtClick(of clicks: Int) -> Bool {
         guard let events else {
             Self.logger.error("zoom click with no take running")
             return false
+        }
+        let uptime = ProcessInfo.processInfo.systemUptime
+        let point = NSEvent.mouseLocation
+        if let first = firstZoomClick {
+            if ZoomClicks.isDoubleClick(first: (first.uptime, first.point), then: uptime, at: point) {
+                Self.logger.notice("zoom: a double click in the app, not the second click — waiting on")
+                return false
+            }
+            guard let time = events.moveZoom(from: first.fileTime) else {
+                Self.logger.notice("zoom second click ignored: paused")
+                return false
+            }
+            firstZoomClick = nil
+            Self.logger.notice(
+                "zoom moves at \(String(format: "%.1f", time), privacy: .public) s (zoomed in at \(String(format: "%.1f", first.fileTime), privacy: .public) s)"
+            )
+            return true
         }
         guard let time = events.markZoom() else {
             Self.logger.notice("zoom click ignored: paused")
             return false
         }
+        if clicks == 2 {
+            firstZoomClick = (time, uptime, point)
+        }
         let marks = events.timeline.zoomMarks.count
-        Self.logger.notice("zoom at \(String(format: "%.1f", time), privacy: .public) s by a click (\(marks, privacy: .public) so far)")
+        Self.logger.notice(
+            "zoom at \(String(format: "%.1f", time), privacy: .public) s by a click, 1 of \(clicks, privacy: .public) (\(marks, privacy: .public) so far)"
+        )
         return true
     }
 
+    /// The halo goes before its clicks are used: a first click's zoom stays a plain one.
     private func hideZoomHalo(because reason: String) {
         guard cursorHalo.isShown else { return }
-        let clicks = cursorHalo.hide()
-        Self.logger.notice("zoom halo off: \(reason, privacy: .public), after \(clicks, privacy: .public) zoom(s)")
+        let made = cursorHalo.hide()
+        let waiting = firstZoomClick != nil
+        firstZoomClick = nil
+        Self.logger.notice(
+            "zoom halo off: \(reason, privacy: .public), after \(made, privacy: .public) click(s)\(waiting ? ", the first zoom stays a plain one" : "", privacy: .public)"
+        )
         pill.setZooming(false)
     }
 
@@ -281,7 +306,6 @@ final class RecordingController {
     /// A spotlight or a blur key went down: the effect starts here in the file, and the screen
     /// shows that it took.
     private func heldKeyDown(_ effect: EventRecorder.HeldEffect) {
-        // A held key may repeat; only the first press counts.
         // A held key may repeat; only the first press counts.
         guard heldSince[effect] == nil else { return }
         guard let events, let target else {
@@ -349,66 +373,6 @@ final class RecordingController {
         Self.logger.notice(
             "microphone \(held ? "muted" : "back", privacy: .public) at \(String(format: "%.1f", engine.duration), privacy: .public) s"
         )
-    }
-
-    // MARK: - Talking into a microphone that is off
-
-    /// A take recorded without the microphone listens to it all the same — keeping nothing — so
-    /// the pill can say, once, that somebody is talking. Only with the setting on and access
-    /// already granted: the take never asks for the microphone for this.
-    private func listenForTalking(takeHasMicrophone: Bool) {
-        stopListeningForTalking()
-        let wanted = settings.noticesTalkingWhileMuted
-        let granted = MicrophonePermission.isGranted
-        guard !takeHasMicrophone, wanted, granted else {
-            if !takeHasMicrophone {
-                Self.logger.notice(
-                    "not listening for talk: setting \(wanted, privacy: .public), microphone access \(granted, privacy: .public)"
-                )
-            }
-            return
-        }
-        speech = SpeechWatch()
-        let started = Date()
-        let meter = MicrophoneLevelMeter(deviceUID: settings.microphoneDeviceID) { [weak self] level, _ in
-            guard let self, talkMeter != nil else { return }
-            // What is said during a pause isn't in the take, and must not use up the one hint.
-            if engine?.isPaused == true {
-                return
-            }
-            if speech.feed(level: level, at: Date().timeIntervalSince(started)) {
-                talkingHeard()
-            }
-        }
-        meter.start()
-        talkMeter = meter
-        Self.logger.notice("listening for talk: this take has no microphone")
-    }
-
-    private func talkingHeard() {
-        let elapsed = engine.map { String(format: "%.1f", $0.duration) } ?? "?"
-        Self.logger.notice("talk heard at \(elapsed, privacy: .public) s with the microphone off: the pill says so")
-        // Said once a take; after that there is nothing left to listen for.
-        stopListeningForTalking()
-        pill.showMicrophoneHint()
-    }
-
-    private func stopListeningForTalking() {
-        talkMeter?.stop()
-        talkMeter = nil
-    }
-
-    /// The hint's cross: the take goes on as it is, without the microphone.
-    private func closeMicrophoneHint() {
-        pill.dismissMicrophoneHint(reason: "closed with the cross")
-    }
-
-    /// From the pill's hint: the microphone goes on and the take starts over with it.
-    private func restartWithMicrophone() {
-        Self.logger.notice("hint answered: starting over with the microphone on")
-        pill.dismissMicrophoneHint(reason: "start over with the microphone")
-        settings.recordsMicrophone = true
-        restart()
     }
 
     // MARK: - Marks
@@ -586,7 +550,6 @@ final class RecordingController {
             return
         }
         releaseHeldKeys()
-        stopListeningForTalking()
         let thrownAway = String(format: "%.1f", engine.duration)
         Self.logger.notice("recording restarts: \(thrownAway, privacy: .public) s thrown away")
         Stats.shared.add(.restarts)
@@ -738,7 +701,6 @@ final class RecordingController {
         hideZoomHalo(because: "the take ended")
         frame.close()
         heldIndicator.hide()
-        stopListeningForTalking()
         _ = events?.stop()
         events = nil
         stopTicker()

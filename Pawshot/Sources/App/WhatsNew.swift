@@ -14,6 +14,16 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.8", text: String(localized: """
+            Your headphones keep playing while you record. With the microphone off, Pawshot used \
+            to listen to it anyway, to tell you when you talked — and Bluetooth headphones switched \
+            to their call mode for it, cutting the Mac's sound. That hint is gone: with the \
+            microphone off, Pawshot doesn't touch it.
+
+            Zoom takes one or two clicks now — Settings → Recording → Zoom. With two, the first \
+            click zooms in there and the second moves the zoom over to the new place. A quick \
+            double click in an app doesn't count as the second.
+            """)),
             Entry(version: "0.6.7", text: String(localized: """
             Zoom works by a click now. Press ⇧⌘6, or the magnifier on the pill: a halo follows the \
             cursor, and every click zooms the video there, with rings spreading so you see it \

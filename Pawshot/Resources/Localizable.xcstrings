@@ -441,46 +441,12 @@
         }
       }
     },
-    "After %lld click(s)" : {
-      "localizations" : {
-        "ru" : {
-          "variations" : {
-            "plural" : {
-              "few" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "После %lld кликов"
-                }
-              },
-              "many" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "После %lld кликов"
-                }
-              },
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "После %lld клика"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "После %lld кликов"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "After the zoom shortcut a halo follows the cursor; each click zooms there and spreads rings. Only you see the halo." : {
+    "After the zoom shortcut a halo follows the cursor, and a click zooms there with rings spreading. Only you see the halo." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "После клавиши зума у курсора появляется кружок; каждый клик зумит туда и расходится кругами. Кружок видите только вы."
+            "value" : "После клавиши зума у курсора появляется кружок, и клик зумит туда, от него расходятся круги. Кружок видите только вы."
           }
         }
       }
@@ -1864,16 +1830,6 @@
         }
       }
     },
-    "Keep recording without the microphone" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Продолжить запись без микрофона"
-          }
-        }
-      }
-    },
     "Keeper of secrets." : {
       "localizations" : {
         "ru" : {
@@ -2097,16 +2053,6 @@
         }
       }
     },
-    "Never — until switched off" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Никогда — пока не выключите"
-          }
-        }
-      }
-    },
     "New while a recording runs.\n\nHold the zoom shortcut instead of tapping it, and the video stays zoomed in for as long as you hold, following the cursor. A tap still marks a short zoom.\n\nSaid something wrong? ⇧⌘8, or the scissors on the pill, marks the last 10 seconds as a bad take: the recording goes on, and the editor opens with them already cut. ⌘Z there brings them back.\n\n⇧⌘2 during a recording copies the picture being recorded to the clipboard, without stopping.\n\nThe pill shows how much the recording weighs, and warns when the disk has about five minutes of room left. In Settings → Recording, Aim for picks a length to fit into: the pill then shows the time against it." : {
       "localizations" : {
         "ru" : {
@@ -2213,6 +2159,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ничего не записано — поток остановился до первого кадра."
+          }
+        }
+      }
+    },
+    "One: zoom where you click" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Один: зум туда, куда кликнули"
           }
         }
       }
@@ -2399,16 +2355,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Значок Pawshot"
-          }
-        }
-      }
-    },
-    "Pawshot listens during such a take and keeps nothing. macOS shows its orange microphone dot meanwhile." : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Во время такой записи Pawshot слушает микрофон и ничего не сохраняет. macOS в это время показывает оранжевую точку микрофона."
           }
         }
       }
@@ -3488,16 +3434,6 @@
         }
       }
     },
-    "Start over with it" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Начать заново с ним"
-          }
-        }
-      }
-    },
     "Start recording (↩)" : {
       "localizations" : {
         "ru" : {
@@ -3668,16 +3604,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Вступит в силу после перезапуска."
-          }
-        }
-      }
-    },
-    "Tell me when I talk with the microphone off" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Подсказывать, если я говорю с выключенным микрофоном"
           }
         }
       }
@@ -3972,16 +3898,6 @@
         }
       }
     },
-    "Throws this take away and records again with the microphone on" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Выбрасывает этот дубль и записывает заново с включённым микрофоном"
-          }
-        }
-      }
-    },
     "Tools and colours" : {
       "localizations" : {
         "ru" : {
@@ -3998,6 +3914,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Треугольник (R)"
+          }
+        }
+      }
+    },
+    "Two: zoom, then move to the second click" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Два: зум, потом переезд ко второму клику"
           }
         }
       }
@@ -4191,16 +4117,6 @@
     "X" : {
       "shouldTranslate" : false
     },
-    "You're talking, and the microphone is off" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вы говорите, а микрофон выключен"
-          }
-        }
-      }
-    },
     "Your colour" : {
       "localizations" : {
         "ru" : {
@@ -4217,6 +4133,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Свой цвет (5) — нажмите ещё раз, чтобы выбрать"
+          }
+        }
+      }
+    },
+    "Your headphones keep playing while you record. With the microphone off, Pawshot used to listen to it anyway, to tell you when you talked — and Bluetooth headphones switched to their call mode for it, cutting the Mac's sound. That hint is gone: with the microphone off, Pawshot doesn't touch it.\n\nZoom takes one or two clicks now — Settings → Recording → Zoom. With two, the first click zooms in there and the second moves the zoom over to the new place. A quick double click in an app doesn't count as the second." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Наушники больше не замолкают во время записи. Когда микрофон был выключен, Pawshot всё равно его слушал, чтобы подсказать, что вы говорите, — и Bluetooth-наушники из-за этого переходили в режим звонка и глушили звук Mac. Этой подсказки больше нет: с выключенным микрофоном Pawshot его не трогает.\n\nЗум теперь в один или два клика — «Настройки → Запись → Зум». С двумя кликами первый зумит в эту точку, а второй переводит зум к новому месту. Быстрый двойной клик в приложении вторым не считается."
           }
         }
       }

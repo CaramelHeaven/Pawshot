@@ -30,8 +30,8 @@ rate — and, with a length picked in Settings → Recording ("Aim for"), the ti
 bar that fills up and turns red for the last ten seconds; the take is never stopped by it. The
 menu bar shows the time instead of the paw. While a take
 runs, **⇧⌘6** (or the pill's magnifier) puts a halo round the cursor, and each click then is a
-zoom there — rings spread from the click so you see it took — for as many clicks as Settings →
-Recording → Zoom says (five by default); **⇧⌘7** switches the pen (the mouse draws on the screen, into the video, every stroke
+zoom there — rings spread from the click so you see it took; with two clicks set in Settings →
+Recording → Zoom, the second click moves the zoom to its place (one by default); **⇧⌘7** switches the pen (the mouse draws on the screen, into the video, every stroke
 fades after four seconds, Esc gives the mouse back); **⌃⌘X** marks the last 10 seconds as a bad
 take — the take goes on, and the video editor opens with them already cut, one ⌘Z away;
 **⇧⌘5** restarts, and the shortcut that
@@ -49,11 +49,12 @@ the cut, are the agent's pick of 2026-09-30 at the owner's word — he found the
 hard to press; they keep clear of the ⌃⌘ combinations known to be taken (F, Q, D, S, Space by
 macOS and Finder; E, R, J, Y by Xcode) and were not checked against every app.
 
-**A take recorded with the microphone off listens to it all the same**, keeping nothing, to say
-once in the pill "You're talking, and the microphone is off", with a button that starts the take
-over with the microphone on. The owner's call of 2026-09-30, knowing the price: macOS shows its
-orange microphone dot for such a take until the hint has been shown. Only with access already
-granted; Settings → Recording → Sound switches it off, and then the microphone isn't touched.
+**A take recorded with the microphone off never opens it** (0.6.8). From 0.6.2 to 0.6.7 such a take
+listened to it all the same, to say once "You're talking, and the microphone is off". With Bluetooth
+headphones as the input — the owner's log read `level meter started: 16000 Hz, 1 ch` on every take —
+macOS switched them to the headset profile for it, and the Mac's sound in them dropped out for the
+whole take. The owner had the hint removed altogether (2026-10-01). The microphone is opened only
+when it is switched on: its level on the overlay, "Check the microphone", and the take itself.
 
 ⌃⌥ + letter was tried
 first and dropped as awkward mid-take. The
@@ -226,11 +227,17 @@ edges and corners, and ↩ (or R, or the Record button) starts. It behaves the w
   log line carries each window's age and how many captures it served.
 - **Zoom by a click** (0.6.7; the halo came in 0.6.6 as a feature of its own on ⇧⌘K, then the
   owner said it was meant to be the zoom). ⇧⌘6 or the pill's magnifier puts a soft ring in the paw
-  colour round the cursor (the owner's К-A of 2026-09-30); each click while it is up is a zoom mark
-  at that moment, centred where the click is (the cursor's place, which the export centres a mark
-  on), and three rings spread from it like water. The halo goes after the clicks set in Settings →
-  Recording → Zoom (1, 3, 4, 5 — five by default — or never, until switched off) or on ⇧⌘6 again;
-  the magnifier is lit while it is up. **On the screen only** — a Pawshot window, so the recording
+  colour round the cursor (the owner's К-A of 2026-09-30); a click is a zoom mark at that moment,
+  centred where the click is (the cursor's place, which the export centres a mark on), and three
+  rings spread from it like water. Settings → Recording → Zoom: **one click** (the default) — a
+  zoom of 2.5 s there; **two clicks** (0.6.8, the owner's rule of 2026-10-01) — the second click
+  turns the first's mark into a move (`EventTimeline.zoomMoves`): zoomed in on the first place
+  until the second click, a 0.5 s glide to the second place, out 2.5 s after it
+  (`EffectsPlanner.zoomPath`, `ZoomPan`). Two in a row: a second click within 0.4 s and 10 pt of
+  the first is the app's own double click and not the zoom's (`ZoomClicks.isDoubleClick`), the
+  halo waits on; ⇧⌘6 again, or Stop, after the first click leaves it a plain zoom; no limit on the
+  time between the two. The 3, 4, 5 and "never" of 0.6.6–0.6.7 read as two. The halo goes after
+  its clicks or on ⇧⌘6 again; the magnifier is lit while it is up. **On the screen only** — a Pawshot window, so the recording
   filter keeps it out of the video — and silent. A click during a pause zooms nothing: no rings,
   not counted. One click-through panel over the cursor's screen, the ring a layer moved sixty
   times a second, clicks from a global monitor (no permission); a click on a Pawshot window isn't
@@ -718,7 +725,6 @@ Paths are given relative to `Pawshot/Sources/`.
 | Zoom segments, held zooms, shortcut captions          | `VideoEditor/EffectsPlanner.swift`      |
 | The take's size, the disk warning, the length aimed for | `Recording/RecordingBudget.swift`     |
 | What the screen shows while the spotlight or blur key is held | `Recording/HeldEffectIndicator.swift` |
-| Telling talk from typing, for the muted-microphone hint | `Recording/MicrophoneLevelMeter.swift` (`SpeechWatch`) |
 | The spotlight sheet and the blur in the effects tree  | `VideoEditor/EffectsLayerBuilder.swift` |
 | Cutting the bad takes when the editor opens           | `VideoEditor/VideoEditing.swift` (`KeepRanges.cut`), `VideoEditorWindowController.load` |
 | The effects' layer tree (export and preview)          | `VideoEditor/EffectsLayerBuilder.swift` |

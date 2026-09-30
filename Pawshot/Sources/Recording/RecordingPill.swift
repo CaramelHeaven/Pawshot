@@ -10,10 +10,6 @@ struct RecordingPillActions {
     var zoom: @MainActor () -> Void
     var togglePen: @MainActor () -> Void
     var badTake: @MainActor () -> Void
-    /// From the hint "you are talking, and the microphone is off": start over with it on.
-    var recordWithMicrophone: @MainActor () -> Void
-    /// The hint's cross: go on as it is.
-    var dismissMicrophoneHint: @MainActor () -> Void
 }
 
 /// The whole interface of a recording in progress: the dot, the time — against the length aimed
@@ -40,8 +36,6 @@ final class RecordingPillController {
     private var lastNearDate = Date()
     /// The word a held key keeps on the pill, to come back after a flash.
     private var heldNotice: String?
-    /// Which microphone hint the ten-second timer belongs to.
-    private var hintGeneration = 0
     private var notchFrames: (collapsed: CGRect, expanded: CGRect)?
 
     /// Wide and tall enough for six buttons with their shortcuts written under them, the time
@@ -76,10 +70,8 @@ final class RecordingPillController {
     /// `stopShortcut` is the one that started the take — pressing it again stops it.
     func show(near area: CGRect, on screen: NSScreen, penAvailable: Bool, stopShortcut: HotKeyBinding?) {
         // A restart shows the pill again without hiding it: the last take's words go now.
-        model.microphoneHint = false
         model.notice = nil
         heldNotice = nil
-        hintGeneration += 1
         model.penAvailable = penAvailable
         model.stopShortcut = stopShortcut
         model.penIsOn = false
@@ -125,7 +117,6 @@ final class RecordingPillController {
         proximityTimer?.invalidate()
         proximityTimer = nil
         model.hoverPoint = nil
-        model.microphoneHint = false
         model.notice = nil
         panel.orderOut(nil)
     }
@@ -177,28 +168,6 @@ final class RecordingPillController {
         }
     }
 
-    /// "You are talking, and the microphone is off", with a button to start over with it on. It
-    /// takes the pill over for ten seconds, or until it is answered.
-    func showMicrophoneHint() {
-        model.microphoneHint = true
-        lastNearDate = Date()
-        Self.logger.notice("pill: microphone hint shown")
-        hintGeneration += 1
-        let mine = hintGeneration
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(10))
-            // A hint of an earlier take — or one dismissed and shown again — is not this one.
-            guard let self, hintGeneration == mine else { return }
-            dismissMicrophoneHint(reason: "ten seconds passed")
-        }
-    }
-
-    func dismissMicrophoneHint(reason: String) {
-        guard model.microphoneHint else { return }
-        model.microphoneHint = false
-        Self.logger.notice("pill: microphone hint gone (\(reason, privacy: .public))")
-    }
-
     /// The scissors light up for a moment: the last seconds are marked.
     func flashBadTake() {
         model.cutFlash = true
@@ -225,8 +194,7 @@ final class RecordingPillController {
         if let notchFrames {
             // The notch opens while the cursor is on it or on the buttons it dropped down.
             let reach = (model.isExpanded ? notchFrames.expanded : notchFrames.collapsed).insetBy(dx: -8, dy: -8)
-            // The hint has to be seen: it opens the notch by itself.
-            let expand = reach.contains(mouse) || model.microphoneHint
+            let expand = reach.contains(mouse)
             guard expand != model.isExpanded else { return }
             model.isExpanded = expand
             panel.setFrame(expand ? notchFrames.expanded : notchFrames.collapsed, display: true)
@@ -234,8 +202,7 @@ final class RecordingPillController {
         }
 
         let reach = panel.frame.insetBy(dx: -Self.nearDistance, dy: -Self.nearDistance)
-        // The hint keeps the pill from shrinking to a dot, as the cursor nearby does.
-        if reach.contains(mouse) || model.microphoneHint {
+        if reach.contains(mouse) {
             lastNearDate = Date()
         }
         let compact = Date().timeIntervalSince(lastNearDate) > Self.compactAfter
@@ -306,8 +273,6 @@ final class PillModel {
     var detailIsWarning = false
     /// Said for a moment in place of `detail`.
     var notice: String?
-    /// The take runs with the microphone off, and somebody is talking: the pill says so.
-    var microphoneHint = false
     var stopShortcut: HotKeyBinding?
     /// Where the mouse is over the pill, from its top left; `nil` when it is elsewhere.
     var hoverPoint: CGPoint?
@@ -345,13 +310,9 @@ struct RecordingPillView: View {
                 HStack(spacing: 8) {
                     dot(status, size: 10)
                     time(status)
-                    if model.microphoneHint {
-                        microphoneHint
-                    } else {
-                        detail
-                        Divider().frame(height: 18)
-                        buttons(status)
-                    }
+                    detail
+                    Divider().frame(height: 18)
+                    buttons(status)
                 }
                 .padding(.horizontal, 16)
                 .frame(height: 52)
@@ -376,12 +337,8 @@ struct RecordingPillView: View {
 
             if model.isExpanded {
                 HStack(spacing: 8) {
-                    if model.microphoneHint {
-                        microphoneHint
-                    } else {
-                        detail
-                        buttons(status)
-                    }
+                    detail
+                    buttons(status)
                 }
                 .frame(height: 56)
                 .transition(.opacity)
@@ -428,31 +385,6 @@ struct RecordingPillView: View {
             }
         }
         .fixedSize()
-    }
-
-    /// In place of the buttons, once in a take: somebody is talking and the microphone is off.
-    /// One button starts the take over with the microphone on; the cross leaves things as they are.
-    private var microphoneHint: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "mic.slash.fill")
-                .foregroundStyle(.red)
-            Text("You're talking, and the microphone is off")
-                .font(.system(size: 12, weight: .medium))
-                .lineLimit(1)
-                .fixedSize()
-            Button(action: { actions.recordWithMicrophone() }) {
-                Text("Start over with it")
-                    .font(.system(size: 12, weight: .semibold))
-            }
-            .buttonStyle(ChromeButtonStyle(kind: .selected, insets: EdgeInsets(top: 5, leading: 9, bottom: 5, trailing: 9)))
-            .help("Throws this take away and records again with the microphone on")
-            Button(action: { actions.dismissMicrophoneHint() }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-            }
-            .buttonStyle(ChromeButtonStyle(insets: EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)))
-            .help("Keep recording without the microphone")
-        }
     }
 
     /// The size of the file, a warning that the disk is running out, or a word about what just

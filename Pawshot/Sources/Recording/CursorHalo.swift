@@ -1,6 +1,19 @@
 import AppKit
 import os
 
+/// The rule for two zoom clicks in a row. Pure, so it is a test.
+enum ZoomClicks {
+    /// A second click this soon and this close to the first is the app's own double click — on a
+    /// file, a word — not the zoom's second click.
+    static let doubleClickTime: TimeInterval = 0.4
+    static let doubleClickDistance: CGFloat = 10
+
+    /// `time` is the system's uptime, `point` the screen point, of each click.
+    static func isDoubleClick(first: (time: TimeInterval, point: CGPoint), then time: TimeInterval, at point: CGPoint) -> Bool {
+        time - first.time <= doubleClickTime && hypot(point.x - first.point.x, point.y - first.point.y) <= doubleClickDistance
+    }
+}
+
 /// How many clicks the halo round the cursor has left. Pure, so the rule is a test.
 struct CursorHaloCounter: Equatable {
     /// `nil`: the halo never goes by itself, only when switched off.

@@ -33,7 +33,6 @@ final class Settings {
         case muteHotKey = "hotkey.mute"
         // Named for the halo it first went with in 0.6.6; kept so a value picked then stays.
         case zoomClicks = "recording.cursorHaloClicks"
-        case noticesTalkingWhileMuted = "recording.noticesTalkingWhileMuted"
         case recordingGoal = "recording.goal"
         case recordsMicrophone = "recording.microphone"
         case microphoneDevice = "recording.microphoneDevice"
@@ -153,30 +152,22 @@ final class Settings {
         set { store(newValue, for: .muteHotKey, default: .muteDefault) }
     }
 
-    /// How many clicks zoom after ⇧⌘6 before its halo goes by itself; 0 keeps it until it is
-    /// switched off. Five by default — the owner's pick.
-    static let zoomClickChoices = [1, 3, 4, 5, 0]
+    /// How many clicks the zoom takes after ⇧⌘6 — the owner's 1 or 2 of 2026-10-01. One: a zoom
+    /// where the click is. Two: a zoom at the first click, which moves to the second.
+    static let zoomClickChoices = [1, 2]
 
+    /// One by default. 3, 4, 5 and "never" of 0.6.6–0.6.7 read as two — the nearest to "several".
     var zoomClicks: Int {
         get {
             _ = revision
-            guard defaults.object(forKey: Key.zoomClicks.rawValue) != nil else { return 5 }
-            return defaults.integer(forKey: Key.zoomClicks.rawValue)
+            guard defaults.object(forKey: Key.zoomClicks.rawValue) != nil else { return 1 }
+            return defaults.integer(forKey: Key.zoomClicks.rawValue) == 1 ? 1 : 2
         }
         set {
-            Self.logger.notice("zoom halo goes after \(newValue, privacy: .public) click(s) (0: never)")
+            Self.logger.notice("zoom takes \(newValue, privacy: .public) click(s)")
             defaults.set(newValue, forKey: Key.zoomClicks.rawValue)
             revision += 1
         }
-    }
-
-    /// A take recorded with the microphone off still listens to it, to say once in the pill
-    /// "you are talking, and the microphone is off". On by default — the owner's call of
-    /// 2026-09-30, knowing the price: macOS shows its orange microphone dot for the whole take,
-    /// though nothing of the voice is kept. Off, the microphone isn't touched at all.
-    var noticesTalkingWhileMuted: Bool {
-        get { flag(.noticesTalkingWhileMuted, default: true) }
-        set { setFlag(newValue, for: .noticesTalkingWhileMuted) }
     }
 
     /// How long a take is meant to be, in seconds; 0 aims for nothing. The pill shows the time

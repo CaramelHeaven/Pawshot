@@ -392,14 +392,6 @@ private struct RecordingSettings: View {
             and a half, it says "no signal" and a line above the toolbar says so too. Both end up \
             mixed into one track.
             """))
-            Toggle(isOn: $settings.noticesTalkingWhileMuted) {
-                title(
-                    "Tell me when I talk with the microphone off",
-                    subtitle: "Pawshot listens during such a take and keeps nothing. macOS shows its orange microphone dot meanwhile.",
-                    icon: "mic.slash",
-                    hint: nil
-                )
-            }
             if settings.recordsMicrophone {
                 accessRow(
                     "Microphone access",
@@ -468,16 +460,16 @@ private struct RecordingSettings: View {
         Section {
             Picker(selection: $settings.zoomClicks) {
                 ForEach(Settings.zoomClickChoices, id: \.self) { clicks in
-                    if clicks == 0 {
-                        Text("Never — until switched off").tag(0)
+                    if clicks == 1 {
+                        Text("One: zoom where you click").tag(1)
                     } else {
-                        Text("After \(clicks) click(s)").tag(clicks)
+                        Text("Two: zoom, then move to the second click").tag(2)
                     }
                 }
             } label: {
                 title(
                     "Clicks that zoom",
-                    subtitle: "After the zoom shortcut a halo follows the cursor; each click zooms there and spreads rings. Only you see the halo.",
+                    subtitle: "After the zoom shortcut a halo follows the cursor, and a click zooms there with rings spreading. Only you see the halo.",
                     icon: "plus.magnifyingglass",
                     hint: settings.zoomMarkHotKey.map { KeyHint(key: $0.displayString, place: "while recording") }
                 )

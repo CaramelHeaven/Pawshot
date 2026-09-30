@@ -331,15 +331,6 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings.badTakeHotKey, .badTakeDefault)
     }
 
-    /// A take without the microphone listens for talk unless told not to — the owner's call.
-    func testListeningForTalkIsOnUntilSwitchedOff() {
-        let settings = Settings(defaults: defaults)
-        XCTAssertTrue(settings.noticesTalkingWhileMuted)
-
-        settings.noticesTalkingWhileMuted = false
-        XCTAssertFalse(Settings(defaults: defaults).noticesTalkingWhileMuted)
-    }
-
     /// No length is aimed for until one is picked, and the pick is kept.
     func testTheLengthATakeAimsForIsRemembered() {
         let settings = Settings(defaults: defaults)

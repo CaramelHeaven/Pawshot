@@ -51,6 +51,10 @@ struct EventTimeline: Codable, Equatable {
     var zoomMarks: [Double] = []
     /// The zoom key held: zoomed in from the press to the release, following the cursor.
     var zoomHolds: [Span] = []
+    /// Two clicks of the zoom (0.6.8, "two clicks" in Settings → Recording → Zoom): zoomed in at
+    /// the first click's place from `start`, moved to the second click's place at `end`, and out
+    /// `EffectsPlanner.zoomLength` after it.
+    var zoomMoves: [Span] = []
     /// Stretches marked as a bad take while recording: the editor opens with them cut out.
     var badTakes: [Span] = []
     /// The spotlight key held: everything but a circle around the cursor is dimmed.
@@ -69,7 +73,7 @@ struct EventTimeline: Codable, Equatable {
     }
 
     var hasZooms: Bool {
-        !zoomMarks.isEmpty || !zoomHolds.isEmpty
+        !zoomMarks.isEmpty || !zoomHolds.isEmpty || !zoomMoves.isEmpty
     }
 
     /// What a "bad take" mark at `time` cuts: the `length` seconds before it — not before the
@@ -141,6 +145,7 @@ extension EventTimeline {
         keys = try container.decodeIfPresent([Keystroke].self, forKey: .keys) ?? []
         zoomMarks = try container.decodeIfPresent([Double].self, forKey: .zoomMarks) ?? []
         zoomHolds = try container.decodeIfPresent([Span].self, forKey: .zoomHolds) ?? []
+        zoomMoves = try container.decodeIfPresent([Span].self, forKey: .zoomMoves) ?? []
         badTakes = try container.decodeIfPresent([Span].self, forKey: .badTakes) ?? []
         spotlights = try container.decodeIfPresent([Span].self, forKey: .spotlights) ?? []
         blurs = try container.decodeIfPresent([Span].self, forKey: .blurs) ?? []

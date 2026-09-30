@@ -114,6 +114,18 @@ final class EventRecorder {
         return time
     }
 
+    /// The second click of a two-click zoom: the mark the first click left at `start` becomes a
+    /// zoom that moves to where the cursor is now. `nil` while paused — the mark then stays a
+    /// plain one.
+    func moveZoom(from start: TimeInterval) -> TimeInterval? {
+        guard let time = clock() else { return nil }
+        if let index = timeline.zoomMarks.lastIndex(of: start) {
+            timeline.zoomMarks.remove(at: index)
+        }
+        timeline.zoomMoves.append(.init(start: start, end: time))
+        return time
+    }
+
     /// What a key held during a take does to the video.
     enum HeldEffect: String {
         case spotlight

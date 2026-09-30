@@ -9,6 +9,14 @@ struct ZoomSegment: Equatable {
     var center: CGPoint
     /// The zoom key was held: the zoom goes where the cursor goes instead of staying where it began.
     var follows = false
+    /// A second click moved it: from `pan.time` the zoom glides to `pan.center` and stays there.
+    var pan: ZoomPan?
+}
+
+/// Where a zoom goes after its second click, and when.
+struct ZoomPan: Equatable {
+    var time: Double
+    var center: CGPoint
 }
 
 /// A shortcut shown in the capsule at the bottom: `⌘Z ×3`.
@@ -27,6 +35,8 @@ enum EffectsPlanner {
     /// Marks closer than this after a segment ends extend it rather than bouncing out and back in.
     static let zoomMergeGap: Double = 0.5
     static let zoomScale: CGFloat = 2
+    /// How long a two-click zoom takes to glide from the first click's place to the second's.
+    static let zoomPanDuration: Double = 0.5
 
     /// The same shortcut again within this long counts up instead of showing a new caption.
     static let keyRepeatWindow: Double = 1.0
@@ -87,19 +97,23 @@ enum EffectsPlanner {
     /// centred where the cursor was at the start of each. A mark lasts `zoomLength`; a hold lasts
     /// until its release, and the way out comes after that.
     static func zoomSegments(timeline: EventTimeline, duration: Double) -> [ZoomSegment] {
-        let marks = timeline.zoomMarks.map { (start: $0, end: $0 + zoomLength, follows: false) }
-        let holds = timeline.zoomHolds.map { (start: $0.start, end: $0.end + zoomRamp, follows: true) }
+        typealias Zoom = (start: Double, end: Double, follows: Bool, panAt: Double?)
+        let marks: [Zoom] = timeline.zoomMarks.map { ($0, $0 + zoomLength, false, nil) }
+        let holds: [Zoom] = timeline.zoomHolds.map { ($0.start, $0.end + zoomRamp, true, nil) }
+        let moves: [Zoom] = timeline.zoomMoves.map { ($0.start, $0.end + zoomLength, false, $0.end) }
 
         var segments: [ZoomSegment] = []
-        for zoom in (marks + holds).sorted(by: { $0.start < $1.start }) where zoom.start < duration {
+        for zoom in (marks + holds + moves).sorted(by: { $0.start < $1.start }) where zoom.start < duration {
             let end = min(duration, zoom.end)
+            let pan = zoom.panAt.map { ZoomPan(time: $0, center: timeline.cursorPosition(at: $0) ?? CGPoint(x: 0.5, y: 0.5)) }
             if let last = segments.last, zoom.start <= last.end + zoomMergeGap {
                 segments[segments.count - 1].end = max(last.end, end)
                 segments[segments.count - 1].follows = last.follows || zoom.follows
+                segments[segments.count - 1].pan = last.pan ?? pan
                 continue
             }
             let center = timeline.cursorPosition(at: zoom.start) ?? CGPoint(x: 0.5, y: 0.5)
-            segments.append(ZoomSegment(start: zoom.start, end: end, center: center, follows: zoom.follows))
+            segments.append(ZoomSegment(start: zoom.start, end: end, center: center, follows: zoom.follows, pan: pan))
         }
         return segments
     }
@@ -113,11 +127,44 @@ enum EffectsPlanner {
         to end: Double,
         timeline: EventTimeline
     ) -> [(time: Double, center: CGPoint)] {
+        if let pan = segment.pan, !segment.follows {
+            // Held on the first click's place, a glide to the second's, held there.
+            let full: [(time: Double, center: CGPoint)] = [
+                (segment.start, segment.center),
+                (pan.time, segment.center),
+                (pan.time + zoomPanDuration, pan.center),
+                (max(segment.end, pan.time + zoomPanDuration), pan.center),
+            ]
+            return clipped(full, from: start, to: max(start, end))
+        }
         guard segment.follows, end > start else {
             return [(start, segment.center), (max(start, end), segment.center)]
         }
         return cursorPath(from: start, to: end, timeline: timeline, step: zoomFollowStep, fallback: segment.center)
             .map { (time: $0.time, center: $0.point) }
+    }
+
+    /// A path of centres cut to `from…to`, with the ends interpolated so a piece that begins or
+    /// ends mid-glide starts where the glide was.
+    static func clipped(
+        _ path: [(time: Double, center: CGPoint)],
+        from: Double,
+        to: Double
+    ) -> [(time: Double, center: CGPoint)] {
+        func center(at time: Double) -> CGPoint {
+            guard let first = path.first else { return CGPoint(x: 0.5, y: 0.5) }
+            if time <= first.time {
+                return first.center
+            }
+            for (a, b) in zip(path, path.dropFirst()) where time <= b.time {
+                let span = b.time - a.time
+                let k = span > 0 ? (time - a.time) / span : 1
+                return CGPoint(x: a.center.x + (b.center.x - a.center.x) * k, y: a.center.y + (b.center.y - a.center.y) * k)
+            }
+            return path.last?.center ?? first.center
+        }
+        let inside = path.filter { $0.time > from && $0.time < to }
+        return [(from, center(at: from))] + inside + [(to, center(at: to))]
     }
 
     /// Captions for the shortcuts. A repeat within a second becomes `×2`, `×3` on the same

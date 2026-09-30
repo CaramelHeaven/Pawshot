@@ -181,43 +181,6 @@ final class HeldEffectsTests: XCTestCase {
 
     // MARK: - The microphone
 
-    /// Speech, not a key press: half a second of voice in a row, give or take the gaps between
-    /// words, is talking. A click of the keyboard is a twentieth of that.
-    func testTalkingIsToldFromTyping() {
-        var speech = SpeechWatch()
-        var heard = false
-        for step in 0 ..< 40 where !heard {
-            // Words with short gaps: four steps loud, one quiet.
-            heard = speech.feed(level: step % 5 == 4 ? 0.1 : 0.7, at: Double(step) * 0.025)
-        }
-        XCTAssertTrue(heard)
-
-        var typing = SpeechWatch()
-        var fired = false
-        for step in 0 ..< 400 {
-            // A keystroke every quarter of a second, one step long.
-            fired = fired || typing.feed(level: step % 10 == 0 ? 0.8 : 0.05, at: Double(step) * 0.025)
-        }
-        XCTAssertFalse(fired)
-    }
-
-    /// The levels come by way of the main thread. One stall of it and a single loud buffer after
-    /// it are not half a second of voice.
-    func testAStallAndOneLoudMomentAreNotTalking() {
-        var speech = SpeechWatch()
-        XCTAssertFalse(speech.feed(level: 0.7, at: 0))
-        XCTAssertFalse(speech.feed(level: 0.7, at: 0.6), "one loud buffer after a 0.6 s stall")
-    }
-
-    func testTalkingIsSaidOnce() {
-        var speech = SpeechWatch()
-        var times = 0
-        for step in 0 ..< 400 where speech.feed(level: 0.7, at: Double(step) * 0.025) {
-            times += 1
-        }
-        XCTAssertEqual(times, 1)
-    }
-
     /// A muted stretch keeps its place in the track: the samples are there, and they are zeros.
     func testAMutedBufferIsSilenceOfTheSameLength() throws {
         var description = AudioStreamBasicDescription(
@@ -472,17 +435,88 @@ final class CursorHaloTests: XCTestCase {
         }
     }
 
-    /// Five clicks by default — the owner's pick — and "never" is kept as it is.
+    /// One click by default; the 3, 4, 5 and "never" of 0.6.6–0.6.7 read as two.
     @MainActor
-    func testZoomClicksDefaultToFiveAndNeverIsKept() throws {
+    func testZoomClicksAreOneOrTwo() throws {
         let suite = "pawshot.halo-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { UserDefaults().removePersistentDomain(forName: suite) }
         let settings = Settings(defaults: defaults)
 
-        XCTAssertEqual(settings.zoomClicks, 5)
-        settings.zoomClicks = 0
-        XCTAssertEqual(settings.zoomClicks, 0, "\"never\" is kept, not read back as the default")
+        XCTAssertEqual(settings.zoomClicks, 1)
+        settings.zoomClicks = 2
+        XCTAssertEqual(settings.zoomClicks, 2)
+        for old in [3, 4, 5, 0] {
+            defaults.set(old, forKey: Settings.Key.zoomClicks.rawValue)
+            XCTAssertEqual(Settings(defaults: defaults).zoomClicks, 2, "\(old) from an older version")
+        }
         XCTAssertEqual(settings.zoomMarkHotKey?.displayString, "⇧⌘6", "the zoom keeps its key")
+    }
+
+    /// The app's own double click right after the first zoom click is not the zoom's second click;
+    /// a click later, or farther away, is.
+    func testADoubleClickInTheAppIsNotTheSecondZoomClick() {
+        let first = (time: 100.0, point: CGPoint(x: 400, y: 300))
+        XCTAssertTrue(ZoomClicks.isDoubleClick(first: first, then: 100.25, at: CGPoint(x: 403, y: 302)))
+        XCTAssertFalse(ZoomClicks.isDoubleClick(first: first, then: 100.6, at: CGPoint(x: 403, y: 302)), "later")
+        XCTAssertFalse(ZoomClicks.isDoubleClick(first: first, then: 100.25, at: CGPoint(x: 460, y: 300)), "elsewhere")
+    }
+}
+
+/// A zoom made of two clicks: in at the first click's place, over to the second's, out after it.
+final class ZoomMoveTests: XCTestCase {
+    private func timeline() -> EventTimeline {
+        var timeline = EventTimeline()
+        timeline.cursor = [.init(time: 0, x: 0.2, y: 0.3), .init(time: 5, x: 0.8, y: 0.6)]
+        timeline.zoomMoves = [EventTimeline.Span(start: 2, end: 5)]
+        return timeline
+    }
+
+    func testTheZoomHoldsTheFirstPlaceThenGlidesToTheSecond() throws {
+        let segments = EffectsPlanner.zoomSegments(timeline: timeline(), duration: 30)
+        let segment = try XCTUnwrap(segments.first)
+        XCTAssertEqual(segments.count, 1)
+        XCTAssertEqual(segment.start, 2)
+        XCTAssertEqual(segment.end, 5 + EffectsPlanner.zoomLength, "out a zoom's length after the second click")
+        XCTAssertEqual(segment.center, CGPoint(x: 0.2, y: 0.3))
+        XCTAssertEqual(segment.pan, ZoomPan(time: 5, center: CGPoint(x: 0.8, y: 0.6)))
+
+        let path = EffectsPlanner.zoomPath(of: segment, from: segment.start, to: segment.end, timeline: timeline())
+        XCTAssertEqual(path.first?.center, CGPoint(x: 0.2, y: 0.3))
+        XCTAssertTrue(path.contains { $0.time == 5 && $0.center == CGPoint(x: 0.2, y: 0.3) }, "still on the first place at the second click")
+        XCTAssertTrue(path.contains { $0.time == 5 + EffectsPlanner.zoomPanDuration && $0.center == CGPoint(x: 0.8, y: 0.6) }, "arrived")
+        XCTAssertEqual(path.last?.center, CGPoint(x: 0.8, y: 0.6))
+    }
+
+    /// A piece that starts in the middle of the glide starts where the glide was, not at either end.
+    func testAPieceCutMidGlideStartsOnTheWay() throws {
+        let segment = try XCTUnwrap(EffectsPlanner.zoomSegments(timeline: timeline(), duration: 30).first)
+        let mid = 5 + EffectsPlanner.zoomPanDuration / 2
+        let path = EffectsPlanner.zoomPath(of: segment, from: mid, to: segment.end, timeline: timeline())
+        let start = try XCTUnwrap(path.first)
+        XCTAssertEqual(start.time, mid)
+        XCTAssertEqual(start.center.x, 0.5, accuracy: 0.001)
+        XCTAssertEqual(start.center.y, 0.45, accuracy: 0.001)
+    }
+
+    func testMovesSurviveTheFileAndOlderFilesHaveNone() throws {
+        let original = timeline()
+        let decoded = try JSONDecoder().decode(EventTimeline.self, from: JSONEncoder().encode(original))
+        XCTAssertEqual(decoded, original)
+        XCTAssertTrue(original.hasZooms)
+        let old = try JSONDecoder().decode(EventTimeline.self, from: Data(#"{"zoomMarks":[1]}"#.utf8))
+        XCTAssertTrue(old.zoomMoves.isEmpty)
+    }
+
+    /// The second click turns the first click's mark into the move — no plain zoom is left behind.
+    @MainActor
+    func testTheSecondClickTurnsTheMarkIntoAMove() throws {
+        var now = 2.0
+        let recorder = EventRecorder(area: CGRect(x: 0, y: 0, width: 400, height: 200)) { now }
+        let first = try XCTUnwrap(recorder.markZoom())
+        now = 5
+        XCTAssertEqual(recorder.moveZoom(from: first), 5)
+        XCTAssertTrue(recorder.timeline.zoomMarks.isEmpty)
+        XCTAssertEqual(recorder.timeline.zoomMoves, [EventTimeline.Span(start: 2, end: 5)])
     }
 }
