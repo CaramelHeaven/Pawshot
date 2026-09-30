@@ -14,6 +14,24 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6", text: String(localized: """
+            Recording a region works the way ⇧⌘5 does. After ⇧⌘3 the region you recorded last \
+            time is there at once: drag it by its middle to move it, by an edge or a corner to \
+            resize it, or draw a new one beside it. A click beside the region no longer wipes it.
+
+            Pills appear on the edges as the cursor comes near, and the part under the cursor \
+            lights up. A dragged region sticks to the edges of windows and of the screen; hold ⌘ \
+            to switch that off. Arrows move the region by a point, ten with ⇧.
+
+            Drag the region by its middle onto the middle of a window: the window lights up, and \
+            dropped there the region takes its size. Move it again and it is the size it was.
+
+            The bar under the region became a toolbar at the bottom of the screen: region, window \
+            or the whole screen, then Options and Record. Options has the microphone — pick which \
+            one to record — the system sound and what is shown in the video.
+
+            The buttons of the pill shown during a recording light up under the cursor.
+            """)),
             Entry(version: "0.5.3", text: String(localized: """
             About Pawshot, Settings and Open Pawshot from the paw's menu now open in front of \
             other apps, even when the window was already open behind them.

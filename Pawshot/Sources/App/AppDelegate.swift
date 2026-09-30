@@ -456,19 +456,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.startRecording(
                 RecordingTarget(
                     displayID: selection.displayID,
-                    rect: selection.rect,
+                    // The toolbar's "screen" is the take ⇧⌘4 makes: the whole display, no region.
+                    rect: selection.isWholeDisplay ? nil : selection.rect,
                     screen: selection.screen,
                     windowID: selection.windowID
                 ),
                 returningTo: previous
             )
-            if selection.windowID == nil {
+            if selection.windowID == nil, !selection.isWholeDisplay {
                 self?.rememberRecordingArea(of: selection)
             }
         }
     }
 
-    /// The ghost the next ⇧⌘3 shows: this region, in the display's own points.
+    /// The region the next ⇧⌘3 starts with: this one, in the display's own points.
     private func rememberRecordingArea(of selection: SelectionOverlayController.Selection) {
         let primaryMaxY = NSScreen.screens.first.map(\.frame.maxY) ?? 0
         let origin = SelectionOverlayController.coreGraphicsOrigin(of: selection.screen, primaryMaxY: primaryMaxY)

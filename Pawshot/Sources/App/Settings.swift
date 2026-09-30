@@ -28,6 +28,7 @@ final class Settings {
         case penHotKey = "hotkey.pen"
         case restartHotKey = "hotkey.restart"
         case recordsMicrophone = "recording.microphone"
+        case microphoneDevice = "recording.microphoneDevice"
         case recordsSystemAudio = "recording.systemAudio"
         case recordsAtNativeResolution = "recording.nativeResolution"
         case lastRecordingAreas = "recording.lastAreas"
@@ -184,6 +185,26 @@ final class Settings {
         set { setFlag(newValue, for: .recordsMicrophone) }
     }
 
+    /// The microphone picked in the recording toolbar's Options, by its unique id. `nil` until one
+    /// is picked: the system's default input is used, as it always was. A stored device that is
+    /// no longer plugged in falls back to the default too — `MicrophoneDevices.resolved`.
+    var microphoneDeviceID: String? {
+        get {
+            _ = revision
+            return defaults.string(forKey: Key.microphoneDevice.rawValue)
+        }
+        set {
+            let described = newValue ?? "system default"
+            Self.logger.notice("microphone device → \(described, privacy: .public)")
+            if let newValue {
+                defaults.set(newValue, forKey: Key.microphoneDevice.rawValue)
+            } else {
+                defaults.removeObject(forKey: Key.microphoneDevice.rawValue)
+            }
+            revision += 1
+        }
+    }
+
     /// What the Mac plays goes into recordings. On by default: it needs no extra permission.
     var recordsSystemAudio: Bool {
         get { flag(.recordsSystemAudio, default: true) }
@@ -198,7 +219,7 @@ final class Settings {
     }
 
     /// The region last recorded on a display, in that display's points (origin top left) — the
-    /// dashed ghost ↩ records again. Per display: the same rectangle means nothing on another one.
+    /// next ⇧⌘3 starts with it. Per display: the same rectangle means nothing on another one.
     func lastRecordingArea(on displayID: CGDirectDisplayID) -> CGRect? {
         _ = revision
         let areas = defaults.dictionary(forKey: Key.lastRecordingAreas.rawValue) as? [String: String]

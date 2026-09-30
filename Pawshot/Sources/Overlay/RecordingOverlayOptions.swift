@@ -121,4 +121,15 @@ enum RecordingOverlayKey: Equatable {
         default: return nil
         }
     }
+
+    /// An arrow key as a step of one point in view coordinates (down is +Y), or `nil`.
+    static func arrow(for event: NSEvent) -> CGSize? {
+        switch Int(event.keyCode) {
+        case kVK_LeftArrow: CGSize(width: -1, height: 0)
+        case kVK_RightArrow: CGSize(width: 1, height: 0)
+        case kVK_UpArrow: CGSize(width: 0, height: -1)
+        case kVK_DownArrow: CGSize(width: 0, height: 1)
+        default: nil
+        }
+    }
 }

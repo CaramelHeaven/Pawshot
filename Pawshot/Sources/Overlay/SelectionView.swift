@@ -18,11 +18,13 @@ protocol SelectionViewDelegate: AnyObject {
 final class SelectionView: NSView {
     /// What a click means right now.
     ///
-    /// Space toggles between the two, the way ⌘⇧4 does in the system screenshot tool: drag a
-    /// region, or point at a window and take it whole.
+    /// Space toggles between the first two, the way ⌘⇧4 does in the system screenshot tool: drag
+    /// a region, or point at a window and take it whole. The whole screen is the recording
+    /// toolbar's third choice — what ⇧⌘4 records without any overlay.
     enum Mode {
         case region
         case window
+        case screen
     }
 
     weak var delegate: SelectionViewDelegate?
@@ -61,11 +63,6 @@ final class SelectionView: NSView {
         didSet { needsDisplay = true }
     }
 
-    /// The region last recorded on this display, drawn dashed while there is no new one. ↩ takes it.
-    var ghost: CGRect? {
-        didSet { needsDisplay = true }
-    }
-
     /// Whether the file gets the display's own pixels (2x on Retina) or one pixel per point (1x).
     var nativeResolution = true {
         didSet { needsDisplay = true }
@@ -83,7 +80,24 @@ final class SelectionView: NSView {
     private var ignoresBarClick = false
 
     private var dragStart: CGPoint?
+    /// A press beside a recording region is a new region only once the mouse has moved; until
+    /// then, and after a plain click, the region that was there stays.
+    private var isDrawing = false
+    private var regionBeforeDrag: CGRect?
     private var selection: CGRect?
+    /// The part of the recording region under the cursor, and whether the cursor is close enough
+    /// for the grip pills to show. The view is redrawn only when one of them changes.
+    private var hoveredHandle: SelectionGeometry.Handle?
+    private var showsGrips = false
+    /// The lines the dragged region is stuck to, drawn for as long as the drag lasts.
+    private var snapGuides = SelectionGeometry.SnapGuides()
+    /// The window the dragged region would take the size of if dropped now, in view coordinates.
+    private var fitOffer: (frame: CGRect, windowID: CGWindowID)?
+    /// The size the region had before it was dropped onto a window. Moving it again brings that
+    /// size back; resizing it, or drawing another, forgets it.
+    private var unfittedSize: CGSize?
+    /// What stuck during the current drag, for the one log line of the gesture.
+    private var stuckDuringDrag = false
     private var cursorPoint: CGPoint?
     private var trackingArea: NSTrackingArea?
     /// The window under the cursor, in view coordinates.
@@ -118,6 +132,13 @@ final class SelectionView: NSView {
 
     func reset() {
         dragStart = nil
+        isDrawing = false
+        regionBeforeDrag = nil
+        hoveredHandle = nil
+        showsGrips = false
+        snapGuides = SelectionGeometry.SnapGuides()
+        fitOffer = nil
+        unfittedSize = nil
         selection = nil
         cursorPoint = nil
         highlightedWindow = nil
@@ -134,17 +155,28 @@ final class SelectionView: NSView {
         nativeResolution ? scale : 1
     }
 
-    /// The recording region as it stands — a fresh selection, or else the ghost of the last one.
+    /// The recording region as it stands.
     var recordingRegion: CGRect? {
-        if let selection, !SelectionGeometry.isTooSmall(selection) {
-            return selection
-        }
-        return dragStart == nil ? ghost : nil
+        guard let selection, !SelectionGeometry.isTooSmall(selection) else { return nil }
+        return selection
+    }
+
+    /// The region last recorded on this display comes back as the region itself: it can be moved,
+    /// resized and recorded with ↩ as it stands. It used to be a dashed ghost that only ↩ took —
+    /// a press inside it drew a new region instead of moving it.
+    func restore(lastRegion: CGRect) {
+        selection = lastRegion
+        needsDisplay = true
     }
 
     /// Starts the recording with what is on screen: the window under the cursor in window mode,
-    /// otherwise the region. ↩, R and the Record button all end here.
+    /// the whole screen in screen mode, otherwise the region. ↩, R and the Record button all end
+    /// here.
     func commitRecording() {
+        if mode == .screen {
+            delegate?.selectionView(self, didSelect: bounds, windowID: nil)
+            return
+        }
         if mode == .window {
             guard let highlightedWindow else {
                 Self.logger.notice("record asked with no window under the cursor")
@@ -166,8 +198,13 @@ final class SelectionView: NSView {
         guard mode != self.mode else { return }
 
         self.mode = mode
+        // The region is kept: the toolbar switches modes back and forth, and coming back to
+        // "region" with the region gone would cost the user their selection.
         dragStart = nil
-        selection = nil
+        isDrawing = false
+        regionBeforeDrag = nil
+        hoveredHandle = nil
+        showsGrips = false
         updateHighlight()
         window?.invalidateCursorRects(for: self)
         // Cursor rects only take effect on the next mouse event, and the whole point here is that
@@ -194,7 +231,7 @@ final class SelectionView: NSView {
     }
 
     func applyCursor() {
-        (mode == .window ? Self.cameraCursor : Self.crosshairCursor).set()
+        (mode == .region ? Self.crosshairCursor : Self.cameraCursor).set()
     }
 
     // MARK: - Cursor and tracking
@@ -246,7 +283,7 @@ final class SelectionView: NSView {
     }
 
     private func cursorKind(at point: CGPoint?) -> CursorKind {
-        guard let point else { return mode == .window ? .camera : .crosshair }
+        guard let point else { return mode == .region ? .crosshair : .camera }
         return Self.cursorKind(
             at: point,
             selection: selection,
@@ -369,19 +406,55 @@ final class SelectionView: NSView {
     override func mouseMoved(with event: NSEvent) {
         OverlayDiagnostics.received("mouseMoved")
         let point = convert(event.locationInWindow, from: nil)
+        OverlayHUD.noteMouse(at: point, in: self)
         // The key overlay hears the mouse on other screens too; the cursor there is not its call.
         guard bounds.contains(point) else { return }
         cursorPoint = point
         let highlighted = highlightedWindow
         updateHighlight()
         updateCursor(at: point)
+        let hoverChanged = updateHover(at: point)
         // Only what the mouse changes is redrawn. With nothing drawn yet in region mode, a move
         // changes nothing under the dimming — only the glass badge, which is its own view — and
-        // redrawing the whole screen for it was most of what made the crosshair lag.
-        if showsLoupe || highlightedWindow != highlighted {
+        // redrawing the whole screen for it was most of what made the crosshair lag. The grips
+        // and the highlight of a recording region follow the same rule: they are redrawn when
+        // the zone under the cursor changes, not on every move.
+        if showsLoupe || highlightedWindow != highlighted || hoverChanged {
             needsDisplay = true
         } else {
             layOutHUD()
+        }
+    }
+
+    /// The cursor left for another screen: nothing here is under it any more.
+    override func mouseExited(with _: NSEvent) {
+        guard hoveredHandle != nil || showsGrips else { return }
+        hoveredHandle = nil
+        showsGrips = false
+        needsDisplay = true
+    }
+
+    /// Which part of the recording region the cursor is over and whether the grips show. Returns
+    /// whether either changed.
+    private func updateHover(at point: CGPoint) -> Bool {
+        var handle: SelectionGeometry.Handle?
+        var near = false
+        if purpose == .recording, mode == .region, let region = recordingRegion, !OverlayHUD.barContains(point, in: self) {
+            handle = SelectionGeometry.handle(at: point, of: region)
+            near = SelectionGeometry.isNear(point, to: region)
+        }
+        guard handle != hoveredHandle || near != showsGrips else { return false }
+        hoveredHandle = handle
+        showsGrips = near
+        return true
+    }
+
+    /// The windows of this screen in view coordinates, front to back, cut to the screen: what
+    /// the dragged region sticks to and what it can be dropped onto.
+    private var windowFrames: [(frame: CGRect, windowID: CGWindowID)] {
+        windows.compactMap { window in
+            let frame = window.frame.offsetBy(dx: -screenOrigin.x, dy: -screenOrigin.y).intersection(bounds)
+            return frame.isEmpty ? nil : (frame, window.windowID)
         }
     }
 
@@ -392,7 +465,15 @@ final class SelectionView: NSView {
         // must not start a new region and wipe the one drawn — and it is worth a log line, since
         // it means the bar lost a click.
         if OverlayHUD.barContains(point, in: self) {
-            Self.logger.error("a click on the sound bar reached the overlay at \(Int(point.x), privacy: .public), \(Int(point.y), privacy: .public)")
+            Self.logger.error("a click on the toolbar reached the overlay at \(Int(point.x), privacy: .public), \(Int(point.y), privacy: .public)")
+            ignoresBarClick = true
+            return
+        }
+        // With the Options panel open, a click anywhere else only closes it — as a click beside
+        // an open menu does.
+        if OverlayHUD.recordingBar.optionsShown {
+            Self.logger.notice("options closed by a click beside them")
+            OverlayHUD.recordingBar.toggleOptions()
             ignoresBarClick = true
             return
         }
@@ -406,19 +487,28 @@ final class SelectionView: NSView {
         }
 
         // A recording region that is already there: a press on it moves it or pulls a handle, a
-        // press elsewhere starts a new one.
+        // press elsewhere starts a new one — once the mouse moves.
         if purpose == .recording, let selection, !selection.isEmpty,
            let handle = SelectionGeometry.handle(at: point, of: selection)
         {
             grabbedHandle = handle
             grabbedSelection = selection
             grabPoint = point
+            stuckDuringDrag = false
             updateCursor(at: point)
+            needsDisplay = true
             return
         }
 
         dragStart = point
-        selection = .zero
+        if purpose == .recording {
+            // The region stays until this press turns into a drag: a click beside it used to
+            // wipe it on the spot.
+            regionBeforeDrag = selection
+            isDrawing = false
+        } else {
+            selection = .zero
+        }
         needsDisplay = true
     }
 
@@ -427,25 +517,12 @@ final class SelectionView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         cursorPoint = point
 
-        if let grabbedHandle, let grabbedSelection, let grabPoint {
-            selection = grabbedHandle == .inside
-                ? SelectionGeometry.moved(
-                    grabbedSelection,
-                    by: CGSize(width: point.x - grabPoint.x, height: point.y - grabPoint.y),
-                    within: bounds
-                )
-                : SelectionGeometry.resized(
-                    grabbedSelection,
-                    dragging: grabbedHandle,
-                    to: SelectionGeometry.handleTarget(
-                        grabbedHandle,
-                        of: grabbedSelection,
-                        grabbedAt: grabPoint,
-                        mouse: point
-                    ),
-                    aspect: aspect.ratio,
-                    within: bounds
-                )
+        if let grabbedHandle, let grabPoint {
+            if grabbedHandle == .inside {
+                move(to: point, grabbedAt: grabPoint, magnet: !event.modifierFlags.contains(.command))
+            } else {
+                resize(grabbedHandle, to: point, grabbedAt: grabPoint, modifiers: event.modifierFlags)
+            }
             updateCursor(at: point)
             needsDisplay = true
             return
@@ -453,12 +530,87 @@ final class SelectionView: NSView {
 
         guard let dragStart else { return }
         if purpose == .recording {
+            guard isDrawing || SelectionGeometry.isDrag(from: dragStart, to: point) else { return }
+            isDrawing = true
+            unfittedSize = nil
             selection = SelectionGeometry.rect(from: dragStart, to: point, aspect: aspect.ratio, within: bounds)
         } else {
             // The drag can run past the screen edge — clip it to our own bounds.
             selection = SelectionGeometry.rect(from: dragStart, to: point).intersection(bounds)
         }
         needsDisplay = true
+    }
+
+    /// The region dragged by its middle. It sticks to the visible edges of windows, to the edges
+    /// of the screen and to its middle; and when its middle comes to the middle of a window, that
+    /// window is offered: dropped there, the region takes the window's frame. ⌘ switches both off.
+    ///
+    /// A region that was fitted to a window goes back to the size it had as soon as it is really
+    /// moved — past the drag threshold, so a click on it changes nothing.
+    private func move(to point: CGPoint, grabbedAt grab: CGPoint, magnet: Bool) {
+        guard var start = grabbedSelection else { return }
+        if let size = unfittedSize {
+            guard SelectionGeometry.isDrag(from: grab, to: point) else { return }
+            start = SelectionGeometry.restored(size: size, grabbedAt: grab, in: start, within: bounds)
+            grabbedSelection = start
+            unfittedSize = nil
+            Self.logger.notice("region unfitted: back to \(Int(size.width), privacy: .public)×\(Int(size.height), privacy: .public) pt")
+        }
+
+        var moved = SelectionGeometry.moved(
+            start,
+            by: CGSize(width: point.x - grab.x, height: point.y - grab.y),
+            within: bounds
+        )
+        let offered = fitOffer?.windowID
+        fitOffer = nil
+        snapGuides = SelectionGeometry.SnapGuides()
+        if magnet {
+            let frames = windowFrames
+            let rects = frames.map(\.frame)
+            if let index = SelectionGeometry.fitCandidate(center: CGPoint(x: moved.midX, y: moved.midY), windows: rects) {
+                fitOffer = frames[index]
+            } else {
+                let lines = SelectionGeometry.snapLines(windows: rects, bounds: bounds, around: moved)
+                (moved, snapGuides) = SelectionGeometry.snapped(moving: moved, to: lines, within: bounds)
+            }
+        }
+        if let fitOffer, fitOffer.windowID != offered {
+            let id = fitOffer.windowID
+            Self.logger.notice("fit offered: window \(id, privacy: .public)")
+        }
+        stuckDuringDrag = stuckDuringDrag || snapGuides != SelectionGeometry.SnapGuides()
+        selection = moved
+    }
+
+    /// An edge or a corner dragged. ⇧ holds a corner to the proportions the region had, ⌥ grows
+    /// it from its middle, ⌘ switches the magnet off. With proportions held — by ⇧ or by the A
+    /// key — nothing sticks: the side that follows would leave the line anyway.
+    private func resize(_ handle: SelectionGeometry.Handle, to point: CGPoint, grabbedAt grab: CGPoint, modifiers: NSEvent.ModifierFlags) {
+        guard let start = grabbedSelection else { return }
+        var target = SelectionGeometry.handleTarget(handle, of: start, grabbedAt: grab, mouse: point)
+        let isCorner = [.topLeft, .topRight, .bottomLeft, .bottomRight].contains(handle)
+        var ratio = aspect.ratio
+        if ratio == nil, isCorner, modifiers.contains(.shift), start.height > 0 {
+            ratio = start.width / start.height
+        }
+        let fromCenter = modifiers.contains(.option)
+
+        snapGuides = SelectionGeometry.SnapGuides()
+        if !modifiers.contains(.command), ratio == nil, !fromCenter {
+            let lines = SelectionGeometry.snapLines(windows: windowFrames.map(\.frame), bounds: bounds, around: start)
+            (target, snapGuides) = SelectionGeometry.snapped(target, dragging: handle, to: lines)
+        }
+        stuckDuringDrag = stuckDuringDrag || snapGuides != SelectionGeometry.SnapGuides()
+        unfittedSize = nil
+        selection = SelectionGeometry.resized(
+            start,
+            dragging: handle,
+            to: target,
+            aspect: ratio,
+            within: bounds,
+            fromCenter: fromCenter
+        )
     }
 
     override func mouseUp(with _: NSEvent) {
@@ -473,6 +625,11 @@ final class SelectionView: NSView {
 
         defer { reset() }
 
+        if mode == .screen {
+            // A click anywhere records the screen, the way it does in the system tool.
+            commitRecording()
+            return
+        }
         if mode == .window {
             guard let highlightedWindow else {
                 Self.logger.notice("cancel: no window under the click")
@@ -491,34 +648,56 @@ final class SelectionView: NSView {
         delegate?.selectionView(self, didSelect: selection, windowID: nil)
     }
 
-    /// Mouse up on the recording overlay leaves the region alive. A click that drew nothing drops
-    /// it, which brings the ghost of the last one back.
+    /// Mouse up on the recording overlay leaves the region alive. A click that drew nothing
+    /// leaves the region that was there.
     ///
     /// An edge dragged onto its opposite leaves a region too small to grab again; it goes back to
-    /// what it was before that drag.
+    /// what it was before that drag. A region dropped while a window was offered takes that
+    /// window's frame and remembers the size it had.
     private func finishAdjusting() {
         let handle = grabbedHandle
-        let drewNothing = selection.map { SelectionGeometry.isTooSmall($0) } ?? true
-        if let selection, SelectionGeometry.isTooSmall(selection) {
-            if let grabbedHandle, grabbedHandle != .inside {
+        var gesture: String
+        switch handle {
+        case .inside?:
+            if let fitOffer, let dragged = selection {
+                unfittedSize = dragged.size
+                selection = fitOffer.frame
+                gesture = "fitted to window \(fitOffer.windowID)"
+            } else {
+                gesture = "moved"
+            }
+        case let handle?:
+            if let selection, SelectionGeometry.isTooSmall(selection) {
                 self.selection = grabbedSelection
-            } else if grabbedHandle == nil {
-                self.selection = nil
+                gesture = "resize by \(handle) came to nothing (put back)"
+            } else {
+                gesture = "resized by \(handle)"
+            }
+        case nil:
+            if isDrawing, let selection, !SelectionGeometry.isTooSmall(selection) {
+                gesture = "drawn"
+            } else {
+                selection = regionBeforeDrag
+                gesture = regionBeforeDrag == nil ? "click (no region)" : "click beside (region kept)"
             }
         }
+        if stuckDuringDrag {
+            gesture += ", stuck to a line"
+        }
         dragStart = nil
+        isDrawing = false
+        regionBeforeDrag = nil
         grabbedHandle = nil
         grabbedSelection = nil
         grabPoint = nil
+        fitOffer = nil
+        stuckDuringDrag = false
+        snapGuides = SelectionGeometry.SnapGuides()
         if let cursorPoint {
             updateCursor(at: cursorPoint)
+            _ = updateHover(at: cursorPoint)
         }
         needsDisplay = true
-        let gesture = switch handle {
-        case nil: drewNothing ? "click (ghost back)" : "drawn"
-        case .inside?: "moved"
-        case let handle?: "resized by \(handle)"
-        }
         let size = selection.map { "\(Int($0.width))×\(Int($0.height)) pt" } ?? "none"
         Self.logger.notice("region \(gesture, privacy: .public): \(size, privacy: .public)")
     }
@@ -568,6 +747,29 @@ final class SelectionView: NSView {
             needsDisplay = true
             return true
         }
+        // An arrow moves the region by a point, ten with ⇧; with ⌥ it moves the right and the
+        // bottom edges instead.
+        if mode == .region, let step = RecordingOverlayKey.arrow(for: event), let region = recordingRegion {
+            let distance: CGFloat = event.modifierFlags.contains(.shift) ? 10 : 1
+            let resizing = event.modifierFlags.contains(.option)
+            let nudged = SelectionGeometry.nudged(
+                region,
+                by: CGSize(width: step.width * distance, height: step.height * distance),
+                resizing: resizing,
+                within: bounds
+            )
+            selection = nudged
+            unfittedSize = nil
+            // One line per press, not per repeat of a held key.
+            if !event.isARepeat {
+                let what = resizing ? "resized" : "moved"
+                Self.logger.notice(
+                    "region \(what, privacy: .public) by an arrow: \(Int(nudged.width), privacy: .public)×\(Int(nudged.height), privacy: .public) pt at \(Int(nudged.minX), privacy: .public), \(Int(nudged.minY), privacy: .public)"
+                )
+            }
+            needsDisplay = true
+            return true
+        }
         // Digits, and a separator once digits are there: a size is being typed.
         if mode == .region, let typed = KeyboardLayout.latinCharacter(for: event)?.first,
            typed.isNumber || !sizeInput.isEmpty, sizeInput.type(typed)
@@ -590,6 +792,7 @@ final class SelectionView: NSView {
             Self.logger.notice("aspect → \(label, privacy: .public)")
             if let ratio = aspect.ratio, let selection, !selection.isEmpty {
                 self.selection = SelectionGeometry.applying(aspect: ratio, to: selection, within: bounds)
+                unfittedSize = nil
             }
             needsDisplay = true
         case .scale:
@@ -635,6 +838,7 @@ final class SelectionView: NSView {
         }
 
         aspect = .free
+        unfittedSize = nil
         selection = exact
         Self.logger.notice("typed size \(size.width, privacy: .public)×\(size.height, privacy: .public) px applied")
     }
@@ -644,6 +848,12 @@ final class SelectionView: NSView {
         if !sizeInput.isEmpty {
             sizeInput.clear()
             needsDisplay = true
+            return
+        }
+        // Then the Options panel, the way Esc closes a menu before anything else.
+        if purpose == .recording, OverlayHUD.recordingBar.optionsShown {
+            Self.logger.notice("options closed by Esc")
+            OverlayHUD.recordingBar.toggleOptions()
             return
         }
         Self.logger.notice("cancel: Esc")
@@ -661,18 +871,34 @@ final class SelectionView: NSView {
 
         if mode == .window {
             drawWindowHighlight()
+        } else if mode == .screen {
+            // The whole screen is what gets recorded: nothing is dimmed, and the red corners sit
+            // on the screen's own.
+            drawCornerBrackets(around: bounds.insetBy(dx: 4, dy: 4), hot: nil)
         } else if let selection, !selection.isEmpty {
             let path = NSBezierPath(rect: bounds)
             path.appendRect(selection)
             path.windingRule = .evenOdd
             path.fill()
 
-            drawBorder(around: selection)
+            if let fitOffer {
+                drawWindowOutline(fitOffer.frame)
+            }
+            let live = purpose == .recording
+            let hot = live ? (grabbedHandle ?? hoveredHandle) : nil
+            if hot == .inside, grabbedHandle == nil {
+                // The middle under the cursor: a light veil says "this moves".
+                NSColor.white.withAlphaComponent(0.07).setFill()
+                selection.fill()
+            }
+            drawBorder(around: selection, hot: hot)
+            if live {
+                drawGrips(on: selection, hot: hot)
+                drawSnapGuides()
+                drawSizeOnTheDraggedEdge(of: selection)
+            }
         } else {
             bounds.fill()
-            if purpose == .recording, dragStart == nil, let ghost {
-                drawGhost(ghost)
-            }
         }
 
         if mode == .region, purpose == .screenshot {
@@ -696,12 +922,19 @@ final class SelectionView: NSView {
         dimming.windingRule = .evenOdd
         dimming.fill()
 
+        drawWindowOutline(highlightedWindow)
+    }
+
+    /// "This window": the paw tint and the paw outline, rounded like the window. The window mode
+    /// draws it under the cursor; a dragged recording region draws it on the window it would fit.
+    private func drawWindowOutline(_ window: CGRect) {
+        let radius = Self.windowCornerRadius
         Tokens.pawNSColor.withAlphaComponent(0.14).setFill()
-        hole.fill()
+        NSBezierPath(roundedRect: window, xRadius: radius, yRadius: radius).fill()
 
         Tokens.pawNSColor.setStroke()
         let outline = NSBezierPath(
-            roundedRect: highlightedWindow.insetBy(dx: 1, dy: 1),
+            roundedRect: window.insetBy(dx: 1, dy: 1),
             xRadius: radius - 1,
             yRadius: radius - 1
         )
@@ -709,7 +942,57 @@ final class SelectionView: NSView {
         outline.stroke()
     }
 
-    private func drawBorder(around rect: CGRect) {
+    /// The pills on the middles of the edges, shown while the cursor is near or something is
+    /// grabbed: white, and red and bigger for the edge under the cursor.
+    private func drawGrips(on rect: CGRect, hot: SelectionGeometry.Handle?) {
+        guard showsGrips || grabbedHandle != nil else { return }
+        for pill in SelectionGeometry.gripPills(for: rect, hot: hot) {
+            let radius = min(pill.frame.width, pill.frame.height) / 2
+            NSColor.black.withAlphaComponent(0.35).setFill()
+            NSBezierPath(roundedRect: pill.frame.insetBy(dx: -1, dy: -1), xRadius: radius + 1, yRadius: radius + 1).fill()
+            (pill.handle == hot ? NSColor.systemRed : NSColor.white).setFill()
+            NSBezierPath(roundedRect: pill.frame, xRadius: radius, yRadius: radius).fill()
+        }
+    }
+
+    /// The lines the dragged region is stuck to, across the whole screen — only while it is
+    /// dragged, so nothing of them is left on a region at rest.
+    private func drawSnapGuides() {
+        Tokens.pawNSColor.setFill()
+        if let x = snapGuides.x {
+            CGRect(x: x - 0.5, y: bounds.minY, width: 1, height: bounds.height).fill()
+        }
+        if let y = snapGuides.y {
+            CGRect(x: bounds.minX, y: y - 0.5, width: bounds.width, height: 1).fill()
+        }
+    }
+
+    /// While an edge or a corner is dragged: the pixels of the file along it, on a paw plate
+    /// right beside it.
+    private func drawSizeOnTheDraggedEdge(of rect: CGRect) {
+        guard let handle = grabbedHandle, handle != .inside else { return }
+        let size = SelectionGeometry.recordingPixelSize(of: rect, scale: outputScale)
+        let text = switch handle {
+        case .left, .right: "\(size.width) px"
+        case .top, .bottom: "\(size.height) px"
+        default: "\(size.width) × \(size.height)"
+        }
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .bold),
+            .foregroundColor: NSColor.black.withAlphaComponent(0.85),
+        ]
+        let textSize = (text as NSString).size(withAttributes: attributes)
+        let plateSize = CGSize(width: textSize.width + 12, height: textSize.height + 6)
+        let plate = CGRect(
+            origin: SelectionGeometry.edgeLabelOrigin(for: handle, of: rect, labelSize: plateSize, bounds: bounds),
+            size: plateSize
+        )
+        Tokens.pawNSColor.setFill()
+        NSBezierPath(roundedRect: plate, xRadius: 5, yRadius: 5).fill()
+        (text as NSString).draw(at: CGPoint(x: plate.minX + 6, y: plate.minY + 3), withAttributes: attributes)
+    }
+
+    private func drawBorder(around rect: CGRect, hot: SelectionGeometry.Handle?) {
         // Two lines: dark on the outside, light on the inside — the border stays visible both on
         // a white page and on a dark terminal.
         NSColor.black.withAlphaComponent(0.6).setStroke()
@@ -722,43 +1005,38 @@ final class SelectionView: NSView {
         inner.lineWidth = 1
         inner.stroke()
 
-        drawCornerBrackets(around: rect.insetBy(dx: -1.5, dy: -1.5))
-    }
-
-    /// The last recorded region, dashed: "↩ records this again".
-    private func drawGhost(_ rect: CGRect) {
-        let path = NSBezierPath(rect: rect.insetBy(dx: 0.5, dy: 0.5))
-        path.lineWidth = 1.5
-        path.setLineDash([6, 4], count: 2, phase: 0)
-        NSColor.black.withAlphaComponent(0.5).setStroke()
-        path.stroke()
-        NSColor.white.withAlphaComponent(0.75).setStroke()
-        path.lineWidth = 1
-        path.stroke()
+        drawCornerBrackets(around: rect.insetBy(dx: -1.5, dy: -1.5), hot: hot)
     }
 
     /// The frame corners of the app icon on the selection: the selection reads as Pawshot's.
     /// Same double trick as the border — a dark stroke under the white one. Red when the region
-    /// is for a recording.
-    private func drawCornerBrackets(around rect: CGRect) {
-        let path = NSBezierPath()
-        for bracket in SelectionGeometry.cornerBrackets(for: rect, armLength: 16) {
+    /// is for a recording, and the corner under the cursor grows: longer arms, a thicker line.
+    private func drawCornerBrackets(around rect: CGRect, hot: SelectionGeometry.Handle?) {
+        // In the order `cornerBrackets` returns them.
+        let corners: [SelectionGeometry.Handle] = [.topLeft, .topRight, .bottomLeft, .bottomRight]
+        let plain = SelectionGeometry.cornerBrackets(for: rect, armLength: 16)
+        let grown = SelectionGeometry.cornerBrackets(for: rect, armLength: 26)
+
+        for (index, corner) in corners.enumerated() {
+            let isHot = corner == hot
+            let bracket = isHot ? grown[index] : plain[index]
             guard let first = bracket.first else { continue }
+            let path = NSBezierPath()
             path.move(to: first)
             for point in bracket.dropFirst() {
                 path.line(to: point)
             }
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+
+            NSColor.black.withAlphaComponent(0.35).setStroke()
+            path.lineWidth = isHot ? 7 : 5.5
+            path.stroke()
+
+            (purpose == .recording ? NSColor.systemRed : NSColor.white).setStroke()
+            path.lineWidth = isHot ? 5 : 3.5
+            path.stroke()
         }
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-
-        NSColor.black.withAlphaComponent(0.35).setStroke()
-        path.lineWidth = 5.5
-        path.stroke()
-
-        (purpose == .recording ? NSColor.systemRed : NSColor.white).setStroke()
-        path.lineWidth = 3.5
-        path.stroke()
     }
 
     /// 15 × 15 pixels of the frozen frame around the cursor, eight times bigger, with a grid, the
@@ -903,7 +1181,7 @@ final class SelectionView: NSView {
             size: badgeSize
         )
 
-        layOutRecordingBar()
+        let toolbarTop = layOutToolbar()
 
         let hints = OverlayHUD.hintsHost
         guard showsHints else {
@@ -918,35 +1196,38 @@ final class SelectionView: NSView {
         let hintsSize = hints.fittingSize
         hints.frame = CGRect(
             x: (bounds.width - hintsSize.width) / 2,
-            y: bounds.height - hintsSize.height - 48,
+            // Above the recording toolbar when there is one; otherwise where they always were.
+            y: toolbarTop.map { $0 - hintsSize.height - 12 } ?? bounds.height - hintsSize.height - 48,
             width: hintsSize.width,
             height: hintsSize.height
         )
     }
 
-    /// The sound bar sits under the recording region, on the screen that has one. It is not
-    /// shown while a region is being drawn: the hand is busy and the bar would jump around.
-    private func layOutRecordingBar() {
-        let bar = OverlayHUD.recordingBarHost
-        guard
-            purpose == .recording, mode == .region,
-            dragStart == nil, grabbedHandle == nil,
-            let region = recordingRegion
-        else {
-            if bar.superview === self {
-                bar.removeFromSuperview()
+    /// The recording toolbar sits at the bottom of the screen the cursor is on, whatever the
+    /// region does and in every mode — it is where the mode is picked. Returns its top edge.
+    ///
+    /// It used to be a bar under the region that hid during every drag; this one never moves.
+    func layOutToolbar() -> CGFloat? {
+        let toolbar = OverlayHUD.recordingBarHost
+        guard purpose == .recording else {
+            if toolbar.superview === self {
+                toolbar.removeFromSuperview()
             }
-            return
+            return nil
         }
+        // One toolbar for every screen: the screen under the cursor takes it, the others leave
+        // it where it is.
+        guard toolbar.superview === self || cursorPoint.map(bounds.contains) == true else { return nil }
 
-        if bar.superview !== self {
-            addSubview(bar)
+        if toolbar.superview !== self {
+            addSubview(toolbar)
         }
-        let size = bar.fittingSize
-        bar.frame = CGRect(
-            origin: SelectionGeometry.barOrigin(under: region, barSize: size, bounds: bounds),
+        let size = toolbar.fittingSize
+        toolbar.frame = CGRect(
+            origin: SelectionGeometry.toolbarOrigin(toolbarSize: size, bounds: bounds),
             size: size
         )
+        return toolbar.frame.minY
     }
 
     /// What the badge says: the pixels the file will have, big — the number people actually care
@@ -976,7 +1257,11 @@ final class SelectionView: NSView {
             return ("\(sizeInput.text)▏", sizeInput.size == nil ? String(localized: "width × height") : String(localized: "↩ apply"))
         }
 
-        let region: CGRect? = mode == .window ? highlightedWindow : recordingRegion
+        let region: CGRect? = switch mode {
+        case .window: highlightedWindow
+        case .screen: bounds
+        case .region: recordingRegion
+        }
         guard let region else {
             return (mode == .window ? String(localized: "Click a window") : position, "")
         }
@@ -984,7 +1269,7 @@ final class SelectionView: NSView {
         let size = SelectionGeometry.recordingPixelSize(of: region, scale: outputScale)
         let scaleLabel = nativeResolution && scale > 1 ? "\(Int(scale))x" : "1x"
         let parts = ["\(size.width) × \(size.height)", aspect.label, scaleLabel].compactMap(\.self)
-        return (parts.joined(separator: " · "), mode == .window ? "" : position)
+        return (parts.joined(separator: " · "), mode == .region ? position : "")
     }
 
     private func pixelSize(of rect: CGRect) -> String {

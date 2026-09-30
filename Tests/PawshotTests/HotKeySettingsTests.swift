@@ -239,6 +239,18 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings.regionHotKey, .regionDefault)
     }
 
+    /// No microphone is picked until the toolbar's Options pick one: the system's own is used.
+    func testThePickedMicrophoneIsRememberedAndCanBeForgotten() {
+        let settings = Settings(defaults: defaults)
+        XCTAssertNil(settings.microphoneDeviceID)
+
+        settings.microphoneDeviceID = "airpods"
+        XCTAssertEqual(Settings(defaults: defaults).microphoneDeviceID, "airpods")
+
+        settings.microphoneDeviceID = nil
+        XCTAssertNil(Settings(defaults: defaults).microphoneDeviceID)
+    }
+
     /// ⇧⌘3 and ⇧⌘4 record — the owner's choice, made knowing macOS takes them until they are
     /// unticked in Keyboard Shortcuts. The microphone is off until asked for, system audio is on.
     func testRecordingDefaults() {

@@ -751,6 +751,16 @@
         }
       }
     },
+    "Click the window to record" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите на окно, чтобы записать его"
+          }
+        }
+      }
+    },
     "Clicks" : {
       "localizations" : {
         "ru" : {
@@ -1660,16 +1670,6 @@
         }
       }
     },
-    "Microphone (M)" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Микрофон (M)"
-          }
-        }
-      }
-    },
     "Microphone access" : {
       "localizations" : {
         "ru" : {
@@ -1766,6 +1766,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Текст не найден"
+          }
+        }
+      }
+    },
+    "None" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет"
           }
         }
       }
@@ -1876,6 +1886,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Открыть…"
+          }
+        }
+      }
+    },
+    "Options" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Параметры"
           }
         }
       }
@@ -2206,6 +2226,16 @@
         }
       }
     },
+    "Record Entire Screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись всего экрана"
+          }
+        }
+      }
+    },
     "Record Full Screen" : {
       "localizations" : {
         "ru" : {
@@ -2232,6 +2262,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "«Записать область» в меню лапы записывает область."
+          }
+        }
+      }
+    },
+    "Record Selected Portion" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись выбранной области"
+          }
+        }
+      }
+    },
+    "Record Selected Window (Space)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись выбранного окна (Пробел)"
           }
         }
       }
@@ -2322,6 +2372,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Запись"
+          }
+        }
+      }
+    },
+    "Recording a region works the way ⇧⌘5 does. After ⇧⌘3 the region you recorded last time is there at once: drag it by its middle to move it, by an edge or a corner to resize it, or draw a new one beside it. A click beside the region no longer wipes it.\n\nPills appear on the edges as the cursor comes near, and the part under the cursor lights up. A dragged region sticks to the edges of windows and of the screen; hold ⌘ to switch that off. Arrows move the region by a point, ten with ⇧.\n\nDrag the region by its middle onto the middle of a window: the window lights up, and dropped there the region takes its size. Move it again and it is the size it was.\n\nThe bar under the region became a toolbar at the bottom of the screen: region, window or the whole screen, then Options and Record. Options has the microphone — pick which one to record — the system sound and what is shown in the video.\n\nThe buttons of the pill shown during a recording light up under the cursor." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись области работает как в ⇧⌘5. После ⇧⌘3 область, которую вы записывали в прошлый раз, сразу на месте: тяните за середину, чтобы подвинуть, за грань или уголок, чтобы изменить размер, или нарисуйте новую рядом. Клик мимо области больше её не стирает.\n\nКогда курсор рядом, на гранях появляются пилюли, а часть под курсором подсвечивается. Область, которую тащат, прилипает к краям окон и экрана; удерживайте ⌘, чтобы это отключить. Стрелки двигают область на одну точку, с ⇧ на десять.\n\nПеретащите область за середину на середину окна: окно подсветится, и брошенная там область примет его размер. Сдвиньте её снова, и размер станет прежним.\n\nПанель под областью стала тулбаром внизу экрана: область, окно или весь экран, затем «Параметры» и «Запись». В «Параметрах» микрофон — можно выбрать, какой записывать, — системный звук и то, что показывается в видео.\n\nКнопки пилюли, которая видна во время записи, подсвечиваются под курсором."
           }
         }
       }
@@ -2631,6 +2691,9 @@
           }
         }
       }
+    },
+    "S" : {
+      "shouldTranslate" : false
     },
     "Saturation and brightness" : {
       "localizations" : {
@@ -2978,6 +3041,16 @@
         }
       }
     },
+    "Start recording (↩)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начать запись (↩)"
+          }
+        }
+      }
+    },
     "Statistics" : {
       "localizations" : {
         "ru" : {
@@ -3048,6 +3121,16 @@
         }
       }
     },
+    "System Audio" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Системный звук"
+          }
+        }
+      }
+    },
     "System Settings section: Keyboard" : {
       "extractionState" : "extracted_with_value",
       "localizations" : {
@@ -3078,16 +3161,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Снимки экрана"
-          }
-        }
-      }
-    },
-    "System audio (S)" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Системный звук (S)"
           }
         }
       }
@@ -3641,6 +3714,16 @@
         }
       }
     },
+    "allow in Settings → Recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "разрешите в Настройках → Запись"
+          }
+        }
+      }
+    },
     "cancel" : {
       "localizations" : {
         "ru" : {
@@ -3791,6 +3874,26 @@
         }
       }
     },
+    "microphone" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "микрофон"
+          }
+        }
+      }
+    },
+    "move" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "двигать"
+          }
+        }
+      }
+    },
     "no signal" : {
       "localizations" : {
         "ru" : {
@@ -3901,6 +4004,16 @@
         }
       }
     },
+    "sound" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "звук"
+          }
+        }
+      }
+    },
     "to Quit" : {
       "comment" : "The quit toast, after the ⌘Q key caps: Hold ⌘Q to Quit",
       "localizations" : {
@@ -3947,6 +4060,9 @@
           }
         }
       }
+    },
+    "← →" : {
+      "shouldTranslate" : false
     },
     "↩" : {
       "shouldTranslate" : false

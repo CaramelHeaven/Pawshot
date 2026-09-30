@@ -120,10 +120,32 @@ format. The gradient backdrop that used to be here was removed at the owner's re
 
 **The recording overlay is the screenshot overlay with `purpose = .recording`.** The brackets are
 red, and mouse up does not end it: the region stays, to be moved by its middle and resized by its
-edges and corners, and ↩ (or R, or the Record button) starts. The last region on each display is
-drawn dashed, and ↩ with nothing drawn records it again. Space still switches to window mode, and a
-click on a window records that window — following it even under other windows. Under the region a
-glass bar shows the microphone with its live level and the system sound.
+edges and corners, and ↩ (or R, or the Record button) starts. It behaves the way the system's
+⇧⌘5 does — the owner's picks of 2026-09-30 from a page of live mockups (О-C, О-D, П-B, И-A):
+
+- **The last region on each display comes back alive**, with its corners, not as a dashed ghost:
+  it moves, resizes and records with ↩ as it stands. The ghost only answered ↩, and a press
+  inside it drew a new region — which read as "I can't move it".
+- **A press beside the region is a new region only once the mouse has moved** 3 pt; a plain
+  click leaves the region alone. It used to be wiped on the press itself.
+- **Grip pills** on the middles of the edges show while the cursor is within 44 pt; the pill and
+  the corner under the cursor turn red and grow, the middle gets a light veil. All CoreGraphics,
+  redrawn when the zone under the cursor changes, not on every move.
+- **The magnet**: a dragged region or edge sticks, within 6 pt, to the visible edges of windows,
+  the edges of the screen and its middle. An orange line shows what it stuck to — only during
+  the drag, so none of the guides the owner once removed stay on screen — and the size in pixels
+  of the file is written beside a dragged edge.
+- **The drop onto a window**: while the region is dragged by its middle and that middle comes to
+  the middle of a window — within 15% of the window's shorter side, the window on top there —
+  the window is outlined in the paw colour, and dropped there the region takes its frame. Moved
+  again, it is the size it had before. Off the middle it is simply laid on top. It stays a
+  region (no window id goes to the recorder, the pen works, the frame can be widened), unlike
+  Space, which records the window itself. Resizing, drawing or typing a size forgets the old one.
+- **The toolbar** sits at the bottom of the screen the cursor is on and never moves: region /
+  window / whole screen, Options, Record. "Screen" records what ⇧⌘4 does. Options is a panel of
+  the same SwiftUI view, not a menu — the microphone (none, or one of the Mac's inputs, with the
+  live level), the system sound, clicks, pressed shortcuts, the scale. The glass bar that hung
+  under the region and hid on every drag is gone.
 
 | Key | On the recording overlay |
 |---|---|
@@ -132,8 +154,12 @@ glass bar shows the microphone with its live level and the system sound.
 | digits, `x`, digits | an exact size in pixels of the file, `1920x1080`, then `↩` |
 | `X` | 2x (the display's pixels) ↔ 1x (one pixel per point) |
 | `M` / `S` | microphone / system audio on or off |
+| arrows | move the region 1 pt; `⇧` — 10 pt; `⌥` — move the right and bottom edges instead |
+| `⇧` dragging a corner | keep the region's proportions |
+| `⌥` dragging an edge or a corner | grow from the middle |
+| `⌘` dragging | no magnet and no drop onto a window |
 | `Space` | window mode |
-| `Esc` | a half-typed size first, then cancel |
+| `Esc` | a half-typed size first, then the open Options, then cancel |
 
 All four shortcuts are editable in **Settings** (`⌘,`). Its tabs are the owner's О-C, Г-A, З-C
 and Ш-C of 2026-09-29, picked from a page of mockups: General (launch at login, ⌘Q, the language,
@@ -560,7 +586,9 @@ Paths are given relative to `Pawshot/Sources/`.
 | The Input Monitoring permission                       | `Recording/InputMonitoringPermission.swift` |
 | The mic level on the overlay, "no signal"             | `Recording/MicrophoneLevelMeter.swift`  |
 | Recording overlay: keys, proportions, typed size      | `Overlay/RecordingOverlayOptions.swift` |
-| Recording overlay: region handles, ghost, sound bar   | `Overlay/SelectionView.swift` + `OverlayHUD.swift` |
+| Recording overlay: region handles, grips, magnet, toolbar | `Overlay/SelectionView.swift` + `OverlayHUD.swift` |
+| Hover and press on the toolbar's and the pill's buttons | `App/Design/ChromeButtonStyle.swift`     |
+| The microphones a take can record from                | `Recording/MicrophoneDevices.swift`     |
 | The video editor window, its keys, hand-off, closing  | `VideoEditor/VideoEditorWindowController.swift` |
 | Player, film strip, piece brackets, hints, footer     | `VideoEditor/VideoEditorView.swift`     |
 | The kept pieces' rules, formats, size and time texts  | `VideoEditor/VideoEditing.swift`        |
@@ -897,7 +925,7 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
   Pawshot's own. `orderFrontRegardless()` puts it above everyone either way.
   `VideoEditorOrderingTests` reproduces it — the test host is a background app under xcodebuild —
   and was red without the call.
-- **A SwiftUI view built ahead of time must not capture its actions.** The sound bar on the
+- **A SwiftUI view built ahead of time must not capture its actions.** The toolbar on the
   recording overlay is prebuilt at launch (`OverlayHUD.prepare()`), and its actions are filled in
   per capture on `@ObservationIgnored` properties. `Button(action: model.start)` captured the empty
   default when the body was first built, and since changing an ignored property never rebuilds
@@ -974,6 +1002,25 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
   (`SelectionGeometry.handleTarget`) instead of snapping to the pointer.
 - **No region of nothing.** An edge dragged onto its opposite would leave a region too small to
   grab; on release it goes back to what it was before that drag.
+- **An edge hidden under another window is no line to stick to.** `SelectionGeometry.snapLines`
+  takes a window's edge only if that window is the one on top right beside the edge, at the
+  height nearest to the region's middle; the list comes front to back from before the overlay.
+- **The buttons' hover is not SwiftUI's.** The overlay never activates Pawshot and the pill
+  floats over the app being recorded, so both live in a panel of an app that isn't active, and
+  `onHover` there is not something to lean on. The owner of each piece knows where the mouse is —
+  the overlay's tracking area hears every move, toolbar included; the pill's hosting view has an
+  always-active one — and puts the point into the environment (`chromeHoverPoint`); each button
+  checks it against its own frame in the piece's named coordinate space. Whether plain `onHover`
+  would have worked was not measured.
+- **A system menu or a tooltip opens under the overlay**, which is at the screen saver's window
+  level — the same reason the microphone prompt is never asked for there. So Options is a panel
+  drawn by the toolbar itself, and its buttons draw their own tooltips. The Options panel changes
+  the toolbar's size while its frame is set by hand: toggling it asks the overlay to lay the
+  toolbar out again on the next turn of the run loop.
+- **The microphones are listed when Options open, not when the overlay does.** Asking the
+  system for devices is not for the 4–13 ms between the hotkey and the dimming. Until then the
+  meter and the take use the stored device id; a device that is gone falls back to the system's
+  (`MicrophoneDevices.resolved`), with an `.error` in the log.
 
 ### SwiftUI and Liquid Glass, and the four places that stay AppKit
 

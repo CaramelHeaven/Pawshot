@@ -567,13 +567,30 @@ enum SelectionGeometry {
     /// A corner keeps the opposite corner in place. An edge moves only itself — and with a fixed
     /// aspect it also resizes the other side around its middle, which is the only way an edge can
     /// keep the proportions.
+    ///
+    /// `fromCenter` — ⌥ held — mirrors the change about the middle of `rect`: what the dragged
+    /// side gains, the opposite side gains too, as far as the nearer screen edge allows.
     static func resized(
         _ rect: CGRect,
         dragging handle: Handle,
         to point: CGPoint,
         aspect: CGFloat?,
-        within bounds: CGRect
+        within bounds: CGRect,
+        fromCenter: Bool = false
     ) -> CGRect {
+        if fromCenter {
+            let oneSided = resized(rect, dragging: handle, to: point, aspect: aspect, within: bounds)
+            let width = min(
+                max(0, rect.width + 2 * (oneSided.width - rect.width)),
+                2 * min(rect.midX - bounds.minX, bounds.maxX - rect.midX)
+            )
+            let height = min(
+                max(0, rect.height + 2 * (oneSided.height - rect.height)),
+                2 * min(rect.midY - bounds.minY, bounds.maxY - rect.midY)
+            )
+            return CGRect(x: rect.midX - width / 2, y: rect.midY - height / 2, width: width, height: height)
+        }
+
         let x = min(max(point.x, bounds.minX), bounds.maxX)
         let y = min(max(point.y, bounds.minY), bounds.maxY)
 
@@ -676,24 +693,202 @@ enum SelectionGeometry {
         return moved(centred, by: .zero, within: bounds)
     }
 
-    /// Where the bar under a recording region goes, in view coordinates (origin top left): centred
-    /// below the region, above it when there's no room, and inside its bottom edge when the region
-    /// fills the screen.
-    static func barOrigin(under rect: CGRect, barSize: CGSize, bounds: CGRect, gap: CGFloat = 12) -> CGPoint {
-        let x = min(
-            max(bounds.minX + gap, rect.midX - barSize.width / 2),
-            bounds.maxX - gap - barSize.width
-        )
+    // MARK: - Grips, the magnet and the drop onto a window
 
-        let below = rect.maxY + gap
-        if below + barSize.height <= bounds.maxY - gap {
-            return CGPoint(x: x, y: below)
+    /// How far the mouse goes from a press before the press counts as a drag. A plain click
+    /// beside a recording region must leave the region alone.
+    static func isDrag(from start: CGPoint, to point: CGPoint, threshold: CGFloat = 3) -> Bool {
+        hypot(point.x - start.x, point.y - start.y) > threshold
+    }
+
+    /// Whether the cursor is close enough to a region for its grip pills to show.
+    static func isNear(_ point: CGPoint, to rect: CGRect, reach: CGFloat = 44) -> Bool {
+        rect.insetBy(dx: -reach, dy: -reach).contains(point)
+    }
+
+    /// The pills on the middles of a region's edges, each centred on its edge line: 34 × 5 pt,
+    /// and 56 × 7 for the one under the cursor. A side under 80 pt has none — the pill would run
+    /// into the corner brackets, and the edge is still grabbed by its zone.
+    static func gripPills(for rect: CGRect, hot: Handle?) -> [(handle: Handle, frame: CGRect)] {
+        func pill(_ handle: Handle) -> (handle: Handle, frame: CGRect) {
+            let length: CGFloat = handle == hot ? 56 : 34
+            let thickness: CGFloat = handle == hot ? 7 : 5
+            let horizontal = handle == .top || handle == .bottom
+            let size = horizontal ? CGSize(width: length, height: thickness) : CGSize(width: thickness, height: length)
+            let center = switch handle {
+            case .top: CGPoint(x: rect.midX, y: rect.minY)
+            case .bottom: CGPoint(x: rect.midX, y: rect.maxY)
+            case .left: CGPoint(x: rect.minX, y: rect.midY)
+            default: CGPoint(x: rect.maxX, y: rect.midY)
+            }
+            return (handle, CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height))
         }
-        let above = rect.minY - gap - barSize.height
-        if above >= bounds.minY + gap {
-            return CGPoint(x: x, y: above)
+        let shortest: CGFloat = 80
+        return (rect.width >= shortest ? [pill(.top), pill(.bottom)] : [])
+            + (rect.height >= shortest ? [pill(.left), pill(.right)] : [])
+    }
+
+    /// The lines a dragged region sticks to: `xs` and `ys` take its edges, the two middles take
+    /// its middle.
+    struct SnapLines: Equatable {
+        var xs: [CGFloat] = []
+        var ys: [CGFloat] = []
+        var middleX: CGFloat?
+        var middleY: CGFloat?
+    }
+
+    /// Where a guide line is drawn while the region sticks; `nil` on an axis that sticks to nothing.
+    struct SnapGuides: Equatable {
+        var x: CGFloat?
+        var y: CGFloat?
+    }
+
+    /// The edges of the screen, its middle, and the edges of `windows` (view coordinates, front
+    /// to back) that can be seen. An edge counts when its window is the one on top right beside
+    /// the edge, at the height — or, for a line across, the x — nearest to the region's middle:
+    /// an edge lying under another window is a line nobody sees.
+    static func snapLines(windows: [CGRect], bounds: CGRect, around rect: CGRect) -> SnapLines {
+        var lines = SnapLines(xs: [bounds.minX, bounds.maxX], ys: [bounds.minY, bounds.maxY], middleX: bounds.midX, middleY: bounds.midY)
+        for (index, window) in windows.enumerated() where window.width > 2 && window.height > 2 {
+            let y = min(max(rect.midY, window.minY + 1), window.maxY - 1)
+            let x = min(max(rect.midX, window.minX + 1), window.maxX - 1)
+            func onTop(_ point: CGPoint) -> Bool {
+                windows.firstIndex { $0.contains(point) } == index
+            }
+            if window.minX > bounds.minX, onTop(CGPoint(x: window.minX + 1, y: y)) {
+                lines.xs.append(window.minX)
+            }
+            if window.maxX < bounds.maxX, onTop(CGPoint(x: window.maxX - 1, y: y)) {
+                lines.xs.append(window.maxX)
+            }
+            if window.minY > bounds.minY, onTop(CGPoint(x: x, y: window.minY + 1)) {
+                lines.ys.append(window.minY)
+            }
+            if window.maxY < bounds.maxY, onTop(CGPoint(x: x, y: window.maxY - 1)) {
+                lines.ys.append(window.maxY)
+            }
         }
-        return CGPoint(x: x, y: rect.maxY - gap * 2 - barSize.height)
+        return lines
+    }
+
+    /// The nearest of `lines` to `value` within `tolerance`, and how far it is.
+    private static func nearest(_ lines: [CGFloat], to value: CGFloat, tolerance: CGFloat) -> (line: CGFloat, shift: CGFloat)? {
+        lines
+            .map { (line: $0, shift: $0 - value) }
+            .filter { abs($0.shift) <= tolerance }
+            .min { abs($0.shift) < abs($1.shift) }
+    }
+
+    /// A region being moved, pulled onto the nearest line on each axis — by an edge, or by its
+    /// middle onto the middle of the screen. The size never changes.
+    static func snapped(
+        moving rect: CGRect,
+        to lines: SnapLines,
+        within bounds: CGRect,
+        tolerance: CGFloat = 6
+    ) -> (rect: CGRect, guides: SnapGuides) {
+        func pull(_ origin: CGFloat, _ length: CGFloat, _ edges: [CGFloat], _ middle: CGFloat?) -> (line: CGFloat, shift: CGFloat)? {
+            let candidates = [nearest(edges, to: origin, tolerance: tolerance), nearest(edges, to: origin + length, tolerance: tolerance)]
+                + [middle.flatMap { nearest([$0], to: origin + length / 2, tolerance: tolerance) }]
+            return candidates.compactMap(\.self).min { abs($0.shift) < abs($1.shift) }
+        }
+        let x = pull(rect.minX, rect.width, lines.xs, lines.middleX)
+        let y = pull(rect.minY, rect.height, lines.ys, lines.middleY)
+        let shifted = rect.offsetBy(dx: x?.shift ?? 0, dy: y?.shift ?? 0)
+        let inside = moved(shifted, by: .zero, within: bounds)
+        return (inside, SnapGuides(x: inside.minX == shifted.minX ? x?.line : nil, y: inside.minY == shifted.minY ? y?.line : nil))
+    }
+
+    /// Where a dragged edge or corner is headed, pulled onto the nearest line: only on the axes
+    /// that handle moves along.
+    static func snapped(
+        _ point: CGPoint,
+        dragging handle: Handle,
+        to lines: SnapLines,
+        tolerance: CGFloat = 6
+    ) -> (point: CGPoint, guides: SnapGuides) {
+        let movesX = [.left, .right, .topLeft, .topRight, .bottomLeft, .bottomRight].contains(handle)
+        let movesY = [.top, .bottom, .topLeft, .topRight, .bottomLeft, .bottomRight].contains(handle)
+        let x = movesX ? nearest(lines.xs, to: point.x, tolerance: tolerance) : nil
+        let y = movesY ? nearest(lines.ys, to: point.y, tolerance: tolerance) : nil
+        return (CGPoint(x: x?.line ?? point.x, y: y?.line ?? point.y), SnapGuides(x: x?.line, y: y?.line))
+    }
+
+    /// The window a dragged region offers to fit: the one on top under the region's middle, and
+    /// only while that middle is close to the window's own — within `tolerance` of its shorter
+    /// side, both ways. Anywhere else over the window the region is simply laid on top of it.
+    /// `windows` are in view coordinates, front to back; the answer is an index into them.
+    static func fitCandidate(
+        center: CGPoint,
+        windows: [CGRect],
+        tolerance: CGFloat = 0.15,
+        minimumSide: CGFloat = 60
+    ) -> Int? {
+        guard let index = windows.firstIndex(where: { $0.contains(center) }) else { return nil }
+        let window = windows[index]
+        let shorter = min(window.width, window.height)
+        let reach = shorter * tolerance
+        guard shorter >= minimumSide, abs(center.x - window.midX) <= reach, abs(center.y - window.midY) <= reach
+        else { return nil }
+        return index
+    }
+
+    /// A region fitted to a window, grabbed again: back at `size`, with the grabbed spot the same
+    /// share of the way across and down as it was in the fitted one, and still on the screen.
+    static func restored(size: CGSize, grabbedAt grab: CGPoint, in fitted: CGRect, within bounds: CGRect) -> CGRect {
+        let shareX = fitted.width > 0 ? (grab.x - fitted.minX) / fitted.width : 0.5
+        let shareY = fitted.height > 0 ? (grab.y - fitted.minY) / fitted.height : 0.5
+        let rect = CGRect(
+            x: grab.x - size.width * shareX,
+            y: grab.y - size.height * shareY,
+            width: size.width,
+            height: size.height
+        )
+        return moved(rect, by: .zero, within: bounds)
+    }
+
+    /// An arrow key: the region shifted by `delta`, or — `resizing`, ⌥ held — its right and bottom
+    /// edges moved by it. Stops at the screen, and never shrinks the region out of reach.
+    static func nudged(_ rect: CGRect, by delta: CGSize, resizing: Bool, within bounds: CGRect) -> CGRect {
+        guard resizing else { return moved(rect, by: delta, within: bounds) }
+        let smallest: CGFloat = 8
+        return CGRect(
+            x: rect.minX,
+            y: rect.minY,
+            width: min(max(rect.width + delta.width, smallest), bounds.maxX - rect.minX),
+            height: min(max(rect.height + delta.height, smallest), bounds.maxY - rect.minY)
+        )
+    }
+
+    /// Where the recording toolbar goes, in view coordinates (origin top left): the middle of the
+    /// bottom of the screen, whatever the region does.
+    static func toolbarOrigin(toolbarSize: CGSize, bounds: CGRect, inset: CGFloat = 48) -> CGPoint {
+        CGPoint(x: bounds.midX - toolbarSize.width / 2, y: bounds.maxY - toolbarSize.height - inset)
+    }
+
+    /// Where the size label goes while an edge or a corner is dragged: just outside that edge,
+    /// by its middle — or by the corner — and pushed back inside the screen.
+    static func edgeLabelOrigin(
+        for handle: Handle,
+        of rect: CGRect,
+        labelSize: CGSize,
+        bounds: CGRect,
+        gap: CGFloat = 8
+    ) -> CGPoint {
+        let x: CGFloat = switch handle {
+        case .left, .topLeft, .bottomLeft: rect.minX - gap - labelSize.width
+        case .right, .topRight, .bottomRight: rect.maxX + gap
+        case .top, .bottom, .inside: rect.midX - labelSize.width / 2
+        }
+        let y: CGFloat = switch handle {
+        case .top, .topLeft, .topRight: rect.minY - gap - labelSize.height
+        case .bottom, .bottomLeft, .bottomRight: rect.maxY + gap
+        case .left, .right, .inside: rect.midY - labelSize.height / 2
+        }
+        return CGPoint(
+            x: min(max(bounds.minX, x), bounds.maxX - labelSize.width),
+            y: min(max(bounds.minY, y), bounds.maxY - labelSize.height)
+        )
     }
 
     // MARK: - Handles on drawn objects

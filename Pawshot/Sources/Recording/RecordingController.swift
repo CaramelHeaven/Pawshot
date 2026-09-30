@@ -92,6 +92,15 @@ final class RecordingController {
         }
 
         let microphone = await MicrophonePermission.resolve(wanted: settings.recordsMicrophone)
+        // The microphone picked in the toolbar, if it is still plugged in; otherwise the system's.
+        let devices = MicrophoneDevices.all()
+        let stored = settings.microphoneDeviceID
+        let device = microphone
+            ? MicrophoneDevices.resolved(stored: stored, among: devices, systemDefault: MicrophoneDevices.systemDefaultID)
+            : nil
+        if microphone, let stored, device != stored {
+            Self.logger.error("the picked microphone is gone: recording from the default one instead")
+        }
 
         // The pen's panel has to be on screen before the stream starts: it is the one Pawshot
         // window the filter lets through, and the filter is fixed from then on. A window
@@ -111,7 +120,8 @@ final class RecordingController {
                 includingWindows: ink.map { [$0.windowID] } ?? [],
                 nativeResolution: settings.recordsAtNativeResolution,
                 capturesSystemAudio: settings.recordsSystemAudio,
-                capturesMicrophone: microphone
+                capturesMicrophone: microphone,
+                microphoneDeviceID: device
             )
         } catch {
             ink?.close()
@@ -359,7 +369,8 @@ final class RecordingController {
         includingWindows includedIDs: [CGWindowID] = [],
         nativeResolution: Bool = true,
         capturesSystemAudio: Bool,
-        capturesMicrophone: Bool
+        capturesMicrophone: Bool,
+        microphoneDeviceID: String? = nil
     ) async throws -> (engine: RecordingEngine, size: (width: Int, height: Int)) {
         // A fresh enumeration rather than the screenshot cache: the filter needs our own app as it
         // is now, and a recording can afford the 20 ms a screenshot can't.
@@ -383,7 +394,8 @@ final class RecordingController {
                     pixelWidth: size.width,
                     pixelHeight: size.height,
                     capturesSystemAudio: capturesSystemAudio,
-                    capturesMicrophone: capturesMicrophone
+                    capturesMicrophone: capturesMicrophone,
+                    microphoneDeviceID: microphoneDeviceID
                 ),
                 outputURL: outputURL
             )
@@ -422,7 +434,8 @@ final class RecordingController {
                 pixelWidth: size.width,
                 pixelHeight: size.height,
                 capturesSystemAudio: capturesSystemAudio,
-                capturesMicrophone: capturesMicrophone
+                capturesMicrophone: capturesMicrophone,
+                microphoneDeviceID: microphoneDeviceID
             ),
             outputURL: outputURL
         )

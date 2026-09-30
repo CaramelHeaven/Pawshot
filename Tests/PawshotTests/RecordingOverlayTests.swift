@@ -117,18 +117,6 @@ final class RecordingRegionGeometryTests: XCTestCase {
             pixelWidth: 3840, pixelHeight: 2160, outputScale: 2, around: .zero, within: bounds
         ), "a size bigger than the display is a promise that can't be kept")
     }
-
-    func testBarGoesUnderThenAboveThenInside() {
-        let bar = CGSize(width: 300, height: 36)
-        XCTAssertEqual(SelectionGeometry.barOrigin(under: region, barSize: bar, bounds: bounds).y, 412)
-
-        let low = CGRect(x: 100, y: 500, width: 400, height: 290)
-        XCTAssertEqual(SelectionGeometry.barOrigin(under: low, barSize: bar, bounds: bounds).y, 500 - 12 - 36)
-
-        let full = SelectionGeometry.barOrigin(under: bounds, barSize: bar, bounds: bounds)
-        XCTAssertEqual(full.y, 800 - 24 - 36)
-        XCTAssertEqual(full.x, 350)
-    }
 }
 
 final class RecordingOverlayOptionsTests: XCTestCase {
@@ -184,6 +172,13 @@ final class RecordingOverlayOptionsTests: XCTestCase {
         XCTAssertEqual(try RecordingOverlayKey.action(for: key(keyCode: kVK_Return, characters: "\r")), .start)
         XCTAssertNil(try RecordingOverlayKey.action(for: key(keyCode: kVK_Space, characters: " ")))
     }
+
+    /// Down is +Y: the overlay counts from the top.
+    func testArrowsAreStepsInViewCoordinates() throws {
+        XCTAssertEqual(try RecordingOverlayKey.arrow(for: key(keyCode: kVK_LeftArrow, characters: "\u{F702}")), CGSize(width: -1, height: 0))
+        XCTAssertEqual(try RecordingOverlayKey.arrow(for: key(keyCode: kVK_DownArrow, characters: "\u{F701}")), CGSize(width: 0, height: 1))
+        XCTAssertNil(try RecordingOverlayKey.arrow(for: key(keyCode: kVK_ANSI_A, characters: "a")))
+    }
 }
 
 final class SignalWatchTests: XCTestCase {
@@ -233,17 +228,22 @@ final class RecordingSelectionViewTests: XCTestCase {
         func selectionView(_: SelectionView, didSwitchTo _: SelectionView.Mode) {}
     }
 
-    private func mouse(_ type: NSEvent.EventType, at point: CGPoint, in view: NSView) throws -> NSEvent {
+    private func mouse(
+        _ type: NSEvent.EventType,
+        at point: CGPoint,
+        in view: NSView,
+        modifiers: NSEvent.ModifierFlags = []
+    ) throws -> NSEvent {
         try XCTUnwrap(NSEvent.mouseEvent(
             with: type, location: CGPoint(x: point.x, y: view.bounds.height - point.y),
-            modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+            modifierFlags: modifiers, timestamp: 0, windowNumber: 0, context: nil,
             eventNumber: 0, clickCount: 1, pressure: 1
         ))
     }
 
-    private func key(_ characters: String, keyCode: Int) throws -> NSEvent {
+    private func key(_ characters: String, keyCode: Int, modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {
         try XCTUnwrap(NSEvent.keyEvent(
-            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
+            with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0, windowNumber: 0,
             context: nil, characters: characters, charactersIgnoringModifiers: characters,
             isARepeat: false, keyCode: UInt16(keyCode)
         ))
@@ -258,11 +258,25 @@ final class RecordingSelectionViewTests: XCTestCase {
         return (view, spy)
     }
 
-    private func drag(_ view: SelectionView, from start: CGPoint, to end: CGPoint) throws {
-        try view.mouseDown(with: mouse(.leftMouseDown, at: start, in: view))
-        try view.mouseDragged(with: mouse(.leftMouseDragged, at: end, in: view))
-        try view.mouseUp(with: mouse(.leftMouseUp, at: end, in: view))
+    private func drag(
+        _ view: SelectionView,
+        from start: CGPoint,
+        to end: CGPoint,
+        modifiers: NSEvent.ModifierFlags = []
+    ) throws {
+        try view.mouseDown(with: mouse(.leftMouseDown, at: start, in: view, modifiers: modifiers))
+        try view.mouseDragged(with: mouse(.leftMouseDragged, at: end, in: view, modifiers: modifiers))
+        try view.mouseUp(with: mouse(.leftMouseUp, at: end, in: view, modifiers: modifiers))
     }
+
+    /// What ↩ would record now.
+    private func recorded(_ view: SelectionView, _ spy: Spy) throws -> CGRect? {
+        try view.keyDown(with: key("\r", keyCode: kVK_Return))
+        return spy.selected.last?.0
+    }
+
+    /// A window of another app, 300 × 300 with its middle at (550, 350).
+    private let otherWindow = CapturedWindow(frame: CGRect(x: 400, y: 200, width: 300, height: 300), ownerPID: 1, windowID: 7)
 
     /// A screenshot ends on mouse up; a recording region stays, and ↩ starts it.
     func testMouseUpKeepsTheRegionAndReturnStarts() throws {
@@ -306,13 +320,141 @@ final class RecordingSelectionViewTests: XCTestCase {
         XCTAssertEqual(spy.selected.first?.0, CGRect(x: 100, y: 100, width: 200, height: 150))
     }
 
-    func testReturnWithoutARegionRecordsTheGhost() throws {
+    /// The region recorded last time comes back as the region itself, not as a picture of one:
+    /// ↩ records it as it stands, and a drag by its middle moves it. It used to be a dashed ghost,
+    /// and a press inside it drew a new region.
+    func testTheLastRegionComesBackAlive() throws {
         let (view, spy) = makeView()
-        view.ghost = CGRect(x: 10, y: 20, width: 300, height: 200)
+        let last = CGRect(x: 10, y: 20, width: 300, height: 200)
+        view.restore(lastRegion: last)
+        XCTAssertEqual(try recorded(view, spy), last)
 
-        try view.keyDown(with: key("\r", keyCode: kVK_Return))
+        try drag(view, from: CGPoint(x: 160, y: 120), to: CGPoint(x: 200, y: 150))
+        XCTAssertEqual(try recorded(view, spy), CGRect(x: 50, y: 50, width: 300, height: 200))
+    }
 
-        XCTAssertEqual(spy.selected.first?.0, view.ghost)
+    /// A click beside the region used to wipe it on the press itself.
+    func testAClickBesideTheRegionLeavesIt() throws {
+        let (view, spy) = makeView()
+        try drag(view, from: CGPoint(x: 100, y: 100), to: CGPoint(x: 300, y: 250))
+
+        let beside = CGPoint(x: 600, y: 500)
+        try view.mouseDown(with: mouse(.leftMouseDown, at: beside, in: view))
+        XCTAssertNotNil(view.recordingRegion, "the press alone changes nothing")
+        try view.mouseDragged(with: mouse(.leftMouseDragged, at: CGPoint(x: 601, y: 502), in: view))
+        try view.mouseUp(with: mouse(.leftMouseUp, at: CGPoint(x: 601, y: 502), in: view))
+
+        XCTAssertEqual(try recorded(view, spy), CGRect(x: 100, y: 100, width: 200, height: 150))
+    }
+
+    func testAPressBesideBecomesANewRegionOnceItMoves() throws {
+        let (view, spy) = makeView()
+        try drag(view, from: CGPoint(x: 100, y: 100), to: CGPoint(x: 300, y: 250))
+        try drag(view, from: CGPoint(x: 500, y: 300), to: CGPoint(x: 700, y: 450))
+
+        XCTAssertEqual(try recorded(view, spy), CGRect(x: 500, y: 300, width: 200, height: 150))
+    }
+
+    // MARK: - The drop onto a window
+
+    /// Dragged by its middle onto the middle of a window, the region takes the window's frame —
+    /// as a region: no window id goes to the recorder.
+    func testDroppedOnTheMiddleOfAWindowTheRegionTakesItsFrame() throws {
+        let (view, spy) = makeView()
+        view.windows = [otherWindow]
+        try drag(view, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 150, y: 130))
+        try drag(view, from: CGPoint(x: 100, y: 90), to: CGPoint(x: 550, y: 350))
+
+        XCTAssertEqual(try recorded(view, spy), otherWindow.frame)
+        XCTAssertNil(spy.selected.last?.1, "a fitted region is still a region")
+    }
+
+    /// Moved again, it is the size it was before the drop.
+    func testMovedAgainTheFittedRegionGetsItsSizeBack() throws {
+        let (view, spy) = makeView()
+        view.windows = [otherWindow]
+        try drag(view, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 150, y: 130))
+        try drag(view, from: CGPoint(x: 100, y: 90), to: CGPoint(x: 550, y: 350))
+
+        // Grabbed a quarter of the way across and down the window: the cursor stays a quarter of
+        // the way across and down the region that comes back.
+        try drag(view, from: CGPoint(x: 475, y: 275), to: CGPoint(x: 175, y: 375))
+
+        XCTAssertEqual(try recorded(view, spy), CGRect(x: 150, y: 355, width: 100, height: 80))
+    }
+
+    /// A click on a fitted region is not a move: it stays the window's size.
+    func testAClickOnAFittedRegionKeepsItFitted() throws {
+        let (view, spy) = makeView()
+        view.windows = [otherWindow]
+        try drag(view, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 150, y: 130))
+        try drag(view, from: CGPoint(x: 100, y: 90), to: CGPoint(x: 550, y: 350))
+        try drag(view, from: CGPoint(x: 500, y: 300), to: CGPoint(x: 501, y: 301))
+
+        XCTAssertEqual(try recorded(view, spy), otherWindow.frame)
+    }
+
+    /// Anywhere else over the window, the region is just laid on top of it.
+    func testOffTheMiddleOfAWindowTheRegionKeepsItsSize() throws {
+        let (view, spy) = makeView()
+        view.windows = [otherWindow]
+        try drag(view, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 150, y: 130))
+        try drag(view, from: CGPoint(x: 100, y: 90), to: CGPoint(x: 470, y: 350))
+
+        XCTAssertEqual(try recorded(view, spy), CGRect(x: 420, y: 310, width: 100, height: 80))
+    }
+
+    func testCommandSwitchesTheFitAndTheMagnetOff() throws {
+        let (view, spy) = makeView()
+        view.windows = [otherWindow]
+        try drag(view, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 150, y: 130))
+        try drag(view, from: CGPoint(x: 100, y: 90), to: CGPoint(x: 550, y: 350), modifiers: .command)
+        XCTAssertEqual(try recorded(view, spy), CGRect(x: 500, y: 310, width: 100, height: 80))
+
+        // 3 pt short of the window's right edge, at x 700: with ⌘ the dragged edge stays there.
+        try drag(view, from: CGPoint(x: 600, y: 350), to: CGPoint(x: 697, y: 350), modifiers: .command)
+        XCTAssertEqual(try recorded(view, spy)?.maxX, 697)
+    }
+
+    // MARK: - The magnet, the arrows, the modes
+
+    func testADraggedEdgeSticksToAWindowEdge() throws {
+        let (view, spy) = makeView()
+        view.windows = [otherWindow]
+        try drag(view, from: CGPoint(x: 100, y: 100), to: CGPoint(x: 300, y: 250))
+        // The right edge is dragged to 4 pt short of the window's left edge, at x 400.
+        try drag(view, from: CGPoint(x: 300, y: 175), to: CGPoint(x: 396, y: 175))
+
+        XCTAssertEqual(try recorded(view, spy), CGRect(x: 100, y: 100, width: 300, height: 150))
+    }
+
+    func testArrowsMoveAndResizeTheRegion() throws {
+        let (view, spy) = makeView()
+        try drag(view, from: CGPoint(x: 100, y: 100), to: CGPoint(x: 300, y: 250))
+
+        try view.keyDown(with: key("\u{F703}", keyCode: kVK_RightArrow))
+        try view.keyDown(with: key("\u{F700}", keyCode: kVK_UpArrow, modifiers: .shift))
+        XCTAssertEqual(try recorded(view, spy), CGRect(x: 101, y: 90, width: 200, height: 150))
+
+        try view.keyDown(with: key("\u{F701}", keyCode: kVK_DownArrow, modifiers: [.option, .shift]))
+        XCTAssertEqual(try recorded(view, spy), CGRect(x: 101, y: 90, width: 200, height: 160))
+    }
+
+    /// The toolbar switches modes back and forth; the region must outlive the trip.
+    func testSwitchingModesKeepsTheRegion() throws {
+        let (view, spy) = makeView()
+        try drag(view, from: CGPoint(x: 100, y: 100), to: CGPoint(x: 300, y: 250))
+        view.apply(mode: .window)
+        view.apply(mode: .region)
+
+        XCTAssertEqual(try recorded(view, spy), CGRect(x: 100, y: 100, width: 200, height: 150))
+    }
+
+    func testTheScreenModeRecordsTheWholeScreen() throws {
+        let (view, spy) = makeView()
+        view.apply(mode: .screen)
+
+        XCTAssertEqual(try recorded(view, spy), view.bounds)
     }
 
     func testTypedSizeBecomesTheRegion() throws {

@@ -51,7 +51,13 @@ final class RecordingPillController {
         panel.isFloatingPanel = true
         // Above the menu bar, so the notch look can sit on it.
         panel.configureAsOverlay(level: .statusBar)
-        panel.contentView = NSHostingView(rootView: RecordingPillView(model: model, actions: actions))
+        let host = PillHostingView(rootView: RecordingPillView(model: model, actions: actions))
+        host.onMouse = { [model] point in
+            if model.hoverPoint != point {
+                model.hoverPoint = point
+            }
+        }
+        panel.contentView = host
     }
 
     /// Shows the pill — in the notch of `screen` when it has one, otherwise by the recorded area
@@ -94,6 +100,7 @@ final class RecordingPillController {
     func hide() {
         proximityTimer?.invalidate()
         proximityTimer = nil
+        model.hoverPoint = nil
         panel.orderOut(nil)
     }
 
@@ -147,6 +154,42 @@ final class RecordingPillController {
     }
 }
 
+/// The pill's hosting view, telling where the mouse is over it.
+///
+/// The pill floats over whatever app is being recorded, so Pawshot is not the active app and the
+/// panel is never key; a tracking area that is active always still hears the mouse there, which
+/// is what the buttons' hover is made of — see `ChromeButtonStyle`.
+final class PillHostingView: NSHostingView<RecordingPillView> {
+    /// The mouse in SwiftUI's terms — from the top left of the view — or `nil` once it has left.
+    var onMouse: ((CGPoint?) -> Void)?
+    private var hoverArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverArea {
+            removeTrackingArea(hoverArea)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        hoverArea = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        let point = convert(event.locationInWindow, from: nil)
+        onMouse?(CGPoint(x: point.x, y: isFlipped ? point.y : bounds.height - point.y))
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        onMouse?(nil)
+    }
+}
+
 @MainActor
 @Observable
 final class PillModel {
@@ -163,6 +206,8 @@ final class PillModel {
     var penIsOn = false
     var zoomFlash = false
     var stopShortcut: HotKeyBinding?
+    /// Where the mouse is over the pill, from its top left; `nil` when it is elsewhere.
+    var hoverPoint: CGPoint?
 }
 
 struct RecordingPillView: View {
@@ -182,6 +227,8 @@ struct RecordingPillView: View {
         }
         .animation(.easeOut(duration: Tokens.Motion.enter), value: model.isCompact)
         .animation(.easeOut(duration: Tokens.Motion.enter), value: model.isExpanded)
+        .coordinateSpace(.named(ChromeButtonStyle.space))
+        .environment(\.chromeHoverPoint, model.hoverPoint)
         .environment(\.colorScheme, .dark)
     }
 
@@ -192,7 +239,7 @@ struct RecordingPillView: View {
                     .opacity(0.4)
                     .transition(.opacity)
             } else {
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     dot(status, size: 10)
                     time(status)
                     Divider().frame(height: 18)
@@ -220,7 +267,7 @@ struct RecordingPillView: View {
             .frame(height: model.notchHeight)
 
             if model.isExpanded {
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     buttons(status)
                 }
                 .frame(height: 56)
@@ -271,18 +318,19 @@ struct RecordingPillView: View {
         pillButton("arrow.counterclockwise", help: "Restart — the take is thrown away", shortcut: settings.restartHotKey) {
             actions.restart()
         }
-        pillButton("stop.fill", help: "Stop", shortcut: model.stopShortcut) {
+        pillButton("stop.fill", help: "Stop", shortcut: model.stopShortcut, tint: .red) {
             actions.stop()
         }
     }
 
     /// An icon with its shortcut written small underneath: the keys are learned by looking, not
-    /// by hovering for a tooltip.
+    /// by hovering for a tooltip. It lights up under the cursor and gives way under a press.
     private func pillButton(
         _ symbol: String,
         help: LocalizedStringResource,
         shortcut: HotKeyBinding? = nil,
         isOn: Bool = false,
+        tint: Color = .primary,
         action: @escaping () -> Void
     ) -> some View {
         let help = String(localized: help)
@@ -291,7 +339,7 @@ struct RecordingPillView: View {
             VStack(spacing: 1) {
                 Image(systemName: symbol)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(isOn ? Tokens.paw : Color.primary)
+                    .foregroundStyle(isOn ? Tokens.paw : tint)
                     .frame(height: 20)
                 Text(shortcut?.displayString ?? " ")
                     .font(.system(size: 9, weight: .medium).monospaced())
@@ -299,10 +347,9 @@ struct RecordingPillView: View {
                     .fixedSize()
             }
             .frame(minWidth: 30, minHeight: 36)
-            .contentShape(.rect)
             .animation(.easeOut(duration: 0.15), value: isOn)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ChromeButtonStyle(insets: EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4)))
         .help(label)
         .accessibilityLabel(label)
     }

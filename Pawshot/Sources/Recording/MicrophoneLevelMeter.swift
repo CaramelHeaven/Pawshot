@@ -49,8 +49,11 @@ final class MicrophoneLevelMeter: @unchecked Sendable {
 
     /// Called on the main actor with the meter level (0…1) and whether the mic reads as dead.
     private let onLevel: @MainActor @Sendable (Float, Bool) -> Void
+    /// The microphone to listen to, by its unique id; `nil` listens to the system's default.
+    private let deviceUID: String?
 
-    init(onLevel: @escaping @MainActor @Sendable (Float, Bool) -> Void) {
+    init(deviceUID: String? = nil, onLevel: @escaping @MainActor @Sendable (Float, Bool) -> Void) {
+        self.deviceUID = deviceUID
         self.onLevel = onLevel
     }
 
@@ -72,6 +75,15 @@ final class MicrophoneLevelMeter: @unchecked Sendable {
         guard engine == nil else { return }
         let engine = AVAudioEngine()
         let input = engine.inputNode
+        // The picked microphone, not whatever the system listens to: the meter has to show the
+        // one the take will record. Set before the format is read — the format is the device's.
+        if let deviceUID, let deviceID = MicrophoneDevices.audioDeviceID(forUID: deviceUID) {
+            do {
+                try input.auAudioUnit.setDeviceID(deviceID)
+            } catch {
+                Self.logger.error("level meter: the picked microphone was not taken (\(String(describing: error), privacy: .public)): listening to the default")
+            }
+        }
         let format = input.inputFormat(forBus: 0)
 
         // No input device at all: installing a tap on a zero-rate format crashes, and "dead" is

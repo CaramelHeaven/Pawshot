@@ -41,6 +41,8 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         var framesPerSecond = 60
         var capturesSystemAudio: Bool
         var capturesMicrophone: Bool
+        /// The microphone to record, by its unique id; `nil` takes the system's default.
+        var microphoneDeviceID: String?
     }
 
     private static var logger: Logger {
@@ -117,6 +119,9 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         streamConfiguration.sampleRate = 48000
         streamConfiguration.channelCount = 2
         streamConfiguration.captureMicrophone = configuration.capturesMicrophone
+        if configuration.capturesMicrophone, let device = configuration.microphoneDeviceID {
+            streamConfiguration.microphoneCaptureDeviceID = device
+        }
 
         let stream = SCStream(filter: filter, configuration: streamConfiguration, delegate: self)
         try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)

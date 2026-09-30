@@ -3,14 +3,14 @@ import AppKit
 import SwiftUI
 import XCTest
 
-/// The sound bar is built once at launch and its actions are filled in later, per capture. A
+/// The recording toolbar is built once at launch and its actions are filled in later, per capture. A
 /// button that captured the action when the view was first drawn stays dead for good — exactly
 /// what "Record only works with ↩" was.
 @MainActor
 final class RecordingBarTests: XCTestCase {
     func testButtonsCallTheActionsSetAfterTheFirstDraw() throws {
         let model = OverlayHUD.RecordingBarModel()
-        let host = NSHostingView(rootView: RecordingBarView(model: model))
+        let host = NSHostingView(rootView: RecordingToolbarView(model: model))
         let size = host.fittingSize
         let window = NSWindow(
             contentRect: CGRect(origin: CGPoint(x: 200, y: 200), size: size),
@@ -25,7 +25,7 @@ final class RecordingBarTests: XCTestCase {
         var started = 0
         model.start = { started += 1 }
 
-        // The Record button is the last thing in the bar, just inside its right padding.
+        // The Record button is the last thing in the toolbar, just inside its right padding.
         let point = CGPoint(x: size.width - 40, y: size.height / 2)
         for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
             let event = try XCTUnwrap(NSEvent.mouseEvent(
@@ -64,7 +64,7 @@ final class RecordingBarInOverlayTests: XCTestCase {
         window.sendEvent(event)
     }
 
-    /// Opens the recording overlay with a region drawn and the bar laid out under it.
+    /// Opens the recording overlay with a region drawn and the toolbar laid out at the bottom.
     private func overlayWithRegion(
         onSelect: @escaping (SelectionOverlayController.Selection?) -> Void
     ) throws -> (SelectionOverlayController, NSWindow, SelectionView) {
@@ -134,7 +134,7 @@ final class RecordingBarInOverlayTests: XCTestCase {
         view.cacheDisplay(in: view.bounds, to: rep)
 
         let bar = OverlayHUD.recordingBarHost
-        XCTAssertTrue(bar.superview === view, "the sound bar is under the region")
+        XCTAssertTrue(bar.superview === view, "the toolbar is on the screen that was clicked")
         XCTAssertGreaterThan(bar.frame.width, 100, "a bar with an empty frame can't be clicked")
         let record = view.convert(CGPoint(x: bar.frame.maxX - 40, y: bar.frame.midY), to: nil)
 

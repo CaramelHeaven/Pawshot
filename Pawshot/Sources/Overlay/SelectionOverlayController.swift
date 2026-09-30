@@ -19,6 +19,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         let frame: CapturedFrame
         /// Set when a whole window was picked: a recording follows the window, not the region.
         var windowID: CGWindowID?
+        /// The whole display was picked — the toolbar's "screen" — rather than a part of it.
+        var isWholeDisplay = false
     }
 
     /// The windows of the capture on screen now; empty between captures.
@@ -145,9 +147,17 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             view.purpose = purpose
             if purpose == .recording {
                 view.nativeResolution = settings.recordsAtNativeResolution
-                view.ghost = settings.lastRecordingArea(on: displayID)
+                // The region last recorded here comes back alive, to be moved, resized or
+                // recorded again with ↩.
+                let last = settings.lastRecordingArea(on: displayID)
                     .map { $0.intersection(CGRect(origin: .zero, size: screen.frame.size)) }
-                    .flatMap { $0.isEmpty ? nil : $0 }
+                    .flatMap { SelectionGeometry.isTooSmall($0) ? nil : $0 }
+                if let last {
+                    view.restore(lastRegion: last)
+                    Self.logger.notice(
+                        "last region restored on display \(displayID, privacy: .public): \(Int(last.width), privacy: .public)×\(Int(last.height), privacy: .public) pt"
+                    )
+                }
             }
             window.install(view)
             windows.append(window)
@@ -247,8 +257,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
     func dismiss() {
         Self.logger.notice("overlay dismissed")
         OverlayDiagnostics.ended()
-        levelMeter?.stop()
-        levelMeter = nil
+        stopLevelMeter()
         OverlayHUD.hide()
         for window in windows {
             window.orderOut(nil)
@@ -290,7 +299,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         // Coordinates inside the view already run top to bottom; all that's left is to shift them
         // by the screen origin.
         let globalRect = rect.offsetBy(dx: origin.x, dy: origin.y)
-        let kind = windowID == nil ? "region" : "window"
+        let isWholeDisplay = windowID == nil && view.mode == .screen
+        let kind = windowID != nil ? "window" : (isWholeDisplay ? "whole screen" : "region")
         let width = Int(rect.width.rounded())
         let height = Int(rect.height.rounded())
         Self.logger.notice(
@@ -302,12 +312,13 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             rect: globalRect,
             screen: screen,
             frame: frame,
-            windowID: windowID
+            windowID: windowID,
+            isWholeDisplay: isWholeDisplay
         ))
     }
 
     /// M, S and X are settings, not a state of one screen: they are stored, and every overlay
-    /// and the sound bar follow.
+    /// and the toolbar follow.
     func selectionView(_ view: SelectionView, didToggle option: RecordingOverlayKey) {
         let settings = Settings.shared
         switch option {
@@ -332,40 +343,135 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         syncRecordingBar()
     }
 
-    // MARK: - Recording bar
+    // MARK: - Recording toolbar
+
+    /// The overlay that holds the toolbar — the one on the screen the cursor is on.
+    private var toolbarView: SelectionView? {
+        OverlayHUD.recordingBarHost.superview as? SelectionView
+    }
 
     private func prepareRecordingBar() {
         let bar = OverlayHUD.recordingBar
+        let settings = Settings.shared
+        bar.mode = .region
+        bar.optionsShown = false
+        bar.hoverPoint = nil
         bar.level = 0
         bar.microphoneIsSilent = false
-        bar.toggleMicrophone = { [weak self] in self?.toggleFromBar(.microphone) }
+        bar.setMode = { [weak self] mode in
+            Self.logger.notice("toolbar: mode \(String(describing: mode), privacy: .public) pressed")
+            self?.switchAll(to: mode)
+        }
+        bar.toggleOptions = { [weak self] in self?.toggleOptions() }
+        bar.chooseMicrophone = { [weak self] device in
+            let described = device ?? "none"
+            Self.logger.notice("options: microphone \(described, privacy: .public) picked")
+            settings.recordsMicrophone = device != nil
+            if let device {
+                settings.microphoneDeviceID = device
+            }
+            // A different microphone is a different thing to listen to.
+            self?.stopLevelMeter()
+            self?.syncRecordingBar()
+        }
         bar.toggleSystemAudio = { [weak self] in self?.toggleFromBar(.systemAudio) }
-        // The bar lives inside the overlay that has the region; that one records.
-        bar.start = {
-            Self.logger.notice("sound bar: Record pressed")
-            (OverlayHUD.recordingBarHost.superview as? SelectionView)?.commitRecording()
+        bar.toggleScale = { [weak self] in
+            guard let self, let view = toolbarView else { return }
+            Self.logger.notice("options: scale pressed")
+            view.nativeResolution.toggle()
+            selectionView(view, didToggle: .scale)
+        }
+        bar.toggleClicks = { [weak self] in
+            settings.showsClicks.toggle()
+            let clicks = settings.showsClicks
+            Self.logger.notice("options: clicks in the video → \(clicks, privacy: .public)")
+            self?.syncRecordingBar()
+        }
+        bar.toggleKeystrokes = { [weak self] in
+            settings.showsKeystrokes.toggle()
+            let keys = settings.showsKeystrokes
+            Self.logger.notice("options: pressed shortcuts in the video → \(keys, privacy: .public)")
+            self?.syncRecordingBar()
+        }
+        // The toolbar lives inside the overlay of the screen the cursor is on; that one records.
+        bar.start = { [weak self] in
+            Self.logger.notice("toolbar: Record pressed")
+            guard let view = self?.toolbarView else {
+                Self.logger.error("toolbar: Record pressed, but the toolbar is in no overlay")
+                return
+            }
+            view.commitRecording()
         }
         syncRecordingBar()
     }
 
     private func toggleFromBar(_ option: RecordingOverlayKey) {
-        Self.logger.notice("sound bar: \(String(describing: option), privacy: .public) pressed")
-        guard let view = OverlayHUD.recordingBarHost.superview as? SelectionView else { return }
+        Self.logger.notice("options: \(String(describing: option), privacy: .public) pressed")
+        guard let view = toolbarView else { return }
         selectionView(view, didToggle: option)
     }
 
-    /// Puts the stored settings on the bar and runs the level meter exactly while it is wanted:
-    /// the microphone on and access already granted. Never asks for access here — the system
-    /// prompt would open under the overlay. The recording asks, once the overlay is gone.
+    /// Opens or closes the Options panel. Opening it is when the microphones are listed: asking
+    /// the system for them is not something to do between the hotkey and the dimming.
+    private func toggleOptions() {
+        let bar = OverlayHUD.recordingBar
+        bar.optionsShown.toggle()
+        let shown = bar.optionsShown
+        if shown {
+            bar.microphones = MicrophoneDevices.all()
+            syncRecordingBar()
+        }
+        let count = bar.microphones.count
+        Self.logger.notice("options \(shown ? "opened" : "closed", privacy: .public), \(count, privacy: .public) microphone(s)")
+        // The panel changes the toolbar's size, and its frame is set by hand: once SwiftUI has
+        // taken the change in, the overlay lays it out again.
+        DispatchQueue.main.async { [weak self] in
+            self?.toolbarView?.needsDisplay = true
+        }
+    }
+
+    /// One screen's mode for every screen, the toolbar and the hints.
+    private func switchAll(to mode: SelectionView.Mode) {
+        for view in selectionViews {
+            view.apply(mode: mode)
+        }
+        OverlayHUD.hints.mode = mode
+        OverlayHUD.recordingBar.mode = mode
+        Self.logger.notice("overlay mode → \(String(describing: mode), privacy: .public)")
+    }
+
+    private func stopLevelMeter() {
+        levelMeter?.stop()
+        levelMeter = nil
+        OverlayHUD.recordingBar.level = 0
+        OverlayHUD.recordingBar.microphoneIsSilent = false
+    }
+
+    /// Puts the stored settings on the toolbar and runs the level meter exactly while it is
+    /// wanted: the microphone on and access already granted. Never asks for access here — the
+    /// system prompt would open under the overlay. The recording asks, once the overlay is gone.
     private func syncRecordingBar() {
         let settings = Settings.shared
         let bar = OverlayHUD.recordingBar
         bar.microphoneIsOn = settings.recordsMicrophone
         bar.systemAudioIsOn = settings.recordsSystemAudio
+        bar.showsClicks = settings.showsClicks
+        bar.showsKeystrokes = settings.showsKeystrokes
+        bar.keystrokesAllowed = InputMonitoringPermission.isGranted
+        bar.nativeResolution = settings.recordsAtNativeResolution
+        bar.canSwitchScale = selectionViews.contains { $0.scale > 1 }
+        // Which row is ticked: known only once the list is there, that is, once Options opened.
+        if !bar.microphones.isEmpty {
+            bar.microphoneID = MicrophoneDevices.resolved(
+                stored: settings.microphoneDeviceID,
+                among: bar.microphones,
+                systemDefault: MicrophoneDevices.systemDefaultID
+            )
+        }
 
         let wantsMeter = purpose == .recording && settings.recordsMicrophone && MicrophonePermission.isGranted
         if wantsMeter, levelMeter == nil {
-            let meter = MicrophoneLevelMeter { level, silent in
+            let meter = MicrophoneLevelMeter(deviceUID: settings.microphoneDeviceID) { level, silent in
                 if OverlayHUD.recordingBar.microphoneIsSilent != silent {
                     Self.logger.notice("mic meter: \(silent ? "silent" : "hearing sound", privacy: .public)")
                 }
@@ -374,11 +480,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             }
             meter.start()
             levelMeter = meter
-        } else if !wantsMeter, let meter = levelMeter {
-            meter.stop()
-            levelMeter = nil
-            bar.level = 0
-            bar.microphoneIsSilent = false
+        } else if !wantsMeter, levelMeter != nil {
+            stopLevelMeter()
         }
     }
 
@@ -399,11 +502,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
 
     /// One screen switched modes — the rest follow, otherwise moving the cursor to another display
     /// would silently change what a click does.
-    func selectionView(_ view: SelectionView, didSwitchTo mode: SelectionView.Mode) {
-        Self.logger.notice("overlay mode → \(String(describing: mode), privacy: .public)")
-        for other in selectionViews where other !== view {
-            other.apply(mode: mode)
-        }
+    func selectionView(_: SelectionView, didSwitchTo mode: SelectionView.Mode) {
+        switchAll(to: mode)
     }
 
     private func finish(with selection: Selection?) {
