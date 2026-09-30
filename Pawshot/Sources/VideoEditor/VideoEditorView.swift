@@ -28,6 +28,8 @@ final class VideoEditorModel {
     var effects = EffectsOptions()
     /// The key hints under the strip, for the first few openings.
     var showsHints = false
+    /// The take's timeline couldn't be read: its effects, hidden parts included, won't be there.
+    var timelineIsLost = false
 
     init(videoSize: CGSize, preset: VideoPreset) {
         self.videoSize = videoSize
@@ -91,6 +93,16 @@ struct VideoEditorView: View {
                 if model.showsHints {
                     EditorHints()
                 }
+            }
+
+            if model.timelineIsLost {
+                Label(
+                    "The clicks, zooms and hidden parts of this recording couldn't be read — they won't be in the video.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.callout)
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if let progress = model.exportProgress {

@@ -17,6 +17,14 @@ struct RecordingTarget {
     var maskZones: [CGRect] = []
 }
 
+extension RecordingTarget {
+    /// The same take's region somewhere else: moved on a pause. Only the place and the zones'
+    /// fractions change.
+    func moved(to rect: CGRect, maskZones: [CGRect]) -> RecordingTarget {
+        RecordingTarget(displayID: displayID, rect: rect, screen: screen, windowID: windowID, maskZones: maskZones)
+    }
+}
+
 /// One recording at a time, from the hotkey to the file: the engine, the pill, the time in the
 /// menu bar.
 ///
@@ -159,8 +167,14 @@ final class RecordingController {
             throw error
         }
         self.ink = ink
-        engine.onUnexpectedStop = { [weak self] error in
-            self?.finish(reporting: error)
+        // Only this take's engine may end this take: a late word from one thrown away by a
+        // restart must not stop the new one.
+        engine.onUnexpectedStop = { [weak self, weak engine] error in
+            guard let self, let engine, self.engine === engine else {
+                Self.logger.notice("a stream that is no longer this take's ended: \(String(describing: error), privacy: .public)")
+                return
+            }
+            finish(reporting: error)
         }
         do {
             try await engine.start()
@@ -168,6 +182,9 @@ final class RecordingController {
             ink?.close()
             self.ink = nil
             frame.close()
+            // The writer has already made its file: without this it stays behind in the
+            // temporary folder.
+            await engine.cancel()
             throw error
         }
 
@@ -270,7 +287,12 @@ final class RecordingController {
         guard let press = zoomPress else { return }
         zoomPress = nil
         let held = Date().timeIntervalSince(press.at)
-        guard EffectsPlanner.isZoomHold(heldFor: held), let engine, let events else { return }
+        // Let go at once: it was a tap, and its mark stands.
+        guard EffectsPlanner.isZoomHold(heldFor: held) else { return }
+        guard let engine, let events else {
+            Self.logger.error("zoom key let go with no take running: the hold is lost")
+            return
+        }
 
         let end = engine.duration
         events.holdZoom(from: press.mark, to: end)
@@ -287,7 +309,12 @@ final class RecordingController {
     /// shows that it took.
     private func heldKeyDown(_ effect: EventRecorder.HeldEffect) {
         // A held key may repeat; only the first press counts.
-        guard heldSince[effect] == nil, let events, let target else { return }
+        // A held key may repeat; only the first press counts.
+        guard heldSince[effect] == nil else { return }
+        guard let events, let target else {
+            Self.logger.error("\(effect.rawValue, privacy: .public) key with no take running")
+            return
+        }
         guard let start = events.now else {
             Self.logger.notice("\(effect.rawValue, privacy: .public) key ignored: paused")
             return
@@ -301,8 +328,16 @@ final class RecordingController {
     /// draws the effect over it.
     private func heldKeyUp(_ effect: EventRecorder.HeldEffect) {
         guard let start = heldSince.removeValue(forKey: effect) else { return }
-        heldIndicator.hide()
-        guard let engine, let events else { return }
+        // One panel for both effects: the other one may still be held.
+        if let other = heldSince.keys.first, let target {
+            heldIndicator.show(other, over: Self.appKitRect(of: target))
+        } else {
+            heldIndicator.hide()
+        }
+        guard let engine, let events else {
+            Self.logger.error("\(effect.rawValue, privacy: .public) let go with no take running: nothing recorded")
+            return
+        }
         let end = engine.duration
         if events.hold(effect, from: start, to: end) == nil {
             Self.logger.notice("\(effect.rawValue, privacy: .public) key let go at once: nothing recorded")
@@ -319,13 +354,18 @@ final class RecordingController {
         for effect in Array(heldSince.keys) {
             heldKeyUp(effect)
         }
+        // The zoom key too: held at the stop, it is a zoom to the stop, not a short mark.
+        zoomKeyUp()
         engine?.setMicrophoneMuted(false)
         pill.hold(notice: nil)
     }
 
     /// The mute key went down or came up: while it is down the microphone records silence.
     private func setMuteHeld(_ held: Bool) {
-        guard let engine else { return }
+        guard let engine else {
+            Self.logger.error("mute key with no take running")
+            return
+        }
         guard engine.recordsMicrophone else {
             if held {
                 Self.logger.notice("mute key: this take has no microphone")
@@ -361,6 +401,10 @@ final class RecordingController {
         let started = Date()
         let meter = MicrophoneLevelMeter(deviceUID: settings.microphoneDeviceID) { [weak self] level, _ in
             guard let self, talkMeter != nil else { return }
+            // What is said during a pause isn't in the take, and must not use up the one hint.
+            if engine?.isPaused == true {
+                return
+            }
             if speech.feed(level: level, at: Date().timeIntervalSince(started)) {
                 talkingHeard()
             }
@@ -401,7 +445,10 @@ final class RecordingController {
     /// The last seconds were no good: they are marked, the take goes on, and the editor opens
     /// with them already cut.
     func markBadTake() {
-        guard let events else { return }
+        guard let events else {
+            Self.logger.error("bad take pressed with no take running")
+            return
+        }
         guard let span = events.markBadTake() else {
             Self.logger.notice("bad take ignored: paused, or nothing new to cut")
             return
@@ -417,7 +464,10 @@ final class RecordingController {
     /// The picture being recorded, onto the clipboard — ⇧⌘2 during a take. The take goes on, and
     /// no window opens: a Pawshot window would not be in the video, but it would be in the way.
     func copyFrame() {
-        guard let engine else { return }
+        guard let engine else {
+            Self.logger.error("frame copy asked with no take running")
+            return
+        }
         Task {
             guard let image = await engine.snapshot() else {
                 Self.logger.error("frame not copied: the take has no picture yet")
@@ -435,7 +485,10 @@ final class RecordingController {
 
     /// Drawing on the screen, into the video. While it is on, the mouse draws instead of clicking.
     func togglePen() {
-        guard let ink else { return }
+        guard let ink else {
+            Self.logger.notice("pen asked: this take has none (a window take, or none running)")
+            return
+        }
         ink.setDrawing(!ink.isDrawing)
         let drawing = ink.isDrawing
         Self.logger.notice("pen \(drawing ? "on" : "off", privacy: .public)")
@@ -443,16 +496,20 @@ final class RecordingController {
     }
 
     func togglePause() {
-        guard let engine else { return }
+        guard let engine else {
+            Self.logger.notice("pause pressed with no take running")
+            return
+        }
         let resumes = engine.isPaused
+        if resumes, regionMoveInFlight {
+            Self.logger.notice("resume ignored: the moved region is still being handed to the stream")
+            pill.flash(notice: String(localized: "Still moving the region…"))
+            return
+        }
         let elapsed = String(format: "%.1f", engine.duration)
         Self.logger.notice("recording \(resumes ? "resumed" : "paused", privacy: .public) at \(elapsed, privacy: .public) s")
         if !resumes {
             Stats.shared.add(.pauses)
-        }
-        if resumes, regionMoveInFlight {
-            Self.logger.notice("resume ignored: the moved region is still being handed to the stream")
-            return
         }
         if engine.isPaused {
             engine.resume()
@@ -486,7 +543,10 @@ final class RecordingController {
 
     /// Every step of a drag: what shows the region follows, the stream is not touched yet.
     private func regionMoves(to area: CGRect) {
-        guard let target else { return }
+        guard let target else {
+            Self.logger.error("region dragged with no take running")
+            return
+        }
         frame.show(area: area, on: target.screen)
         ink?.move(to: area)
         pill.follow(area: area, on: target.screen)
@@ -495,7 +555,10 @@ final class RecordingController {
     /// The mouse was let go: the stream, the timeline and the remembered region all follow. When
     /// the stream won't take the new place, everything goes back where it was.
     private func regionDropped(from old: CGRect, to new: CGRect) {
-        guard let engine, let target else { return }
+        guard let engine, let target, let before = target.rect else {
+            Self.logger.error("region dropped with no region take running: ignored")
+            return
+        }
         let primaryMaxY = NSScreen.screens.first.map(\.frame.maxY) ?? 0
         let global = SelectionGeometry.convertToCoreGraphics(rect: new, primaryScreenMaxY: primaryMaxY)
         let display = CGDisplayBounds(target.displayID)
@@ -503,29 +566,54 @@ final class RecordingController {
             .intersection(CGRect(origin: .zero, size: display.size))
         let fromText = "\(Int(old.minX)),\(Int(old.minY))"
         let toText = "\(Int(new.minX)),\(Int(new.minY))"
+        // One hand-over at a time: a second drag while the stream is still being told would
+        // race the first, and a refusal of the first would put the region back over the second.
         regionMoveInFlight = true
+        grabFrame.isHandingOver = true
         Task {
-            defer { regionMoveInFlight = false }
+            defer {
+                regionMoveInFlight = false
+                grabFrame.isHandingOver = false
+            }
             do {
                 try await engine.moveSource(to: source)
-                self.target = RecordingTarget(
-                    displayID: target.displayID, rect: global, screen: target.screen, windowID: nil, maskZones: target.maskZones
-                )
-                events?.move(to: new)
-                settings.setLastRecordingArea(source, on: target.displayID)
-                Self.logger.notice("region moved while paused: \(fromText, privacy: .public) → \(toText, privacy: .public) pt (AppKit), stream follows")
             } catch {
+                guard self.engine === engine else {
+                    Self.logger.notice("region move refused by a stream whose take is over: nothing to put back")
+                    return
+                }
                 Self.logger.error("region move refused by the stream, put back: \(String(describing: error), privacy: .public)")
                 regionMoves(to: old)
                 grabFrame.place(old)
                 pill.flash(notice: String(localized: "The region can't be moved"))
+                return
+            }
+            // The take may have stopped or started over while the stream was being told.
+            guard self.engine === engine, let current = self.target, let events else {
+                Self.logger.notice("region moved for a take that is over: nothing else follows")
+                return
+            }
+            // The zones stay over the same part of the screen, counted from the new region.
+            let zones = events.moveZones(from: before, to: global, at: engine.duration)
+            self.target = current.moved(to: global, maskZones: zones.open)
+            events.move(to: new)
+            settings.setLastRecordingArea(source, on: current.displayID)
+            Self.logger.notice(
+                "region moved while paused: \(fromText, privacy: .public) → \(toText, privacy: .public) pt (AppKit), stream follows, \(zones.open.count, privacy: .public) zone(s) follow the screen"
+            )
+            if zones.dropped > 0 {
+                Self.logger.error("region moved: \(zones.dropped, privacy: .public) hidden zone(s) left outside it, hidden only until the move")
+                pill.flash(notice: String(localized: "A hidden zone is outside the region now"))
             }
         }
     }
 
     /// Throws the take away and starts again at once, with the same region and sound.
     func restart() {
-        guard let engine, let target else { return }
+        guard let engine, let target else {
+            Self.logger.notice("restart asked with no take running, or one still starting")
+            return
+        }
         releaseHeldKeys()
         stopListeningForTalking()
         let thrownAway = String(format: "%.1f", engine.duration)
@@ -816,7 +904,10 @@ final class RecordingController {
     private func showFileSize(of engine: RecordingEngine, elapsed: TimeInterval) {
         let values: URLResourceValues
         do {
-            values = try engine.outputURL.resourceValues(forKeys: [.fileSizeKey, .volumeAvailableCapacityForImportantUsageKey])
+            // A fresh read every second, not a value cached on the URL.
+            var url = engine.outputURL
+            url.removeAllCachedResourceValues()
+            values = try url.resourceValues(forKeys: [.fileSizeKey, .volumeAvailableCapacityForImportantUsageKey])
         } catch {
             if !sizeFailureLogged {
                 sizeFailureLogged = true

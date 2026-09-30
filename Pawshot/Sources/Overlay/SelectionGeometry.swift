@@ -580,14 +580,20 @@ enum SelectionGeometry {
     ) -> CGRect {
         if fromCenter {
             let oneSided = resized(rect, dragging: handle, to: point, aspect: aspect, within: bounds)
-            let width = min(
-                max(0, rect.width + 2 * (oneSided.width - rect.width)),
-                2 * min(rect.midX - bounds.minX, bounds.maxX - rect.midX)
-            )
-            let height = min(
-                max(0, rect.height + 2 * (oneSided.height - rect.height)),
-                2 * min(rect.midY - bounds.minY, bounds.maxY - rect.midY)
-            )
+            var width = max(0, rect.width + 2 * (oneSided.width - rect.width))
+            var height = max(0, rect.height + 2 * (oneSided.height - rect.height))
+            let roomX = 2 * min(rect.midX - bounds.minX, bounds.maxX - rect.midX)
+            let roomY = 2 * min(rect.midY - bounds.minY, bounds.maxY - rect.midY)
+            if aspect != nil, width > 0, height > 0 {
+                // Held to proportions, the side that runs out of room takes the other down with
+                // it; cut one at a time, the region would leave its proportions at the screen's edge.
+                let fit = min(1, roomX / width, roomY / height)
+                width *= fit
+                height *= fit
+            } else {
+                width = min(width, roomX)
+                height = min(height, roomY)
+            }
             return CGRect(x: rect.midX - width / 2, y: rect.midY - height / 2, width: width, height: height)
         }
 
@@ -672,6 +678,22 @@ enum SelectionGeometry {
             y: (inside.minY - region.minY) / region.height,
             width: inside.width / region.width,
             height: inside.height / region.height
+        )
+    }
+
+    /// A zone kept as fractions (0…1, origin top left) → a rectangle in a video of `size`, the way
+    /// Core Animation counts it: origin at the bottom left. Cut to the picture; `nil` for a zone
+    /// with nothing left in it or no numbers at all — a file edited by hand, or broken.
+    static func layerRect(fractions: CGRect, in size: CGSize) -> CGRect? {
+        let values = [fractions.minX, fractions.minY, fractions.width, fractions.height]
+        guard values.allSatisfy(\.isFinite) else { return nil }
+        let inside = fractions.standardized.intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+        guard !inside.isNull, inside.width > 0, inside.height > 0 else { return nil }
+        return CGRect(
+            x: inside.minX * size.width,
+            y: (1 - inside.maxY) * size.height,
+            width: inside.width * size.width,
+            height: inside.height * size.height
         )
     }
 

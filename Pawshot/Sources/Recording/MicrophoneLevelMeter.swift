@@ -50,7 +50,9 @@ struct SpeechWatch {
     mutating func feed(level: Float, at time: TimeInterval) -> Bool {
         defer { last = time }
         guard !said, let last else { return false }
-        let step = max(0, time - last)
+        // Levels come by the main thread, which can stall: half a second of stall and one loud
+        // buffer after it must not add up to half a second of voice.
+        let step = min(0.1, max(0, time - last))
         score = level >= Self.voiceLevel ? score + step : max(0, score - step / 2)
         guard score >= Self.enough else { return false }
         said = true

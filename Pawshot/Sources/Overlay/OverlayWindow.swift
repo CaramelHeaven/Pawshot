@@ -17,6 +17,10 @@ final class OverlayWindow: NSPanel {
     /// mouse move cost ~28 ms a frame on a 5K screen.
     let frameView = FrameView()
     private let container = NSView()
+    /// When it was built and how many captures it has served: for the log line that tells a
+    /// window gone stale — kept since before a sleep, a display change — from a fresh one.
+    let builtAt = Date()
+    var timesShown = 0
 
     init(screen: NSScreen) {
         super.init(

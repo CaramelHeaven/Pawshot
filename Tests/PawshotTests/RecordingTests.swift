@@ -41,6 +41,21 @@ final class RecordingClockTests: XCTestCase {
         XCTAssertNil(clock.outputTime(for: t(0.5), isVideo: true))
     }
 
+    /// A frame captured during the pause but delivered after the resume would be stamped inside
+    /// the stretch already written: 4.5 s into a pause of 1…5 s lands at 0.5 s, before the frame
+    /// written at 0.98 s — a time going backwards the writer may refuse, losing the take.
+    func testAFrameFromInsideThePauseDeliveredLateIsDropped() {
+        var clock = RecordingClock()
+        _ = clock.outputTime(for: t(0), isVideo: true)
+        XCTAssertEqual(clock.outputTime(for: t(0.98), isVideo: true), t(0.98))
+        clock.pause(at: t(1))
+        clock.resume(at: t(5))
+
+        XCTAssertNil(clock.outputTime(for: t(4.5), isVideo: true))
+        XCTAssertNil(clock.outputTime(for: t(4.9), isVideo: false), "sound from the pause too")
+        XCTAssertEqual(clock.outputTime(for: t(5.1), isVideo: true), t(1.1), "what comes after the resume goes on")
+    }
+
     func testDurationStopsWhilePaused() {
         var clock = RecordingClock()
         XCTAssertEqual(clock.duration(at: t(3)), .zero, "nothing recorded yet")

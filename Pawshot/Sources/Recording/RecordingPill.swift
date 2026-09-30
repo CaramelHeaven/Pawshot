@@ -38,6 +38,10 @@ final class RecordingPillController {
     private let model = PillModel()
     private var proximityTimer: Timer?
     private var lastNearDate = Date()
+    /// The word a held key keeps on the pill, to come back after a flash.
+    private var heldNotice: String?
+    /// Which microphone hint the ten-second timer belongs to.
+    private var hintGeneration = 0
     private var notchFrames: (collapsed: CGRect, expanded: CGRect)?
 
     /// Wide and tall enough for six buttons with their shortcuts written under them, the time
@@ -71,6 +75,11 @@ final class RecordingPillController {
     /// (`area` in AppKit screen coordinates).
     /// `stopShortcut` is the one that started the take — pressing it again stops it.
     func show(near area: CGRect, on screen: NSScreen, penAvailable: Bool, stopShortcut: HotKeyBinding?) {
+        // A restart shows the pill again without hiding it: the last take's words go now.
+        model.microphoneHint = false
+        model.notice = nil
+        heldNotice = nil
+        hintGeneration += 1
         model.penAvailable = penAvailable
         model.stopShortcut = stopShortcut
         model.penIsOn = false
@@ -140,19 +149,26 @@ final class RecordingPillController {
     }
 
     /// A word that something just happened — "Frame copied" — in place of the size for a moment.
+    /// A word held by a key comes back after it.
     func flash(notice: String) {
         model.notice = notice
-        Task { @MainActor [model] in
+        Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(1600))
-            if model.notice == notice {
-                model.notice = nil
-            }
+            guard let self, model.notice == notice else { return }
+            model.notice = heldNotice
         }
     }
 
     /// A word that stays for as long as a key is held — "Microphone muted" — and goes with `nil`.
+    /// Letting go clears only that word: a flash on the pill meanwhile stays its moment.
     func hold(notice: String?) {
-        model.notice = notice
+        let previous = heldNotice
+        heldNotice = notice
+        if let notice {
+            model.notice = notice
+        } else if model.notice == previous {
+            model.notice = nil
+        }
     }
 
     /// "You are talking, and the microphone is off", with a button to start over with it on. It
@@ -161,9 +177,13 @@ final class RecordingPillController {
         model.microphoneHint = true
         lastNearDate = Date()
         Self.logger.notice("pill: microphone hint shown")
+        hintGeneration += 1
+        let mine = hintGeneration
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(10))
-            self?.dismissMicrophoneHint(reason: "ten seconds passed")
+            // A hint of an earlier take — or one dismissed and shown again — is not this one.
+            guard let self, hintGeneration == mine else { return }
+            dismissMicrophoneHint(reason: "ten seconds passed")
         }
     }
 

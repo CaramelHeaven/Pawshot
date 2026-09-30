@@ -187,18 +187,51 @@ edges and corners, and ↩ (or R, or the Record button) starts. It behaves the w
   the drop the stream is told (`RecordingEngine.moveSource`, `SCStream.updateConfiguration`), the
   timeline's area moves (`EventRecorder.move` — positions are fractions of the area at the time
   they were seen) and the region is remembered. If the stream refuses, everything goes back and the
-  pill says so. Whether ScreenCaptureKit takes a new `sourceRect` on a live stream was not tried
-  by the agent: `RecordingEngineTests/testTheSourceOfARunningStreamCanMove` (`make test-ui`) is how
-  to find out. A window take and a whole-screen take have no frame.
+  pill says so. ScreenCaptureKit takes a new `sourceRect` on a live stream and the file goes on at
+  its size — `RecordingEngineTests/testTheSourceOfARunningStreamCanMove` passed under `make
+  test-ui` on 2026-09-30. One hand-over at a time: a second drag waits until the stream has taken
+  the first (`RegionMoveFrameController.isHandingOver`), and a take stopped or restarted meanwhile
+  is left alone after the `await`. Drags move in whole points. A window take and a whole-screen
+  take have no frame.
 - **Zones to hide** (0.6.4): `H` on the recording overlay, then drag inside the region (the rim
-  stays the region's, to pull); `⌫` takes the last one back, `Esc` leaves the drawing. Zones are
-  fractions of the region, so they follow it when it moves; drawing a new region forgets them.
-  They go to `EventTimeline.masks` and are blurred from the first frame to the last at export
-  (`EffectsLayerBuilder.maskZone`: a layer over the video whose `backgroundFilters` hold a Gaussian
-  blur). Measured on a rendered file, not assumed: `HeldEffectsRenderTests` looks at the pixels and
-  went red without the filter. The editor has a "Hidden zones" switch; that the editor's live
-  preview shows the blur was not seen by the agent. Nothing is drawn on the screen during the
-  take — anything inside the region would cover what the person is recording.
+  stays the region's, to pull — a zone starts exactly where the cursor shows the crosshair); `⌫`
+  takes the last one back whether or not `H` is still on; `Esc` leaves the drawing. On the overlay
+  zones are fractions of the region and hatched where they are, so moving or resizing the region
+  before the take carries them visibly; drawing a new region forgets them. They go to
+  `EventTimeline.masks` and are blurred from the first frame to the last at export
+  (`EffectsLayerBuilder.maskZone`: a layer over the video whose `backgroundFilters` hold
+  `CIAffineClamp` and a Gaussian blur — without the clamp a zone at the edge of the frame got a
+  dark rim, 0.56 against 0.79, measured). The region moved on a pause keeps each zone over the same
+  part of the **screen**: the zone is closed at that moment and opened again from it, counted from
+  the new region (`EventTimeline.masks(_:afterMovingFrom:to:at:)`, `Mask.start`/`end`, optional in
+  the file); one the new region no longer holds is hidden until the move only, and the pill says
+  so. A zone with a start or an end is switched by animating its filter's radius
+  (`backgroundFilters.zone.inputRadius`): measured, a layer's `opacity` does **not** switch its
+  background filters off in the export — the zone hid the picture before its start. Zones drawn
+  and a window or the whole screen picked: a line above the toolbar says they won't be hidden
+  (`RecordingPreflight.Problem.zonesIgnored`), the `H` row is off. `HeldEffectsRenderTests` looks
+  at the pixels. The editor has a "Hidden zones" switch; that the editor's live preview shows the
+  blur was not seen by the agent. Nothing is drawn on the screen during the take — anything inside
+  the region would cover what the person is recording.
+- **No badge by the cursor** (0.6.5, the owner's call): the glass badge with the size and the
+  position that ⇧⌘2 shows is not on the recording overlay — the size is written on a dragged edge
+  anyway. It comes up only while a size is being typed, to show the digits, and goes with ↩ or Esc
+  (`SelectionView.showsBadge`).
+- **An overlay window on no Space in front is rebuilt** (0.6.5). The windows are built ahead and
+  kept; in a log of 0.5.3 one kept since before a sleep and a display change came up `on active
+  space false`, the window server never showed it, and every ⇧⌘2 after met "the overlay is already
+  up" until a relaunch. Why it fell out of every Space is not known. `begin` reads
+  `isOnActiveSpace` (it did already, for the log) and builds a fresh window in its place; half a
+  second on, an overlay still on no active Space is closed so the next press starts afresh. The
+  log line carries each window's age and how many captures it served.
+- **The keyboard follows the hand** (0.6.5): a press on the overlay of another display makes that
+  overlay key, so ↩, `H`, the arrows and `A` act on the region last touched; Record on the toolbar
+  records that region too (`SelectionOverlayController.viewWithRegion`). With a region restored on
+  every display, both used to take the one on whichever screen the keyboard or the toolbar was.
+- **A gesture cut short ends nothing**: `Esc` or `H` while a zone is drawn, Space or the toolbar
+  switching the mode mid-drag — the release that follows leaves the region as it was
+  (`SelectionView.cancelGesture`, `pressMode`). It used to wipe the region, or pick the window
+  under the cursor. A held key repeats; `H`, `P`, `M`, `S`, `X` and `A` ignore the repeats.
 - **Profiles** (0.6.3): *Bug report* (GIF 720p, clicks, no sound) and *Demo* (HEVC 2x, voice,
   zooms) write the ordinary settings and keep nothing of their own; `P` on the overlay walks them,
   they are also in Options and Settings → Recording, and "Custom" is what the settings add up to
@@ -213,13 +246,13 @@ edges and corners, and ↩ (or R, or the Record button) starts. It behaves the w
 | `X` | 2x (the display's pixels) ↔ 1x (one pixel per point) |
 | `M` / `S` | microphone / system audio on or off |
 | `P` | recording profile: Bug report → Demo → … |
-| `H` | draw zones to hide in the video (`⌫` — the last one back, `Esc` — stop drawing) |
+| `H` | draw zones to hide in the video (`⌫` — the last one back, also with `H` off; `Esc` — stop drawing) |
 | arrows | move the region 1 pt; `⇧` — 10 pt; `⌥` — move the right and bottom edges instead |
 | `⇧` dragging a corner | keep the region's proportions |
 | `⌥` dragging an edge or a corner | grow from the middle |
 | `⌘` dragging | no magnet and no drop onto a window |
 | `Space` | window mode |
-| `Esc` | a half-typed size first, then the open Options, then cancel |
+| `Esc` | a half-typed size first, then the zone drawing, then the open Options, then cancel |
 
 All four shortcuts are editable in **Settings** (`⌘,`). Its tabs are the owner's О-C, Г-A, З-C
 and Ш-C of 2026-09-29, picked from a page of mockups: General (launch at login, ⌘Q, the language,
@@ -740,6 +773,13 @@ that shows, activates or covers anything goes into `UI_TESTS`. The test host als
 global hotkeys (`AppDelegate.registerHotKeys`): it ran next to his own copy, and his ⇧⌘2 then put
 up two overlays.
 
+The test host shares his settings, too. A test that draws a recording region starts from a
+corner his restored last region doesn't reach (`RecordingBarInOverlayTests.drawRegion` — pressed
+inside it, the region moved instead of a new one being drawn, and Record's test failed on his Mac
+only), and one that opens the video editor puts his open count back (after five runs his key
+hints were gone for good). A test that changes one of his values puts it back in `defer` or
+`tearDown`.
+
 ### Where the capture delay actually comes from
 
 Measured, not assumed — the log line `content … ms, shot … ms` in `ScreenCaptureService` exists for
@@ -994,6 +1034,18 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
   shows there was not seen by the agent.
 - **The way in and out of a hidden stretch lie outside it.** The blur is at full strength from
   the first moment of the stretch to the last: a fade inside it would show a password half sharp.
+  Where a piece of the video begins or ends inside the stretch — a cut, a bad take, the start or
+  the end of the video, a key still down at Stop — there is no way in or out on that side: the
+  blur holds to the edge (until 0.6.5 it faded back to sharp there). Stretches closer than their
+  ways in and out are joined first (`EffectsPlanner.joinedStretches`): two animations of the one
+  filter don't add up, the later wins, and its way in thinned out the end of the one before.
+- **A sample delivered after the resume but captured before it is dropped**
+  (`RecordingClock.resumedAt`). Stamped inside the pause, it came out inside the stretch already
+  written — a time going backwards the writer may refuse, and the take with it.
+- **The timeline is read, not loaded.** A take always writes one, so none next to the recording,
+  or one that doesn't decode, puts a line in the video editor ("… couldn't be read — they won't be
+  in the video") instead of an empty timeline that exports hidden parts plain
+  (`EventTimeline.read`).
 - **Silence, not a gap.** A muted microphone buffer is zeroed in place (`RecordingEngine.silence`)
   and written, so the track keeps its length; one whose bytes can't be written is left out and
   counted. Whether ScreenCaptureKit's buffers are writable was not tried on a live take.
@@ -1356,8 +1408,14 @@ Disabling App Nap waits for a log that shows the low priority.
 The editor that opens after a capture usually finds another app active now (the overlay no longer
 activates Pawshot), and activation from a background app can come late or not at all — the video
 editor once opened behind other windows that way. In the tester's log it came 150–190 ms later
-every time, so it is only watched: `editor after 500 ms: … window key false` is an `.error`, and
-the answer to one is `orderFrontRegardless()`, as in the video editor.
+every time. The owner's own 0.5.3 log had one not key at 500 ms (2026-09-30), so since 0.6.5 a
+window not key by then is ordered above everyone and made key, and looked at again at 1.5 s —
+`editor after 1500 ms: … window key false` is the `.error`. Settings, About and the welcome
+window (`ComesForward`) wait the same 1.5 s before calling "not key" an error: the owner's log
+had the app turn active a second after the menu, and one window checked twice at once.
+The welcome window, Settings and the paw's menu read launch at login from a cache that is asked
+again in the background every 2 s (`LoginItemStatus`): a stall sample caught the welcome window
+calling `SMAppService.status` over XPC on the main thread every second.
 
 ### What can't be verified automatically here
 

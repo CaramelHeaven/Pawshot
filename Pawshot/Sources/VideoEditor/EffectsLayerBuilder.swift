@@ -76,7 +76,28 @@ enum EffectsLayerBuilder {
 
         if options.masks {
             for mask in timeline.masks {
-                content.addSublayer(maskZone(mask, videoSize: videoSize))
+                guard let frame = SelectionGeometry.layerRect(fractions: mask.fractions, in: videoSize) else { continue }
+                let radius = EffectsPlanner.blurRadius(for: videoSize)
+                if mask.isWholeTake {
+                    content.addSublayer(maskZone(frame, radius: radius))
+                    continue
+                }
+                // Hidden from its start to its end only — a region moved on a pause opens the
+                // zone's new place at that moment. The blur's own radius is what comes and goes:
+                // measured, a layer's opacity does not switch its background filters off in the
+                // export. Shown and gone at once, never faded — a zone half there shows what it
+                // hides.
+                for part in parts(from: mask.start ?? 0, to: mask.end ?? keep.duration, in: keep) {
+                    let zone = maskZone(frame, radius: 0)
+                    let shown = CABasicAnimation(keyPath: "backgroundFilters.zone.inputRadius")
+                    shown.fromValue = radius
+                    shown.toValue = radius
+                    shown.beginTime = begin(part.output)
+                    shown.duration = part.high - part.low
+                    shown.isRemovedOnCompletion = false
+                    zone.add(shown, forKey: "mask")
+                    content.addSublayer(zone)
+                }
             }
         }
 
@@ -107,12 +128,22 @@ enum EffectsLayerBuilder {
 
             let radius = EffectsPlanner.blurRadius(for: videoSize)
             let fade = EffectsPlanner.effectFade
-            for span in timeline.blurs {
+            for span in EffectsPlanner.joinedStretches(timeline.blurs) {
                 // The way in and the way out lie outside the stretch: inside it nothing is ever
-                // half sharp.
-                for (index, part) in spans(from: span.start - fade, to: span.end + fade, in: keep).enumerated() {
+                // half sharp. A piece that begins or ends inside the stretch — a cut, the start
+                // or the end of the video — has no way in or out on that side: the blur holds
+                // right up to its edge.
+                let from = span.start - fade
+                let to = span.end + fade
+                for (index, part) in parts(from: from, to: to, in: keep).enumerated() {
                     content.add(
-                        hide(from: part.start, to: part.end, radius: radius),
+                        hide(
+                            from: part.output,
+                            to: part.output + (part.high - part.low),
+                            radius: radius,
+                            fadesIn: part.low <= from + 0.001,
+                            fadesOut: part.high >= to - 0.001
+                        ),
                         forKey: "blur-\(span.start)-\(index)"
                     )
                 }
@@ -304,30 +335,36 @@ enum EffectsLayerBuilder {
     }
 
     /// A zone blurred whatever happens: a layer over the video, the size of the zone, whose
-    /// background — the video under it — goes through a Gaussian blur.
-    private static func maskZone(_ mask: EventTimeline.Mask, videoSize: CGSize) -> CALayer {
+    /// background — the video under it — goes through a Gaussian blur. `frame` is Core
+    /// Animation's, from `SelectionGeometry.layerRect`.
+    private static func maskZone(_ frame: CGRect, radius: CGFloat) -> CALayer {
         let zone = CALayer()
-        // Fractions count from the top left, Core Animation from the bottom left.
-        zone.frame = CGRect(
-            x: mask.x * videoSize.width,
-            y: (1 - mask.y - mask.height) * videoSize.height,
-            width: mask.width * videoSize.width,
-            height: mask.height * videoSize.height
-        )
+        zone.frame = frame
         zone.masksToBounds = true
+        // The edge carried on outwards first, as for a hidden stretch: measured, without it a
+        // zone at the edge of the frame gets a dark rim — 0.52 against 0.79 in the middle.
+        let clamp = CIFilter(name: "CIAffineClamp")
+        clamp?.setValue(NSAffineTransform(), forKey: kCIInputTransformKey)
         let blur = CIFilter(name: "CIGaussianBlur")
-        blur?.setValue(EffectsPlanner.blurRadius(for: videoSize), forKey: kCIInputRadiusKey)
-        zone.backgroundFilters = [blur].compactMap(\.self)
+        blur?.name = "zone"
+        blur?.setValue(radius, forKey: kCIInputRadiusKey)
+        zone.backgroundFilters = [clamp, blur].compactMap(\.self)
         return zone
     }
 
     /// The blur of a hidden stretch coming in, staying and going: the radius of the filter named
-    /// `hide` on the content layer.
-    private static func hide(from start: Double, to end: Double, radius: CGFloat) -> CAAnimation {
+    /// `hide` on the content layer. A side that doesn't fade starts or ends at full strength.
+    private static func hide(
+        from start: Double,
+        to end: Double,
+        radius: CGFloat,
+        fadesIn: Bool,
+        fadesOut: Bool
+    ) -> CAAnimation {
         let length = max(0.1, end - start)
         let fade = min(EffectsPlanner.effectFade, length / 4) / length
         let animation = CAKeyframeAnimation(keyPath: "filters.hide.inputRadius")
-        animation.values = [0, radius, radius, 0]
+        animation.values = [fadesIn ? 0 : radius, radius, radius, fadesOut ? 0 : radius]
         animation.keyTimes = [0, fade, 1 - fade, 1].map { NSNumber(value: $0) }
         animation.beginTime = begin(start)
         animation.duration = length

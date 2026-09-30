@@ -408,6 +408,18 @@ enum SyntheticVideo {
 
 @MainActor
 final class VideoEditorWindowControllerTests: XCTestCase {
+    /// Opening the editor counts towards the owner's key hints: five test runs and his hints
+    /// were gone for good. His count goes back.
+    private var openCount: Any?
+
+    override func setUp() async throws {
+        openCount = UserDefaults.standard.object(forKey: Settings.Key.videoEditorOpenCount.rawValue)
+    }
+
+    override func tearDown() async throws {
+        UserDefaults.standard.set(openCount, forKey: Settings.Key.videoEditorOpenCount.rawValue)
+    }
+
     /// The owner's rule for recordings is the screenshot's: closed without ⌘C or ⌘S, the take is
     /// gone — the raw file must not pile up in the temporary folder either.
     func testClosingWithoutExportThrowsTheRecordingAway() async throws {
@@ -463,6 +475,28 @@ final class VideoEditorWindowControllerTests: XCTestCase {
         XCTAssertFalse(controller.handleKey(delete), "the last piece stays")
         controller.piecesUndoManager.undo()
         XCTAssertEqual(controller.model.keep, spliced, "⌫ is a step of ⌘Z too")
+    }
+
+    /// The last seconds marked as a bad take while recording are already cut when the editor
+    /// opens — and one ⌘Z brings them back.
+    func testABadTakeIsCutOnOpeningAndUndoBringsItBack() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("pawshot-editor-\(UUID().uuidString).mov")
+        _ = try await SyntheticVideo.write(to: url, seconds: 3, audioTracks: 0)
+        var timeline = EventTimeline()
+        timeline.badTakes = [EventTimeline.Span(start: 1, end: 2)]
+        try timeline.save(nextTo: url)
+        let screen = try XCTUnwrap(NSScreen.main)
+        let controller = VideoEditorWindowController(movieURL: url, videoSize: SyntheticVideo.size, on: screen)
+        defer { controller.close() }
+        controller.show()
+        for _ in 0 ..< 100 where controller.model.keep.duration == 0 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+
+        XCTAssertEqual(controller.model.keep.pieces.count, 2, "cut on opening")
+        XCTAssertEqual(controller.model.keep.totalLength, 2, accuracy: 0.05)
+        controller.piecesUndoManager.undo()
+        XCTAssertTrue(controller.model.keep.isWhole, "⌘Z brings the whole take back")
     }
 
     /// Space plays and P changes the format, P read off the physical key: on ЙЦУКЕН it prints "з".

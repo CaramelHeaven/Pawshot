@@ -89,6 +89,17 @@ final class RecordingFrameViewTests: XCTestCase {
 
 @MainActor
 final class VideoEditorOrderingTests: XCTestCase {
+    /// Opening the editor counts towards the owner's key hints: put his count back.
+    private var openCount: Any?
+
+    override func setUp() async throws {
+        openCount = UserDefaults.standard.object(forKey: Settings.Key.videoEditorOpenCount.rawValue)
+    }
+
+    override func tearDown() async throws {
+        UserDefaults.standard.set(openCount, forKey: Settings.Key.videoEditorOpenCount.rawValue)
+    }
+
     /// The test host is a background app while xcodebuild runs, which is exactly the situation
     /// after a recording: another app is in front and activation may be refused. The editor must
     /// still come up above every other app's window.
@@ -100,12 +111,17 @@ final class VideoEditorOrderingTests: XCTestCase {
         defer { controller.close() }
 
         controller.show()
-        try await Task.sleep(for: .milliseconds(300))
 
         let number = try XCTUnwrap(controller.window?.windowNumber)
-        let windows = (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
-            as? [[String: Any]]) ?? []
-        let firstOrdinary = windows.first { ($0[kCGWindowLayer as String] as? Int) == 0 }
-        XCTAssertEqual(firstOrdinary?[kCGWindowNumber as String] as? Int, number, "the editor is the front window")
+        func frontWindow() -> Int? {
+            let windows = (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+                as? [[String: Any]]) ?? []
+            return windows.first { ($0[kCGWindowLayer as String] as? Int) == 0 }?[kCGWindowNumber as String] as? Int
+        }
+        // Until the window server has it in front, or two seconds.
+        for _ in 0 ..< 40 where frontWindow() != number {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertEqual(frontWindow(), number, "the editor is the front window")
     }
 }

@@ -64,6 +64,52 @@ final class RecordingBarInOverlayTests: XCTestCase {
         window.sendEvent(event)
     }
 
+    /// Draws a new region of `size` from a corner of the screen that no region restored from the
+    /// last take holds. The test host is the app, with the owner's settings: his last region
+    /// comes back alive, and a press inside it — or within reach of its edges — moves it instead
+    /// of drawing a new one.
+    private func drawRegion(_ window: NSWindow, _ view: SelectionView, size: CGSize = CGSize(width: 400, height: 250)) throws {
+        let restored = view.recordingRegion?.insetBy(dx: -60, dy: -60)
+        let bar = OverlayHUD.recordingBarHost.superview === view ? OverlayHUD.recordingBarHost.frame.insetBy(dx: -20, dy: -20) : .null
+        let room = view.bounds.insetBy(dx: 60, dy: 60)
+        let corners = [
+            CGPoint(x: room.minX, y: room.minY),
+            CGPoint(x: room.maxX - size.width, y: room.minY),
+            CGPoint(x: room.minX, y: room.maxY - size.height),
+            CGPoint(x: room.maxX - size.width, y: room.maxY - size.height),
+        ]
+        let start = try XCTUnwrap(
+            corners.first { !(restored?.contains($0) ?? false) && !bar.contains($0) },
+            "the region restored from the last take, \(String(describing: view.recordingRegion)), leaves no corner to draw from"
+        )
+        let end = CGPoint(x: start.x + size.width, y: start.y + size.height)
+        try click(window, at: view.convert(start, to: nil), type: .leftMouseDown)
+        try click(window, at: view.convert(end, to: nil), type: .leftMouseDragged)
+        try click(window, at: view.convert(end, to: nil), type: .leftMouseUp)
+        XCTAssertEqual(view.recordingRegion?.size, size, "a new region was drawn, not the restored one moved")
+    }
+
+    /// The overlay window of the main screen — the one the test hands a frame for. Another
+    /// screen's overlay has no frame, and a selection there is dropped.
+    private func mainOverlayWindow() throws -> (NSWindow, SelectionView) {
+        let screen = try XCTUnwrap(NSScreen.main)
+        let window = try XCTUnwrap(NSApp.windows.first { $0 is OverlayWindow && $0.isVisible && $0.screen == screen })
+        let view = try XCTUnwrap((window as? OverlayWindow)?.selectionView)
+        return (window, view)
+    }
+
+    /// The toolbar as it stands before anything is found wrong: no line above it. What the
+    /// preflight or the level meter say comes later and would move the buttons under the click.
+    private func layOutPlainToolbar(in view: SelectionView) throws {
+        let bar = OverlayHUD.recordingBar
+        bar.takenShortcuts = []
+        bar.freeBytes = nil
+        bar.microphoneIsSilent = false
+        bar.zoneCount = 0
+        let rep = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: rep)
+    }
+
     /// Opens the recording overlay with a region drawn and the toolbar laid out at the bottom.
     private func overlayWithRegion(
         onSelect: @escaping (SelectionOverlayController.Selection?) -> Void
@@ -74,15 +120,9 @@ final class RecordingBarInOverlayTests: XCTestCase {
         let captured = try frame(for: screen, displayID: displayID)
         overlay.begin(frames: [displayID: captured], purpose: .recording, completion: onSelect)
 
-        let window = try XCTUnwrap(NSApp.windows.first { $0 is OverlayWindow && $0.isVisible })
-        let view = try XCTUnwrap((window as? OverlayWindow)?.selectionView)
-        let start = view.convert(CGPoint(x: 200, y: 200), to: nil)
-        let end = view.convert(CGPoint(x: 600, y: 450), to: nil)
-        try click(window, at: start, type: .leftMouseDown)
-        try click(window, at: end, type: .leftMouseDragged)
-        try click(window, at: end, type: .leftMouseUp)
-        let rep = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: rep)
+        let (window, view) = try mainOverlayWindow()
+        try drawRegion(window, view)
+        try layOutPlainToolbar(in: view)
         return (overlay, window, view)
     }
 
@@ -92,7 +132,7 @@ final class RecordingBarInOverlayTests: XCTestCase {
         let (overlay, window, view) = try overlayWithRegion { _ in }
         defer { overlay.dismiss() }
         let bar = OverlayHUD.recordingBarHost
-        let region = view.recordingRegion
+        let region = try XCTUnwrap(view.recordingRegion, "a region to keep")
 
         for x in [bar.frame.minX + 2, bar.frame.minX + bar.frame.width * 0.45, bar.frame.maxX - 2] {
             let point = view.convert(CGPoint(x: x, y: bar.frame.midY), to: nil)
@@ -109,34 +149,16 @@ final class RecordingBarInOverlayTests: XCTestCase {
     }
 
     func testRecordButtonStartsTheRecording() throws {
-        let screen = try XCTUnwrap(NSScreen.main)
-        let displayID = try XCTUnwrap(SelectionOverlayController.displayID(of: screen))
-        let overlay = SelectionOverlayController()
         var selected: SelectionOverlayController.Selection?
-        let captured = try frame(for: screen, displayID: displayID)
-        overlay.begin(frames: [displayID: captured], purpose: .recording) {
-            selected = $0
-        }
+        let (overlay, window, view) = try overlayWithRegion { selected = $0 }
         defer { overlay.dismiss() }
-
-        let window = try XCTUnwrap(NSApp.windows.first { $0 is OverlayWindow && $0.isVisible })
-        let view = try XCTUnwrap((window as? OverlayWindow)?.selectionView)
-
-        // Draw a region the way a hand does: press, drag, release — through the window.
-        let start = view.convert(CGPoint(x: 200, y: 200), to: nil)
-        let end = view.convert(CGPoint(x: 600, y: 450), to: nil)
-        try click(window, at: start, type: .leftMouseDown)
-        try click(window, at: end, type: .leftMouseDragged)
-        try click(window, at: end, type: .leftMouseUp)
-        // The HUD is laid out while the overlay draws; the test host is in the background, so
-        // make the draw happen here.
-        let rep = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: rep)
 
         let bar = OverlayHUD.recordingBarHost
         XCTAssertTrue(bar.superview === view, "the toolbar is on the screen that was clicked")
         XCTAssertGreaterThan(bar.frame.width, 100, "a bar with an empty frame can't be clicked")
-        let record = view.convert(CGPoint(x: bar.frame.maxX - 40, y: bar.frame.midY), to: nil)
+        // Record is the last button of the row, and the row is the bottom of the toolbar (the
+        // view is flipped: the bottom is the frame's maxY).
+        let record = view.convert(CGPoint(x: bar.frame.maxX - 40, y: bar.frame.maxY - 20), to: nil)
 
         let hit = window.contentView?.superview?.hitTest(record) ?? window.contentView?.hitTest(record)
         let hitName = hit.map { String(describing: type(of: $0)) } ?? "nil"

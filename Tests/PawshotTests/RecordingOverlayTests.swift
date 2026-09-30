@@ -505,3 +505,123 @@ final class RecordingSelectionViewTests: XCTestCase {
         XCTAssertEqual(spy.cancelled, 1)
     }
 }
+
+/// Zones to hide on the recording overlay, and a gesture cut short by a key or a mode switch.
+extension RecordingSelectionViewTests {
+    private func press(_ characters: String, _ keyCode: Int, repeating: Bool = false) throws -> NSEvent {
+        try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
+            context: nil, characters: characters, charactersIgnoringModifiers: characters,
+            isARepeat: repeating, keyCode: UInt16(keyCode)
+        ))
+    }
+
+    private var region: CGRect {
+        CGRect(x: 100, y: 100, width: 200, height: 150)
+    }
+
+    private func viewWithRegion() throws -> (SelectionView, Spy) {
+        let (view, spy) = makeView()
+        try drag(view, from: CGPoint(x: 100, y: 100), to: CGPoint(x: 300, y: 250))
+        XCTAssertEqual(view.recordingRegion, region, "precondition: a region")
+        return (view, spy)
+    }
+
+    /// Esc while a zone is being drawn stops the drawing — and only that. The release that
+    /// follows has no gesture left, and used to wipe the region.
+    func testEscWhileDrawingAZoneKeepsTheRegion() throws {
+        let (view, spy) = try viewWithRegion()
+        try view.keyDown(with: press("h", kVK_ANSI_H))
+        XCTAssertTrue(view.isMarkingZones)
+
+        try view.mouseDown(with: mouse(.leftMouseDown, at: CGPoint(x: 180, y: 160), in: view))
+        try view.mouseDragged(with: mouse(.leftMouseDragged, at: CGPoint(x: 240, y: 200), in: view))
+        view.cancelOperation(nil)
+        try view.mouseUp(with: mouse(.leftMouseUp, at: CGPoint(x: 240, y: 200), in: view))
+
+        XCTAssertFalse(view.isMarkingZones)
+        XCTAssertTrue(view.maskZones.isEmpty, "the zone cut short is not kept")
+        XCTAssertEqual(try recorded(view, spy), region)
+    }
+
+    /// Space in the middle of dragging the region: the release in window mode is not a click on
+    /// a window, and the region is back where the drag began.
+    func testASwitchOfModeMidDragEndsNothing() throws {
+        let (view, spy) = try viewWithRegion()
+        try view.mouseDown(with: mouse(.leftMouseDown, at: CGPoint(x: 200, y: 175), in: view))
+        try view.mouseDragged(with: mouse(.leftMouseDragged, at: CGPoint(x: 260, y: 200), in: view))
+        view.apply(mode: .window)
+        try view.mouseUp(with: mouse(.leftMouseUp, at: CGPoint(x: 260, y: 200), in: view))
+
+        XCTAssertTrue(spy.selected.isEmpty, "no window was picked")
+        XCTAssertEqual(spy.cancelled, 0, "and the overlay was not cancelled either")
+        view.apply(mode: .region)
+        XCTAssertEqual(try recorded(view, spy), region)
+    }
+
+    /// With H on, the middle draws a zone and the rim still resizes — where the cursor says so.
+    func testAZoneStartsWhereTheCursorShowsTheMiddle() throws {
+        let (view, _) = try viewWithRegion()
+        try view.keyDown(with: press("h", kVK_ANSI_H))
+
+        try drag(view, from: CGPoint(x: 160, y: 150), to: CGPoint(x: 220, y: 200))
+        XCTAssertEqual(view.maskZones.count, 1)
+
+        // On the left edge: the region is resized, no zone.
+        try drag(view, from: CGPoint(x: 104, y: 175), to: CGPoint(x: 80, y: 175))
+        XCTAssertEqual(view.maskZones.count, 1)
+        XCTAssertEqual(view.recordingRegion?.minX, 76, "the edge follows the mouse by how far it moved")
+
+        XCTAssertEqual(
+            SelectionView.cursorKind(at: CGPoint(x: 200, y: 175), selection: view.recordingRegion, purpose: .recording,
+                                     mode: .region, overBar: false, grabbed: nil, markingZones: true),
+            .crosshair
+        )
+    }
+
+    /// ⌫ takes the last zone back whether or not H is still on; a new region forgets them all.
+    func testDeleteTakesAZoneBackAndANewRegionForgetsThem() throws {
+        let (view, _) = try viewWithRegion()
+        try view.keyDown(with: press("h", kVK_ANSI_H))
+        try drag(view, from: CGPoint(x: 160, y: 150), to: CGPoint(x: 220, y: 200))
+        try drag(view, from: CGPoint(x: 230, y: 150), to: CGPoint(x: 280, y: 200))
+        view.cancelOperation(nil)
+        XCTAssertEqual(view.maskZones.count, 2)
+
+        try view.keyDown(with: press("\u{7f}", kVK_Delete))
+        XCTAssertEqual(view.maskZones.count, 1)
+
+        try drag(view, from: CGPoint(x: 400, y: 300), to: CGPoint(x: 600, y: 450))
+        XCTAssertTrue(view.maskZones.isEmpty, "the zones were fractions of the region that is gone")
+    }
+
+    /// A held H repeats: it must not flip the drawing on and off at the repeat rate.
+    func testAHeldKeyDoesNotFlipBackAndForth() throws {
+        let (view, _) = try viewWithRegion()
+        try view.keyDown(with: press("h", kVK_ANSI_H))
+        XCTAssertTrue(view.isMarkingZones)
+        for _ in 0 ..< 3 {
+            try view.keyDown(with: press("h", kVK_ANSI_H, repeating: true))
+        }
+        XCTAssertTrue(view.isMarkingZones)
+    }
+
+    /// Zones are for a region: in window mode H does nothing, and switching there ends the drawing.
+    func testZonesAreForARegionOnly() throws {
+        let (view, _) = try viewWithRegion()
+        try view.keyDown(with: press("h", kVK_ANSI_H))
+        view.apply(mode: .window)
+        XCTAssertFalse(view.isMarkingZones)
+        try view.keyDown(with: press("h", kVK_ANSI_H))
+        XCTAssertFalse(view.isMarkingZones)
+    }
+}
+
+/// The badge by the cursor stays off the recording overlay, but for the digits of a typed size.
+final class OverlayBadgeTests: XCTestCase {
+    func testTheBadgeShowsOnAScreenshotAndOnlyWhileTypingOnARecording() {
+        XCTAssertTrue(SelectionView.showsBadge(purpose: .screenshot, typingSize: false))
+        XCTAssertFalse(SelectionView.showsBadge(purpose: .recording, typingSize: false))
+        XCTAssertTrue(SelectionView.showsBadge(purpose: .recording, typingSize: true))
+    }
+}

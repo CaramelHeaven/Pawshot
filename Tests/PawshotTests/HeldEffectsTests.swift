@@ -119,6 +119,60 @@ final class HeldEffectsTests: XCTestCase {
         XCTAssertEqual(full, EffectsPlanner.effectFade, accuracy: 0.001, "fully hidden by the time the stretch begins")
     }
 
+    /// The radii of every hidden-stretch animation on the content layer, in the order they begin.
+    private func blurRadii(_ content: CALayer) throws -> [[Double]] {
+        let animations = (content.animationKeys() ?? [])
+            .filter { $0.hasPrefix("blur-") }
+            .compactMap { content.animation(forKey: $0) as? CAKeyframeAnimation }
+            .sorted { $0.beginTime < $1.beginTime }
+        return try animations.map { try XCTUnwrap($0.values as? [NSNumber]).map(\.doubleValue) }
+    }
+
+    /// A piece of the video that ends inside a hidden stretch — cut there by hand or by a bad
+    /// take — must not fade back to sharp on the way to its edge: that fade would lie inside the
+    /// stretch. The same for a piece that starts inside one.
+    func testACutInsideAHiddenStretchKeepsItBlurredToTheEdge() throws {
+        var timeline = EventTimeline()
+        timeline.blurs = [EventTimeline.Span(start: 5, end: 12)]
+
+        var endsInside = KeepRanges(duration: 30)
+        XCTAssertTrue(endsInside.cut(from: 8, to: 20), "precondition: a piece ends at 8 s")
+        let first = try blurRadii(build(timeline, keep: endsInside))
+        XCTAssertEqual(first.count, 1)
+        XCTAssertEqual(first.first?.first, 0, "the way in, before the stretch, is kept")
+        XCTAssertEqual(first.first?.last, 20, "the edge of the piece is still inside the stretch")
+
+        var startsInside = KeepRanges(duration: 30)
+        XCTAssertTrue(startsInside.cut(from: 2, to: 9), "precondition: a piece starts at 9 s")
+        let second = try blurRadii(build(timeline, keep: startsInside))
+        XCTAssertEqual(second.count, 1)
+        XCTAssertEqual(second.first?.first, 20, "the piece starts inside the stretch")
+        XCTAssertEqual(second.first?.last, 0, "the way out, after the stretch, is kept")
+    }
+
+    /// The key still down at Stop: the stretch runs to the end of the video, and so does the blur.
+    /// Pressed in the first moment of the take: the video starts blurred.
+    func testAStretchAtAnEdgeOfTheVideoIsBlurredToThatEdge() throws {
+        var toTheEnd = EventTimeline()
+        toTheEnd.blurs = [EventTimeline.Span(start: 25, end: 30)]
+        XCTAssertEqual(try blurRadii(build(toTheEnd)).first?.last, 20)
+
+        var fromTheStart = EventTimeline()
+        fromTheStart.blurs = [EventTimeline.Span(start: 0.05, end: 3)]
+        XCTAssertEqual(try blurRadii(build(fromTheStart)).first?.first, 20)
+    }
+
+    /// Two stretches closer than their ways in and out: the second's way in would override the
+    /// end of the first with a thinner blur. They are hidden as one.
+    func testTwoStretchesCloseTogetherAreHiddenAsOne() throws {
+        var timeline = EventTimeline()
+        timeline.blurs = [EventTimeline.Span(start: 1, end: 2), EventTimeline.Span(start: 2.2, end: 3)]
+        XCTAssertEqual(try blurRadii(build(timeline)), [[0, 20, 20, 0]])
+
+        timeline.blurs = [EventTimeline.Span(start: 1, end: 2), EventTimeline.Span(start: 5, end: 6)]
+        XCTAssertEqual(try blurRadii(build(timeline)).count, 2, "far apart they stay two")
+    }
+
     func testAPlainTakeGetsNoFilter() throws {
         var timeline = EventTimeline()
         timeline.clicks = [.init(time: 1, x: 0.5, y: 0.5)]
@@ -145,6 +199,14 @@ final class HeldEffectsTests: XCTestCase {
             fired = fired || typing.feed(level: step % 10 == 0 ? 0.8 : 0.05, at: Double(step) * 0.025)
         }
         XCTAssertFalse(fired)
+    }
+
+    /// The levels come by way of the main thread. One stall of it and a single loud buffer after
+    /// it are not half a second of voice.
+    func testAStallAndOneLoudMomentAreNotTalking() {
+        var speech = SpeechWatch()
+        XCTAssertFalse(speech.feed(level: 0.7, at: 0))
+        XCTAssertFalse(speech.feed(level: 0.7, at: 0.6), "one loud buffer after a 0.6 s stall")
     }
 
     func testTalkingIsSaidOnce() {
@@ -267,6 +329,25 @@ final class HeldEffectsRenderTests: XCTestCase {
         XCTAssertGreaterThan(rim, lowest - 0.08, "the blur must not darken the edge of the frame: \(rim) against \(during)")
     }
 
+    /// The blur key still down at Stop: the last frames of the video are as hidden as the rest of
+    /// the stretch — they used to fade back to sharp.
+    func testAStretchHeldToTheEndStaysHiddenInTheLastFrames() async throws {
+        let source = try await SyntheticVideo.write(to: folder.appendingPathComponent("in.mov"), audioTracks: 0, stripes: true)
+        var timeline = EventTimeline()
+        timeline.blurs = [EventTimeline.Span(start: 1.0, end: 2.0)]
+        let out = folder.appendingPathComponent("out.mp4")
+
+        try await VideoExporter.export(
+            source: source, keep: KeepRanges(duration: 2), preset: .original, to: out,
+            timeline: timeline, effects: EffectsOptions()
+        ) { _ in }
+
+        let last = try await frame(of: out, at: 1.93)
+        // A white and a black stripe side by side.
+        let pair = [brightness(last, 60, 120), brightness(last, 100, 120)]
+        XCTAssertLessThan(abs(pair[0] - pair[1]), 0.12, "the last frames are still hidden: \(pair)")
+    }
+
     /// A zone marked before the take is blurred from the first frame to the last, and only it.
     /// Black and white stripes again: sharp, every pixel is one or the other; blurred, grey.
     func testTheExportBlursAMarkedZoneThroughoutAndNothingElse() async throws {
@@ -290,6 +371,59 @@ final class HeldEffectsRenderTests: XCTestCase {
             let inside = [brightness(rep, 204, 180), brightness(rep, 212, 120)]
             XCTAssertLessThan(abs(inside[0] - inside[1]), 0.12, "at \(time) s inside the zone the stripes melt: \(inside)")
         }
+    }
+
+    /// A zone over the top 30% of the picture: blurred up there — right to the edge of the frame,
+    /// with no dark rim — and sharp below. Not symmetric, so a zone counted from the wrong side
+    /// fails here.
+    func testTheExportBlursAZoneWhereItWasDrawnRightToTheEdge() async throws {
+        let source = try await SyntheticVideo.write(to: folder.appendingPathComponent("in.mov"), audioTracks: 0, stripes: true)
+        var timeline = EventTimeline()
+        timeline.masks = [EventTimeline.Mask(x: 0, y: 0, width: 1, height: 0.3)]
+        let out = folder.appendingPathComponent("out.mp4")
+
+        try await VideoExporter.export(
+            source: source, keep: KeepRanges(duration: 2), preset: .original, to: out,
+            timeline: timeline, effects: EffectsOptions()
+        ) { _ in }
+
+        let rep = try await frame(of: out, at: 1.0)
+        // Rows counted from the top of the picture: the zone is 0…72.
+        let inside = [brightness(rep, 60, 30), brightness(rep, 100, 30)]
+        XCTAssertLessThan(abs(inside[0] - inside[1]), 0.12, "the top is hidden: \(inside)")
+        let below = [brightness(rep, 60, 200), brightness(rep, 100, 200)]
+        XCTAssertGreaterThan(abs(below[0] - below[1]), 0.6, "the rest is sharp: \(below)")
+        // No dark rim where the zone meets the edge of the frame. The stripes run top to bottom,
+        // so at the top edge a column reads as it does lower in the zone; at the right edge the
+        // last stripe is white, and the blur must not sink below the grey. (At the left edge the
+        // first stripe is black, and carrying it outwards darkens that side honestly.)
+        for x in [60, 100] {
+            let top = brightness(rep, x, 2)
+            let lower = brightness(rep, x, 30)
+            XCTAssertLessThan(abs(top - lower), 0.08, "no rim at the top edge, column \(x): \(top) against \(lower)")
+        }
+        let right = brightness(rep, 317, 30)
+        XCTAssertGreaterThan(right, min(inside[0], inside[1]) - 0.08, "no rim at the right edge: \(right) against \(inside)")
+    }
+
+    /// A zone opened when the region moved on a pause: sharp before that moment, hidden after.
+    func testTheExportHidesAZoneOnlyFromItsStart() async throws {
+        let source = try await SyntheticVideo.write(to: folder.appendingPathComponent("in.mov"), audioTracks: 0, stripes: true)
+        var timeline = EventTimeline()
+        timeline.masks = [EventTimeline.Mask(x: 0, y: 0, width: 1, height: 1, start: 1.0, end: nil)]
+        let out = folder.appendingPathComponent("out.mp4")
+
+        try await VideoExporter.export(
+            source: source, keep: KeepRanges(duration: 2), preset: .original, to: out,
+            timeline: timeline, effects: EffectsOptions()
+        ) { _ in }
+
+        let before = try await frame(of: out, at: 0.5)
+        let after = try await frame(of: out, at: 1.5)
+        let sharp = [brightness(before, 60, 120), brightness(before, 100, 120)]
+        let hidden = [brightness(after, 60, 120), brightness(after, 100, 120)]
+        XCTAssertGreaterThan(abs(sharp[0] - sharp[1]), 0.6, "before the zone opens the picture is sharp: \(sharp)")
+        XCTAssertLessThan(abs(hidden[0] - hidden[1]), 0.12, "after it the picture is hidden: \(hidden)")
     }
 
     /// The video is one flat colour: with the spotlight on, it stays that colour around the

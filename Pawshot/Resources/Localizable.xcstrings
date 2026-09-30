@@ -311,6 +311,16 @@
         }
       }
     },
+    "A hidden zone is outside the region now" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрытая зона теперь вне области"
+          }
+        }
+      }
+    },
     "A in the editor draws an arrow." : {
       "localizations" : {
         "ru" : {
@@ -1500,6 +1510,16 @@
         }
       }
     },
+    "Fixes for recording.\n\nA part hidden with ⌃⌘B now stays hidden right up to a cut and to the start and the end of the video: at the edge of a piece it used to turn sharp for a moment.\n\nA zone to hide stays over the same part of the screen when the region is moved on a pause, and a zone at the edge of the picture no longer gets a dark rim. With zones drawn and a window or the whole screen picked, a line above the toolbar says they won't be hidden.\n\nThe recording screen no longer has a badge with the coordinates by the cursor; it shows up only while you type a size.\n\nWith a region on more than one display, Record and ↩ take the one you last touched. Esc while drawing a zone no longer wipes the region.\n\nIf the effects of a recording can't be read, the video editor says so rather than saving it without them quietly.\n\n⇧⌘2 sometimes showed nothing after the Mac had slept or its displays had changed, until Pawshot was restarted. It shows the dimming now." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправления записи.\n\nЧасть, скрытая ⌃⌘B, теперь остаётся скрытой вплоть до выреза, до начала и до конца видео: на краю куска она на мгновение становилась резкой.\n\nЗона скрытия остаётся над тем же местом экрана, когда область сдвигают на паузе, а у зоны на краю кадра больше нет тёмной каймы. Если зоны нарисованы, а для записи выбрано окно или весь экран, строка над панелью говорит, что они не будут скрыты.\n\nНа экране записи у курсора больше нет плашки с координатами: она появляется, только пока вы набираете размер.\n\nЕсли область есть на нескольких дисплеях, «Запись» и ↩ берут ту, которой вы касались последней. Esc во время рисования зоны больше не стирает область.\n\nЕсли эффекты записи не удаётся прочитать, редактор видео говорит об этом, а не сохраняет её без них молча.\n\n⇧⌘2 иногда ничего не показывал после сна Mac или смены дисплеев — до перезапуска Pawshot. Теперь затемнение появляется."
+          }
+        }
+      }
+    },
     "Fix…" : {
       "localizations" : {
         "ru" : {
@@ -2163,16 +2183,6 @@
         }
       }
     },
-    "Open Keyboard Shortcuts" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Открыть «Сочетания клавиш»"
-          }
-        }
-      }
-    },
     "Open Pawshot" : {
       "localizations" : {
         "ru" : {
@@ -2415,16 +2425,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Взять цвет с экрана"
-          }
-        }
-      }
-    },
-    "Pick another shortcut, or untick in Keyboard Shortcuts…:" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Выберите другое сочетание или снимите флажок в «Сочетания клавиш…»:"
           }
         }
       }
@@ -3464,6 +3464,16 @@
         }
       }
     },
+    "Still moving the region…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Область ещё переносится…"
+          }
+        }
+      }
+    },
     "Stop" : {
       "localizations" : {
         "ru" : {
@@ -3648,12 +3658,22 @@
         }
       }
     },
-    "The Mac's sound is videos, calls and notifications. With the microphone on, the bar under the area shows its level before you start, and if it stays silent for a second and a half it turns red and says \"no signal\". Both end up mixed into one track." : {
+    "The Mac's sound is videos, calls and notifications. With the microphone on, Options on the recording toolbar show its level before you start; if it stays silent for a second and a half, it says \"no signal\" and a line above the toolbar says so too. Both end up mixed into one track." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Звук Mac — это видео, звонки и уведомления. Когда микрофон включён, панель под областью показывает его уровень ещё до старта, а если он молчит полторы секунды — краснеет и пишет «нет сигнала». Оба источника сводятся в одну дорожку."
+            "value" : "Звук Mac — это видео, звонки и уведомления. Когда микрофон включён, «Параметры» на панели записи показывают его уровень ещё до старта; если он молчит полторы секунды, там написано «нет сигнала», и строка над панелью говорит о том же. Оба источника сводятся в одну дорожку."
+          }
+        }
+      }
+    },
+    "The clicks, zooms and hidden parts of this recording couldn't be read — they won't be in the video." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Клики, зумы и скрытые части этой записи не удалось прочитать — в видео их не будет."
           }
         }
       }
@@ -3748,6 +3768,16 @@
         }
       }
     },
+    "The recording isn't running." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись не идёт."
+          }
+        }
+      }
+    },
     "The recording ran into a problem" : {
       "localizations" : {
         "ru" : {
@@ -3814,6 +3844,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Серия не прерывается."
+          }
+        }
+      }
+    },
+    "The video couldn't be put on the clipboard." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось положить видео в буфер обмена."
           }
         }
       }
@@ -4127,6 +4167,16 @@
         }
       }
     },
+    "Zones to hide work for a region only: %lld won't be hidden in this take" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зоны скрытия работают только для области: в этой записи %lld не будут скрыты"
+          }
+        }
+      }
+    },
     "Zoom in here" : {
       "localizations" : {
         "ru" : {
@@ -4359,16 +4409,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "macOS забирает %1$@ (%2$@): снимите флажок «%3$@» в «Сочетания клавиш»"
-          }
-        }
-      }
-    },
-    "macOS takes %@ for itself, so Pawshot never sees the key." : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS забирает %@ себе, и Pawshot не получает нажатие."
           }
         }
       }
@@ -4644,22 +4684,6 @@
         }
       }
     },
-    "• %@ → %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "• %1$@ → %2$@"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "• %1$@ → %2$@"
-          }
-        }
-      }
-    },
     "← →" : {
       "shouldTranslate" : false
     },
@@ -4731,16 +4755,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "⌘S кладёт снимки и видео сюда; ⇧⌘S один раз спрашивает имя, папку и формат."
-          }
-        }
-      }
-    },
-    "⌘S puts shots and videos here; ⇧⌘S picks a name, a folder and a format just once. PNG keeps every pixel, JPEG and HEIC are several times smaller." : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⌘S кладёт снимки и видео сюда; ⇧⌘S один раз спрашивает имя, папку и формат. PNG хранит каждый пиксель, JPEG и HEIC в несколько раз меньше."
           }
         }
       }

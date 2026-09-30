@@ -71,6 +71,16 @@ final class EventRecorder {
         area = newArea
     }
 
+    /// The region moved on a pause at `time` (seconds of the file), from `old` to `new` — global
+    /// points, origin top left. The zones stay over the same part of the screen
+    /// (`EventTimeline.masks(_:afterMovingFrom:to:at:)`). Returns the zones open from now on, as
+    /// fractions of the new region, and how many the new region no longer holds.
+    func moveZones(from old: CGRect, to new: CGRect, at time: Double) -> (open: [CGRect], dropped: Int) {
+        let (masks, dropped) = EventTimeline.masks(timeline.masks, afterMovingFrom: old, to: new, at: time)
+        timeline.masks = masks
+        return (masks.filter { $0.end == nil }.map(\.fractions), dropped)
+    }
+
     func stop() -> EventTimeline {
         if cursorTimer != nil {
             let recorded = timeline

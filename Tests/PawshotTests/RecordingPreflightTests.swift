@@ -77,3 +77,22 @@ final class RecordingPreflightTests: XCTestCase {
         XCTAssertTrue(RecordingPreflight.Problem.shortcutsTaken([taken]).message.contains("⇧⌘5"))
     }
 }
+
+extension RecordingPreflightTests {
+    /// Everything wrong at once comes in reading order: what would show what it shouldn't first.
+    func testProblemsComeInReadingOrder() {
+        let taken = RecordingPreflight.Taken(action: "restart", shortcut: "⇧⌘5", item: "Options")
+        let problems = RecordingPreflight.problems(
+            microphoneIsOn: true, microphoneIsSilent: true, taken: [taken], freeBytes: 1, ignoredZones: 2
+        )
+        XCTAssertEqual(problems, [.zonesIgnored(2), .microphoneSilent, .shortcutsTaken([taken]), .lowDisk(freeBytes: 1)])
+    }
+
+    func testMoreThanOneShortcutTakenIsCounted() {
+        let taken = (1 ... 3).map { RecordingPreflight.Taken(action: "a\($0)", shortcut: "⇧⌘\($0)", item: "Item \($0)") }
+        let message = RecordingPreflight.Problem.shortcutsTaken(taken).message
+        XCTAssertTrue(message.contains("⇧⌘1"), message)
+        XCTAssertTrue(message.contains("2"), "the rest are counted: \(message)")
+        XCTAssertFalse(RecordingPreflight.Problem.zonesIgnored(2).message.isEmpty)
+    }
+}

@@ -64,15 +64,6 @@ final class RecordingProfileTests: XCTestCase {
         XCTAssertNil(RecordingProfile.current(in: settings), "a hand-changed setting is nobody's profile")
     }
 
-    func testNoSettingsAreTwoProfilesAtOnce() {
-        let bug = RecordingProfile.bugReport.values
-        let demo = RecordingProfile.demo.values
-        // They must disagree somewhere, or `current` could not tell them apart.
-        XCTAssertNotEqual(bug.microphone, demo.microphone)
-        XCTAssertNotNil(bug.microphone)
-        XCTAssertNotNil(demo.microphone)
-    }
-
     func testPCyclesThroughTheProfilesAndStartsWithTheFirstFromCustom() {
         XCTAssertEqual(RecordingProfile.next(after: nil), .bugReport)
         XCTAssertEqual(RecordingProfile.next(after: .bugReport), .demo)

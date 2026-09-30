@@ -164,6 +164,18 @@ final class RegionMagnetTests: XCTestCase {
         XCTAssertEqual(wide.midX, region.midX, "still about its middle")
     }
 
+    /// ⌥ with the proportions held, by an edge of the screen: the side that runs out of room
+    /// takes the other one down with it — the region stays at its proportions.
+    func testResizingFromTheMiddleKeepsTheProportionsAtTheScreensEdge() {
+        let nearTheLeft = CGRect(x: 50, y: 300, width: 100, height: 100)
+        let grown = SelectionGeometry.resized(
+            nearTheLeft, dragging: .bottomRight, to: CGPoint(x: 300, y: 500), aspect: 1, within: bounds, fromCenter: true
+        )
+        XCTAssertEqual(grown.width / grown.height, 1, accuracy: 0.01, "\(grown)")
+        XCTAssertGreaterThanOrEqual(grown.minX, bounds.minX)
+        XCTAssertEqual(grown.midX, nearTheLeft.midX, accuracy: 0.5, "still about its middle")
+    }
+
     func testArrowsMoveOrResizeAndStayInside() {
         XCTAssertEqual(
             SelectionGeometry.nudged(region, by: CGSize(width: 10, height: 0), resizing: false, within: bounds),

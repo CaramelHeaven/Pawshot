@@ -52,9 +52,15 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         windows.compactMap(\.selectionView)
     }
 
-    /// The screen the recording region is on — where its zones live.
+    /// The screen whose region a take would record, and where its zones live: the one last
+    /// pressed on (it holds the keyboard — `SelectionView.mouseDown`), then the one under the
+    /// toolbar, then any. A region restored on every display used to be recorded from whichever
+    /// screen the toolbar or the keyboard happened to be on.
     private var viewWithRegion: SelectionView? {
-        selectionViews.first { $0.recordingRegion != nil }
+        let withRegion = selectionViews.filter { $0.recordingRegion != nil }
+        return withRegion.first { $0.window?.isKeyWindow == true }
+            ?? withRegion.first { $0 === toolbarView }
+            ?? withRegion.first
     }
 
     var isActive: Bool {
@@ -95,7 +101,12 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
 
     /// New displays, or new sizes: the ready windows no longer fit. Rebuilt between captures only.
     private func displaysChanged() {
-        guard !isActive else { return }
+        guard !isActive else {
+            Self.logger.notice("displays changed during a capture: the ready windows are rebuilt after it")
+            return
+        }
+        let dropped = prepared.values.map { "\($0.windowNumber) (\($0.timesShown)×)" }.joined(separator: ", ")
+        Self.logger.notice("displays changed: ready windows dropped: \(dropped.isEmpty ? "none" : dropped, privacy: .public)")
         prepared.removeAll()
         prepareWindows()
     }
@@ -148,7 +159,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         }
 
         for screen in NSScreen.screens {
-            guard let displayID = Self.displayID(of: screen), let window = prepared[displayID] else { continue }
+            guard let displayID = Self.displayID(of: screen), var window = prepared[displayID] else { continue }
 
             let view = SelectionView(frame: CGRect(origin: .zero, size: screen.frame.size))
             view.delegate = self
@@ -181,18 +192,46 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             // Not deferred until the frame is taken, though Telegram Desktop's photo viewer may
             // close on losing the keyboard: tried on 2026-09-29 and rolled back after the dimming
             // leaked into the frame in test runs — see AGENTS.md, the overlay section.
-            if screen.frame.contains(mouseLocation) {
+            let takesKey = screen.frame.contains(mouseLocation)
+            if takesKey {
                 window.makeKey()
                 window.makeFirstResponder(view)
             }
+            window.timesShown += 1
             let number = window.windowNumber
             let visible = window.isVisible
             let onSpace = window.isOnActiveSpace
             let key = window.isKeyWindow
             let described = LogExport.describe(screen)
+            let age = Int(Date().timeIntervalSince(window.builtAt))
+            let shown = window.timesShown
             Self.logger.notice(
-                "overlay window \(number, privacy: .public) on \(described, privacy: .public): visible \(visible, privacy: .public), on active space \(onSpace, privacy: .public), key \(key, privacy: .public)"
+                "overlay window \(number, privacy: .public) on \(described, privacy: .public): visible \(visible, privacy: .public), on active space \(onSpace, privacy: .public), key \(key, privacy: .public), built \(age, privacy: .public) s ago, shown \(shown, privacy: .public)×"
             )
+            // A ready window the system no longer shows on the Space in front: the dimming never
+            // came, and every ⇧⌘2 after it met "the overlay is already up" until a relaunch (a log
+            // of 0.5.3, 2026-09-30, a window kept since before a sleep and a display change). Why
+            // it fell out of "every Space" is not known; a window built now is on this one.
+            if !onSpace {
+                Self.logger.error("overlay window \(number, privacy: .public) is not on the active space (built \(age, privacy: .public) s ago, shown \(shown, privacy: .public)×): rebuilt")
+                window.orderOut(nil)
+                window.clear()
+                window.close()
+                let fresh = OverlayWindow(screen: screen)
+                prepared[displayID] = fresh
+                fresh.install(view)
+                windows[windows.count - 1] = fresh
+                fresh.orderFrontRegardless()
+                if takesKey {
+                    fresh.makeKey()
+                    fresh.makeFirstResponder(view)
+                }
+                fresh.timesShown = 1
+                window = fresh
+                let freshNumber = fresh.windowNumber
+                let freshOnSpace = fresh.isOnActiveSpace
+                Self.logger.notice("overlay window rebuilt as \(freshNumber, privacy: .public): on active space \(freshOnSpace, privacy: .public)")
+            }
         }
 
         // Looked at a few times from the main thread, and watched from another one: the first
@@ -207,6 +246,15 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
                 OverlayDiagnostics.check(windows: windows)
                 if pause == 400 {
                     OverlayDiagnostics.compareFrontAppWindows("at +\(OverlayDiagnostics.sincePress()) ms")
+                    // Still on no Space in front half a second on, rebuilt or not: the person sees
+                    // nothing. Closed, so the next press starts afresh instead of meeting "already up".
+                    if !windows.contains(where: \.isOnActiveSpace) {
+                        let numbers = windows.map { String($0.windowNumber) }.joined(separator: ", ")
+                        Self.logger.error("overlay on no active space 500 ms after the hotkey (windows \(numbers, privacy: .public)): closed")
+                        prepared.removeAll()
+                        finish(with: nil)
+                        return
+                    }
                 }
             }
         }
@@ -275,7 +323,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
     func dismiss() {
         Self.logger.notice("overlay dismissed")
         OverlayDiagnostics.ended()
-        stopEcho()
+        // Not synced back: the overlay is going, and a sync would start the level meter again.
+        stopEcho(resync: false)
         stopLevelMeter()
         OverlayHUD.hide()
         for window in windows {
@@ -320,6 +369,11 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         let globalRect = rect.offsetBy(dx: origin.x, dy: origin.y)
         let isWholeDisplay = windowID == nil && view.mode == .screen
         let kind = windowID != nil ? "window" : (isWholeDisplay ? "whole screen" : "region")
+        // The toolbar said so before the take (`RecordingPreflight.Problem.zonesIgnored`).
+        if windowID != nil || isWholeDisplay, !view.maskZones.isEmpty {
+            let dropped = view.maskZones.count
+            Self.logger.error("selection: \(dropped, privacy: .public) zone(s) to hide left out, a \(kind, privacy: .public) take has no region to count them from")
+        }
         let width = Int(rect.width.rounded())
         let height = Int(rect.height.rounded())
         Self.logger.notice(
@@ -344,6 +398,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         let settings = Settings.shared
         switch option {
         case .microphone:
+            // A check of a microphone that has just been switched off would go on unseen.
+            stopEcho()
             settings.recordsMicrophone.toggle()
         case .systemAudio:
             settings.recordsSystemAudio.toggle()
@@ -386,6 +442,11 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         bar.hoverPoint = nil
         bar.level = 0
         bar.microphoneIsSilent = false
+        // The last overlay's list: a device unplugged since would stay ticked until Options open.
+        bar.microphones = []
+        bar.microphoneID = nil
+        bar.zoneCount = 0
+        bar.isMarkingZones = false
         bar.takenShortcuts = []
         bar.freeBytes = nil
         bar.echoPhase = .idle
@@ -415,10 +476,19 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             }
             view.setMarkingZones(!view.isMarkingZones, by: "Options")
         }
-        bar.clearZones = { [weak self] in self?.viewWithRegion?.clearZones(because: "Options") }
+        bar.clearZones = { [weak self] in
+            guard let view = self?.viewWithRegion else {
+                Self.logger.error("options: clear zones pressed with no region holding any")
+                return
+            }
+            view.clearZones(because: "Options")
+        }
         bar.toggleSystemAudio = { [weak self] in self?.toggleFromBar(.systemAudio) }
         bar.toggleScale = { [weak self] in
-            guard let self, let view = toolbarView else { return }
+            guard let self, let view = toolbarView else {
+                Self.logger.error("options: scale pressed, but the toolbar is in no overlay")
+                return
+            }
             Self.logger.notice("options: scale pressed")
             view.nativeResolution.toggle()
             selectionView(view, didToggle: .scale)
@@ -435,12 +505,17 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             Self.logger.notice("options: pressed shortcuts in the video → \(keys, privacy: .public)")
             self?.syncRecordingBar()
         }
-        // The toolbar lives inside the overlay of the screen the cursor is on; that one records.
+        // A region is recorded from the screen that holds it (`viewWithRegion`); a window or the
+        // whole screen from the one the toolbar is on, where the cursor is.
         bar.start = { [weak self] in
             Self.logger.notice("toolbar: Record pressed")
-            guard let view = self?.toolbarView else {
+            guard let self, let toolbar = toolbarView else {
                 Self.logger.error("toolbar: Record pressed, but the toolbar is in no overlay")
                 return
+            }
+            let view = toolbar.mode == .region ? (viewWithRegion ?? toolbar) : toolbar
+            if view !== toolbar {
+                Self.logger.notice("toolbar: Record takes the region on another screen, the one last pressed on")
             }
             view.commitRecording()
         }
@@ -485,14 +560,15 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             "preflight: \(bar.problems.count, privacy: .public) problem(s) [\(found, privacy: .public)], free \(freeDescribed, privacy: .public)"
         )
         // A line appearing changes the toolbar's size, and its frame is set by hand.
-        DispatchQueue.main.async { [weak self] in
-            self?.toolbarView?.needsDisplay = true
-        }
+        relayOutToolbar()
     }
 
     private func toggleFromBar(_ option: RecordingOverlayKey) {
         Self.logger.notice("options: \(String(describing: option), privacy: .public) pressed")
-        guard let view = toolbarView else { return }
+        guard let view = toolbarView else {
+            Self.logger.error("options: \(String(describing: option), privacy: .public) pressed, but the toolbar is in no overlay")
+            return
+        }
         selectionView(view, didToggle: option)
     }
 
@@ -505,14 +581,15 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         if shown {
             bar.microphones = MicrophoneDevices.all()
             syncRecordingBar()
+        } else {
+            // Its button is inside the panel: closed, a check would go on with no way to stop it.
+            stopEcho()
         }
         let count = bar.microphones.count
         Self.logger.notice("options \(shown ? "opened" : "closed", privacy: .public), \(count, privacy: .public) microphone(s)")
         // The panel changes the toolbar's size, and its frame is set by hand: once SwiftUI has
         // taken the change in, the overlay lays it out again.
-        DispatchQueue.main.async { [weak self] in
-            self?.toolbarView?.needsDisplay = true
-        }
+        relayOutToolbar()
     }
 
     /// One screen's mode for every screen, the toolbar and the hints.
@@ -523,6 +600,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         OverlayHUD.hints.mode = mode
         OverlayHUD.recordingBar.mode = mode
         Self.logger.notice("overlay mode → \(String(describing: mode), privacy: .public)")
+        // The zones' warning comes and goes with the mode.
+        relayOutToolbar()
     }
 
     /// A profile picked with P or in Options: written into the ordinary settings, then every
@@ -571,19 +650,32 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
                 echo = nil
                 syncRecordingBar()
             }
+            relayOutToolbar()
         }
         echo = check
         bar.echoPhase = .listening
         check.start()
     }
 
-    private func stopEcho() {
+    private func stopEcho(resync: Bool = true) {
         guard let echo else { return }
         echoRun += 1
         echo.cancel()
         self.echo = nil
         OverlayHUD.recordingBar.echoPhase = .idle
-        syncRecordingBar()
+        if resync {
+            syncRecordingBar()
+        }
+    }
+
+    /// The toolbar's frame is set by hand, and SwiftUI changes its size on its own time: a line
+    /// above it, a row in Options, a longer caption. Once SwiftUI has taken the change in, the
+    /// overlay lays it out again — otherwise the new part hangs past the frame and its clicks go
+    /// through to the overlay.
+    private func relayOutToolbar() {
+        DispatchQueue.main.async { [weak self] in
+            self?.toolbarView?.needsDisplay = true
+        }
     }
 
     private func stopLevelMeter() {
@@ -622,18 +714,24 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         // Not while the echo holds the input.
         let wantsMeter = bar.canCheckMicrophone && echo == nil
         if wantsMeter, levelMeter == nil {
-            let meter = MicrophoneLevelMeter(deviceUID: settings.microphoneDeviceID) { level, silent in
-                if OverlayHUD.recordingBar.microphoneIsSilent != silent {
+            let meter = MicrophoneLevelMeter(deviceUID: settings.microphoneDeviceID) { [weak self] level, silent in
+                let changed = OverlayHUD.recordingBar.microphoneIsSilent != silent
+                if changed {
                     Self.logger.notice("mic meter: \(silent ? "silent" : "hearing sound", privacy: .public)")
                 }
                 OverlayHUD.recordingBar.level = level
                 OverlayHUD.recordingBar.microphoneIsSilent = silent
+                // The "hears nothing" line comes and goes above the toolbar.
+                if changed {
+                    self?.relayOutToolbar()
+                }
             }
             meter.start()
             levelMeter = meter
         } else if !wantsMeter, levelMeter != nil {
             stopLevelMeter()
         }
+        relayOutToolbar()
     }
 
     func selectionViewDidCancel(_: SelectionView) {

@@ -164,3 +164,12 @@ final class AppIconTests: XCTestCase {
         XCTAssertEqual(icon.size.width, icon.size.height, accuracy: 0.001)
     }
 }
+
+/// Launch at login is asked of the system in the background, and not more than every two seconds.
+final class LoginItemStatusTests: XCTestCase {
+    func testAnAnswerIsAskedAgainOnlyOnceItIsTwoSecondsOld() {
+        let asked = Date(timeIntervalSinceReferenceDate: 1000)
+        XCTAssertFalse(LoginItemStatus.isStale(askedAt: asked, now: asked.addingTimeInterval(1.9)))
+        XCTAssertTrue(LoginItemStatus.isStale(askedAt: asked, now: asked.addingTimeInterval(2)))
+    }
+}

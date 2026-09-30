@@ -100,16 +100,29 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// another app is active, and activation asked for by a background app may come late or never
     /// — the video editor's window once turned up behind other apps that way. In a tester's log it
     /// came 150–190 ms later every time, so this only looks, half a second on.
+    ///
+    /// Not key by then (the owner's 0.5.3 log, 2026-09-30): the window is put above everyone and
+    /// made key — what the video editor does from the start — and looked at once more a second on.
     private func checkActivation() {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(500))
             guard let window = self?.window, window.isVisible else { return }
             let active = NSApp.isActive
-            let key = window.isKeyWindow
-            if key {
+            if window.isKeyWindow {
                 Self.editorLogger.notice("editor after 500 ms: app active \(active, privacy: .public), window key true")
+                return
+            }
+            Self.editorLogger.notice("editor after 500 ms: app active \(active, privacy: .public), window key false — ordering it front")
+            NSApp.activate()
+            window.orderFrontRegardless()
+            window.makeKey()
+            try? await Task.sleep(for: .milliseconds(1000))
+            guard window.isVisible else { return }
+            let activeLater = NSApp.isActive
+            if window.isKeyWindow {
+                Self.editorLogger.notice("editor after 1500 ms: key true, app active \(activeLater, privacy: .public)")
             } else {
-                Self.editorLogger.error("editor after 500 ms: app active \(active, privacy: .public), window key false — not in front?")
+                Self.editorLogger.error("editor after 1500 ms: app active \(activeLater, privacy: .public), window key false — not in front?")
             }
         }
     }

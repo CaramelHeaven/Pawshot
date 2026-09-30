@@ -11,6 +11,9 @@ struct RecordingClock {
     /// The source time of the first video frame; nothing is written before it.
     private(set) var origin: CMTime?
     private var pausedSince: CMTime?
+    /// When the last pause ended. A sample stamped before it was captured during the pause, or
+    /// before it, and only delivered late.
+    private var resumedAt: CMTime?
     private(set) var pausedTotal: CMTime = .zero
 
     var isPaused: Bool {
@@ -26,10 +29,13 @@ struct RecordingClock {
         guard let since = pausedSince else { return }
         pausedTotal = pausedTotal + (time - since)
         pausedSince = nil
+        resumedAt = time
     }
 
     /// The time a sample gets in the file, or `nil` when it must not be written: before the first
-    /// frame, during a pause, or — for a frame that arrived late — earlier than the pause ended.
+    /// frame, during a pause, or — for a sample that arrived late — captured before the pause
+    /// ended. Such a sample would be stamped inside the stretch already written, and a time going
+    /// backwards can fail the writer and with it the whole take.
     mutating func outputTime(for source: CMTime, isVideo: Bool) -> CMTime? {
         guard source.isValid else { return nil }
 
@@ -38,6 +44,9 @@ struct RecordingClock {
             origin = source
         }
         guard let origin, !isPaused else { return nil }
+        if let resumedAt, source < resumedAt {
+            return nil
+        }
 
         let output = source - origin - pausedTotal
         return output >= .zero ? output : nil

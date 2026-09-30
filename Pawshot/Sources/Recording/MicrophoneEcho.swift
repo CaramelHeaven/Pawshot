@@ -53,9 +53,13 @@ final class MicrophoneEcho: @unchecked Sendable {
     /// Bumped by every start and cancel, so a timer of an earlier run does nothing.
     private var run = 0
 
-    /// Filled on the audio thread.
+    /// Watches the listener for a device plugged in or out: the engine stops by itself then.
+    private var configurationObserver: NSObjectProtocol?
+
+    /// Filled on the audio thread, into a buffer made once before listening starts: nothing is
+    /// allocated there.
     private let lock = NSLock()
-    private var kept: [AVAudioPCMBuffer] = []
+    private var recorded: AVAudioPCMBuffer?
     private var buffer = EchoBuffer(seconds: MicrophoneEcho.seconds, sampleRate: 48000)
 
     init(deviceUID: String?, onPhase: @escaping @MainActor @Sendable (Phase) -> Void) {
@@ -105,10 +109,22 @@ final class MicrophoneEcho: @unchecked Sendable {
             notify(.idle)
             return
         }
-
+        // The copy below is channel by channel over 32-bit floats — what an input tap hands out.
+        // Anything else is refused rather than read past its end.
+        guard format.commonFormat == .pcmFormatFloat32, !format.isInterleaved else {
+            Self.logger.error("mic echo: the input's format is not separate float channels (\(format.commonFormat.rawValue, privacy: .public), interleaved \(format.isInterleaved, privacy: .public)): not checked")
+            notify(.idle)
+            return
+        }
+        let counter = EchoBuffer(seconds: Self.seconds, sampleRate: format.sampleRate)
+        guard let storage = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(counter.capacity)) else {
+            Self.logger.error("mic echo: no room for \(counter.capacity, privacy: .public) frames")
+            notify(.idle)
+            return
+        }
         lock.withLock {
-            kept = []
-            buffer = EchoBuffer(seconds: Self.seconds, sampleRate: format.sampleRate)
+            recorded = storage
+            buffer = counter
         }
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] incoming, _ in
             self?.keep(incoming)
@@ -122,6 +138,18 @@ final class MicrophoneEcho: @unchecked Sendable {
             return
         }
         listener = engine
+        configurationObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
+        ) { [weak self] _ in
+            guard let self else { return }
+            queue.async {
+                guard self.run == thisRun, self.listener != nil else { return }
+                Self.logger.error("mic echo: the microphone changed while listening: stopped")
+                self.run += 1
+                self.tearDown()
+                self.notify(.idle)
+            }
+        }
         let rate = Int(format.sampleRate)
         let channels = Int(format.channelCount)
         Self.logger.notice("mic echo: listening for \(Int(Self.seconds), privacy: .public) s (\(rate, privacy: .public) Hz, \(channels, privacy: .public) ch)")
@@ -134,19 +162,19 @@ final class MicrophoneEcho: @unchecked Sendable {
     }
 
     /// Runs on the audio thread: a copy of what came in, because the buffer handed to a tap is
-    /// reused.
+    /// reused. Appended to the one buffer made before listening.
     private func keep(_ incoming: AVAudioPCMBuffer) {
         lock.withLock {
-            let count = buffer.take(Int(incoming.frameLength))
-            guard count > 0,
-                  let copy = AVAudioPCMBuffer(pcmFormat: incoming.format, frameCapacity: AVAudioFrameCount(count)),
-                  let from = incoming.floatChannelData, let to = copy.floatChannelData
+            guard let recorded, let from = incoming.floatChannelData, let to = recorded.floatChannelData,
+                  incoming.format.channelCount == recorded.format.channelCount
             else { return }
-            copy.frameLength = AVAudioFrameCount(count)
-            for channel in 0 ..< Int(incoming.format.channelCount) {
-                to[channel].update(from: from[channel], count: count)
+            let offset = buffer.frames
+            let count = buffer.take(Int(incoming.frameLength))
+            guard count > 0 else { return }
+            for channel in 0 ..< Int(recorded.format.channelCount) {
+                (to[channel] + offset).update(from: from[channel], count: count)
             }
-            kept.append(copy)
+            recorded.frameLength = AVAudioFrameCount(offset + count)
         }
     }
 
@@ -157,13 +185,18 @@ final class MicrophoneEcho: @unchecked Sendable {
         listener?.stop()
         listener = nil
 
-        let buffers = lock.withLock { kept }
-        let frames = buffers.reduce(0) { $0 + Int($1.frameLength) }
-        guard let format = buffers.first?.format, frames > 0 else {
+        removeConfigurationObserver()
+        let heard = lock.withLock { () -> AVAudioPCMBuffer? in
+            defer { recorded = nil }
+            return recorded
+        }
+        let frames = Int(heard?.frameLength ?? 0)
+        guard let heard, frames > 0 else {
             Self.logger.error("mic echo: nothing was heard to play back")
             notify(.idle)
             return
         }
+        let format = heard.format
 
         let engine = AVAudioEngine()
         let node = AVAudioPlayerNode()
@@ -179,14 +212,8 @@ final class MicrophoneEcho: @unchecked Sendable {
         player = engine
 
         let thisRun = run
-        for (index, chunk) in buffers.enumerated() {
-            if index == buffers.count - 1 {
-                node.scheduleBuffer(chunk, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-                    self?.queue.async { self?.finishPlayback(run: thisRun) }
-                }
-            } else {
-                node.scheduleBuffer(chunk)
-            }
+        node.scheduleBuffer(heard, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            self?.queue.async { self?.finishPlayback(run: thisRun) }
         }
         node.play()
         Self.logger.notice("mic echo: playing back \(frames, privacy: .public) frames")
@@ -202,6 +229,7 @@ final class MicrophoneEcho: @unchecked Sendable {
     }
 
     private func tearDown() {
+        removeConfigurationObserver()
         if let listener {
             listener.inputNode.removeTap(onBus: 0)
             listener.stop()
@@ -209,7 +237,14 @@ final class MicrophoneEcho: @unchecked Sendable {
         listener = nil
         player?.stop()
         player = nil
-        lock.withLock { kept = [] }
+        lock.withLock { recorded = nil }
+    }
+
+    private func removeConfigurationObserver() {
+        if let configurationObserver {
+            NotificationCenter.default.removeObserver(configurationObserver)
+        }
+        configurationObserver = nil
     }
 
     private func notify(_ phase: Phase) {

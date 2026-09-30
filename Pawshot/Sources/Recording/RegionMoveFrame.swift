@@ -24,6 +24,8 @@ final class RegionMoveFrameController {
     /// Where the region may go: the display it is on.
     private var limit: CGRect = .zero
     private var gestureStart: (mouse: CGPoint, area: CGRect)?
+    /// The last move is still being handed to the stream: a new drag waits for it.
+    var isHandingOver = false
 
     /// Told at every step of a drag, with the region's new place.
     var onMove: ((CGRect) -> Void)?
@@ -72,6 +74,10 @@ final class RegionMoveFrameController {
     // MARK: - Dragging
 
     private func begin() {
+        guard !isHandingOver else {
+            Self.logger.notice("region grab ignored: the last move is still being handed to the stream")
+            return
+        }
         gestureStart = (NSEvent.mouseLocation, area)
         NSCursor.closedHand.set()
     }
@@ -79,9 +85,11 @@ final class RegionMoveFrameController {
     private func drag() {
         guard let start = gestureStart else { return }
         let mouse = NSEvent.mouseLocation
+        // Whole points: a trackpad's fractions would shift the recorded part off the pixel grid
+        // for the rest of the take.
         let moved = SelectionGeometry.moved(
             start.area,
-            by: CGSize(width: mouse.x - start.mouse.x, height: mouse.y - start.mouse.y),
+            by: CGSize(width: (mouse.x - start.mouse.x).rounded(), height: (mouse.y - start.mouse.y).rounded()),
             within: limit
         )
         guard moved != area else { return }

@@ -8,6 +8,7 @@ enum RecordingError: LocalizedError {
     case noFrames
     case displayNotFound
     case windowNotFound
+    case notRunning
 
     var errorDescription: String? {
         switch self {
@@ -15,6 +16,7 @@ enum RecordingError: LocalizedError {
         case .noFrames: String(localized: "Nothing was recorded — the stream stopped before the first frame.")
         case .displayNotFound: String(localized: "The display to record is no longer connected.")
         case .windowNotFound: String(localized: "The window to record has closed.")
+        case .notRunning: String(localized: "The recording isn't running.")
         }
     }
 }
@@ -176,7 +178,8 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     /// Whether ScreenCaptureKit takes a new `sourceRect` on a live stream is not something the
     /// agent could try; this is the one call to find out with, and the caller logs the answer.
     func moveSource(to rect: CGRect) async throws {
-        guard let stream, let configuration = streamConfiguration else { return }
+        // Not a silent success: the caller would move everything else for a stream that didn't.
+        guard let stream, let configuration = streamConfiguration else { throw RecordingError.notRunning }
         let previous = configuration.sourceRect
         configuration.sourceRect = rect
         do {
@@ -213,16 +216,22 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     /// The picture being recorded right now, as it goes into the file — for a frame copied out
     /// of a take. `nil` before the first frame has arrived.
     func snapshot() async -> CGImage? {
-        await withCheckedContinuation { continuation in
+        // Only the reference is taken on the queue the frames arrive on; turning a 5K frame into
+        // a picture there would hold them up, and they would be missing from the video.
+        let frame: FrameBox? = await withCheckedContinuation { continuation in
             queue.async {
-                guard let buffer = self.lastFrame?.imageBuffer else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-                let image = CIImage(cvPixelBuffer: buffer)
-                continuation.resume(returning: Self.snapshotContext.createCGImage(image, from: image.extent))
+                continuation.resume(returning: self.lastFrame?.imageBuffer.map(FrameBox.init))
             }
         }
+        guard let frame else { return nil }
+        let image = CIImage(cvPixelBuffer: frame.buffer)
+        return Self.snapshotContext.createCGImage(image, from: image.extent)
+    }
+
+    /// A frame's pixels handed out of the queue. The buffer is retained and never written again:
+    /// the stream hands out a fresh one for every frame.
+    private struct FrameBox: @unchecked Sendable {
+        let buffer: CVPixelBuffer
     }
 
     private static let snapshotContext = CIContext()

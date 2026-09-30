@@ -58,6 +58,20 @@ enum EffectsPlanner {
         max(videoSize.width, videoSize.height) / 40
     }
 
+    /// Hidden stretches in order, with the ones whose ways in and out would overlap joined into
+    /// one. Two animations of the same blur that overlap don't add up: the later one wins, and
+    /// its way in would thin out the end of the stretch before it. Joined, the gap between them
+    /// stays hidden too — more hidden, never less.
+    static func joinedStretches(_ stretches: [EventTimeline.Span]) -> [EventTimeline.Span] {
+        stretches.sorted { $0.start < $1.start }.reduce(into: []) { joined, next in
+            if let last = joined.last, next.start - effectFade <= last.end + effectFade {
+                joined[joined.count - 1].end = max(last.end, next.end)
+            } else {
+                joined.append(next)
+            }
+        }
+    }
+
     /// Where the cursor was from `start` to `end`, a point every `step` and one at the end;
     /// `fallback` while no cursor was recorded.
     static func cursorPath(

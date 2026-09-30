@@ -280,7 +280,10 @@ final class EditorWindowControllerTests: XCTestCase {
         XCTAssertEqual(window.contentLayoutRect.height, 300 + margin, accuracy: 0.5)
 
         window.setContentSize(CGSize(width: window.contentLayoutRect.width, height: window.contentLayoutRect.height - 24))
-        try await Task.sleep(for: .milliseconds(100))
+        // Waits for the refit rather than for a guess at how long it takes; a slow run gets longer.
+        for _ in 0 ..< 40 where abs(window.contentLayoutRect.height - (300 + margin)) > 0.5 {
+            try await Task.sleep(for: .milliseconds(50))
+        }
 
         XCTAssertEqual(window.contentLayoutRect.height, 300 + margin, accuracy: 0.5)
     }
@@ -330,7 +333,9 @@ final class EditorWindowControllerTests: XCTestCase {
         window.alphaValue = 0
         controller.show()
         defer { controller.close() }
-        try await Task.sleep(for: .milliseconds(300))
+        for _ in 0 ..< 40 where abs(window.frame.midX - screen.visibleFrame.midX) > 1 || abs(window.frame.midY - screen.visibleFrame.midY) > 1 {
+            try await Task.sleep(for: .milliseconds(50))
+        }
 
         XCTAssertEqual(window.frame.midX, screen.visibleFrame.midX, accuracy: 1)
         XCTAssertEqual(window.frame.midY, screen.visibleFrame.midY, accuracy: 1)

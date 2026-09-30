@@ -14,6 +14,29 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.5", text: String(localized: """
+            Fixes for recording.
+
+            A part hidden with ⌃⌘B now stays hidden right up to a cut and to the start and the end \
+            of the video: at the edge of a piece it used to turn sharp for a moment.
+
+            A zone to hide stays over the same part of the screen when the region is moved on a \
+            pause, and a zone at the edge of the picture no longer gets a dark rim. With zones \
+            drawn and a window or the whole screen picked, a line above the toolbar says they \
+            won't be hidden.
+
+            The recording screen no longer has a badge with the coordinates by the cursor; it shows \
+            up only while you type a size.
+
+            With a region on more than one display, Record and ↩ take the one you last touched. \
+            Esc while drawing a zone no longer wipes the region.
+
+            If the effects of a recording can't be read, the video editor says so rather than \
+            saving it without them quietly.
+
+            ⇧⌘2 sometimes showed nothing after the Mac had slept or its displays had changed, until \
+            Pawshot was restarted. It shows the dimming now.
+            """)),
             Entry(version: "0.6.4", text: String(localized: """
             A recording on pause can be moved: a thin frame appears round the region, drag it to \
             another window and carry on. The size stays the same, and clicks inside the region \

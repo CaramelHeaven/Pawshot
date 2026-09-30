@@ -386,9 +386,10 @@ private struct RecordingSettings: View {
                 }
             }
             .help(Text("""
-            The Mac's sound is videos, calls and notifications. With the microphone on, the bar \
-            under the area shows its level before you start, and if it stays silent for a second \
-            and a half it turns red and says "no signal". Both end up mixed into one track.
+            The Mac's sound is videos, calls and notifications. With the microphone on, Options on \
+            the recording toolbar show its level before you start; if it stays silent for a second \
+            and a half, it says "no signal" and a line above the toolbar says so too. Both end up \
+            mixed into one track.
             """))
             Toggle(isOn: $settings.noticesTalkingWhileMuted) {
                 title(

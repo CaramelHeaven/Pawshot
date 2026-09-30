@@ -29,12 +29,23 @@ final class EventTimelineTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: EventTimeline.url(forMovie: movie)) }
 
         XCTAssertEqual(EventTimeline.url(forMovie: movie).lastPathComponent, movie.deletingPathExtension().lastPathComponent + ".events.json")
-        XCTAssertEqual(EventTimeline.load(nextTo: movie), timeline)
+        XCTAssertEqual(EventTimeline.read(nextTo: movie), .read(timeline))
     }
 
-    func testMissingTimelineIsAnEmptyOne() {
+    /// A take always writes its timeline: none next to the recording is a failure, not an empty
+    /// take — the editor says the effects are lost rather than export hidden parts plain.
+    func testAMissingTimelineIsToldApart() {
         let movie = URL(fileURLWithPath: "/nonexistent/\(UUID().uuidString).mov")
-        XCTAssertTrue(EventTimeline.load(nextTo: movie).isEmpty)
+        XCTAssertEqual(EventTimeline.read(nextTo: movie), .missing)
+    }
+
+    /// A broken file is not read as an empty timeline either.
+    func testABrokenTimelineIsToldApart() throws {
+        let movie = FileManager.default.temporaryDirectory.appendingPathComponent("pawshot-\(UUID().uuidString).mov")
+        let file = EventTimeline.url(forMovie: movie)
+        try Data(#"{"blurs":[{"start":"soon"}]}"#.utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        XCTAssertEqual(EventTimeline.read(nextTo: movie), .unreadable)
     }
 }
 
@@ -220,5 +231,37 @@ final class EffectsRenderTests: XCTestCase {
             }
         }
         XCTAssertTrue(orange, "the click ring is drawn around the click")
+    }
+}
+
+/// How a finished video leaves the editor for the clipboard, and the clips it leaves behind.
+final class VideoHandOffTests: XCTestCase {
+    func testAVideoGoesOnTheClipboardAsAFileAndSaysSo() throws {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("pawshot.handoff-tests"))
+        // A named pasteboard outlives the process: cleared before, or yesterday's answer passes.
+        pasteboard.clearContents()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("pawshot-\(UUID().uuidString).mp4")
+        try Data([0]).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        XCTAssertTrue(VideoHandOff.copy(file, to: pasteboard))
+        XCTAssertEqual(pasteboard.string(forType: .fileURL), file.absoluteString)
+    }
+
+    /// Clips older than a day go; fresh ones — perhaps not pasted yet — stay.
+    func testOldClipsAreSweptAndFreshOnesStay() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("pawshot-clips-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let old = folder.appendingPathComponent("old.mp4")
+        let fresh = folder.appendingPathComponent("fresh.mp4")
+        try Data([0]).write(to: old)
+        try Data([0]).write(to: fresh)
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -2 * 24 * 60 * 60)], ofItemAtPath: old.path)
+
+        VideoHandOff.sweep(folder, olderThan: 24 * 60 * 60)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: old.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fresh.path))
     }
 }

@@ -145,7 +145,8 @@ enum OverlayHUD {
                 microphoneIsOn: microphoneIsOn,
                 microphoneIsSilent: microphoneIsSilent,
                 taken: takenShortcuts,
-                freeBytes: freeBytes
+                freeBytes: freeBytes,
+                ignoredZones: mode == .region ? 0 : zoneCount
             )
         }
 
@@ -404,6 +405,8 @@ struct RecordingToolbarView: View {
 
             header("Hidden in the video")
             check(Text("Draw a zone to hide"), isOn: model.isMarkingZones, key: "H") { model.toggleZoneMarking() }
+                // Zones are counted from a region; a window or the whole screen has none.
+                .disabled(model.mode != .region)
             if model.zoneCount > 0 {
                 check(Text("Clear zones (\(model.zoneCount))"), isOn: false) { model.clearZones() }
             }

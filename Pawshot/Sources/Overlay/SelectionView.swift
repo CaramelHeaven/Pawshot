@@ -86,6 +86,11 @@ final class SelectionView: NSView {
     private(set) var isMarkingZones = false
     private var zoneStart: CGPoint?
     private var zoneDraft: CGRect?
+    /// The mode the mouse went down in. A release in another one — Space pressed mid-drag — is
+    /// not the end of that gesture, nor a click of the new mode.
+    private var pressMode: Mode?
+    /// Whether the badge was last laid out shown, for one log line per change.
+    private var badgeShown: Bool?
 
     private var dragStart: CGPoint?
     /// A press beside a recording region is a new region only once the mouse has moved; until
@@ -207,12 +212,16 @@ final class SelectionView: NSView {
 
         self.mode = mode
         // The region is kept: the toolbar switches modes back and forth, and coming back to
-        // "region" with the region gone would cost the user their selection.
-        dragStart = nil
-        isDrawing = false
-        regionBeforeDrag = nil
+        // "region" with the region gone would cost the user their selection. Whatever gesture
+        // was under way is dropped whole — half of it would carry into the new mode.
+        cancelGesture()
         hoveredHandle = nil
         showsGrips = false
+        if isMarkingZones, mode != .region {
+            isMarkingZones = false
+            Self.logger.notice("zones: marking off, the mode is no longer region")
+            delegate?.selectionView(self, didToggle: .hideZone)
+        }
         updateHighlight()
         window?.invalidateCursorRects(for: self)
         // Cursor rects only take effect on the next mouse event, and the whole point here is that
@@ -238,8 +247,31 @@ final class SelectionView: NSView {
         needsDisplay = true
     }
 
+    /// The cursor for where the mouse is — over a restored region that is the hand or an arrow,
+    /// not the crosshair.
     func applyCursor() {
-        (mode == .region ? Self.crosshairCursor : Self.cameraCursor).set()
+        Self.cursor(for: cursorKind(at: cursorPoint)).set()
+    }
+
+    /// Everything a press started — a region being drawn, a handle pulled, a zone — dropped
+    /// without finishing it. The region stays as it was.
+    private func cancelGesture() {
+        if let grabbedSelection {
+            selection = grabbedSelection
+        } else if isDrawing {
+            selection = regionBeforeDrag
+        }
+        dragStart = nil
+        isDrawing = false
+        regionBeforeDrag = nil
+        grabbedHandle = nil
+        grabbedSelection = nil
+        grabPoint = nil
+        zoneStart = nil
+        zoneDraft = nil
+        fitOffer = nil
+        stuckDuringDrag = false
+        snapGuides = SelectionGeometry.SnapGuides()
     }
 
     // MARK: - Cursor and tracking
@@ -275,7 +307,8 @@ final class SelectionView: NSView {
         purpose: OverlayPurpose,
         mode: Mode,
         overBar: Bool,
-        grabbed: SelectionGeometry.Handle?
+        grabbed: SelectionGeometry.Handle?,
+        markingZones: Bool = false
     ) -> CursorKind {
         if let grabbed {
             return grabbed == .inside ? .closedHand : .resize(grabbed)
@@ -287,7 +320,18 @@ final class SelectionView: NSView {
         guard purpose == .recording, let selection, !selection.isEmpty,
               let handle = SelectionGeometry.handle(at: point, of: selection)
         else { return .crosshair }
+        // Drawing zones: the middle draws, the rim still resizes.
+        if handle == .inside, markingZones {
+            return .crosshair
+        }
         return handle == .inside ? .openHand : .resize(handle)
+    }
+
+    /// The glass badge by the cursor: on a screenshot, the size and where the cursor is. On the
+    /// recording overlay the owner found it in the way (2026-09-30) — the size is written on a
+    /// dragged edge anyway — so it shows only while a size is being typed, to show the digits.
+    nonisolated static func showsBadge(purpose: OverlayPurpose, typingSize: Bool) -> Bool {
+        purpose == .screenshot || typingSize
     }
 
     private func cursorKind(at point: CGPoint?) -> CursorKind {
@@ -298,7 +342,8 @@ final class SelectionView: NSView {
             purpose: purpose,
             mode: mode,
             overBar: OverlayHUD.barContains(point, in: self),
-            grabbed: grabbedHandle
+            grabbed: grabbedHandle,
+            markingZones: isMarkingZones
         )
     }
 
@@ -436,6 +481,9 @@ final class SelectionView: NSView {
 
     /// The cursor left for another screen: nothing here is under it any more.
     override func mouseExited(with _: NSEvent) {
+        // A point on a screen the cursor has left would pull the toolbar and the badge back here
+        // on this screen's next redraw.
+        cursorPoint = nil
         guard hoveredHandle != nil || showsGrips else { return }
         hoveredHandle = nil
         showsGrips = false
@@ -486,6 +534,16 @@ final class SelectionView: NSView {
             return
         }
         cursorPoint = point
+        pressMode = mode
+        // The keys go where the hand is: ↩, H, the arrows and A act on the screen last pressed,
+        // not on the one the cursor was on when the overlay came up. A non-activating panel takes
+        // the keyboard without Pawshot becoming active.
+        if purpose == .recording, let window, !window.isKeyWindow {
+            window.makeKey()
+            window.makeFirstResponder(self)
+            let number = window.windowNumber
+            Self.logger.notice("overlay window \(number, privacy: .public) takes the keyboard: pressed there")
+        }
 
         guard mode == .region else {
             // In window mode a press picks what is under the cursor; there is nothing to drag.
@@ -494,10 +552,10 @@ final class SelectionView: NSView {
             return
         }
 
-        // H is on: a press well inside the region starts a zone. The rim stays the region's — its
-        // edges and corners are still there to pull.
+        // H is on: a press in the middle of the region starts a zone — the same middle the cursor
+        // shows as the crosshair. The rim stays the region's, its edges and corners there to pull.
         if purpose == .recording, isMarkingZones, let region = recordingRegion,
-           region.insetBy(dx: 12, dy: 12).contains(point)
+           SelectionGeometry.handle(at: point, of: region) == .inside
         {
             zoneStart = point
             zoneDraft = nil
@@ -642,11 +700,27 @@ final class SelectionView: NSView {
             ignoresBarClick = false
             return
         }
+        let pressedIn = pressMode
+        pressMode = nil
         if zoneStart != nil {
             finishZone()
             return
         }
+        if purpose == .recording, pressedIn != mode {
+            // Space or the toolbar switched the mode mid-press: the release ends nothing.
+            Self.logger.notice("mouse up in another mode than the press: nothing done")
+            cancelGesture()
+            needsDisplay = true
+            return
+        }
         if purpose == .recording, mode == .region {
+            // A press whose gesture was taken back meanwhile — Esc or H while a zone was being
+            // drawn — has nothing to finish, and must not wipe the region either.
+            guard grabbedHandle != nil || dragStart != nil else {
+                Self.logger.notice("mouse up with no gesture left to finish: region kept")
+                needsDisplay = true
+                return
+            }
             finishAdjusting()
             return
         }
@@ -681,8 +755,16 @@ final class SelectionView: NSView {
     /// H, or the Options row: the next drags inside the region draw zones that are blurred in the
     /// video from the first frame to the last.
     func setMarkingZones(_ on: Bool, by source: String) {
-        guard purpose == .recording else { return }
-        guard !on || recordingRegion != nil, mode == .region || !on else {
+        guard purpose == .recording else {
+            Self.logger.error("zones: marking asked on a screenshot overlay (\(source, privacy: .public))")
+            return
+        }
+        if on, mode != .region {
+            let current = String(describing: mode)
+            Self.logger.notice("zones: marking refused, zones are for a region and the mode is \(current, privacy: .public) (\(source, privacy: .public))")
+            return
+        }
+        if on, recordingRegion == nil {
             Self.logger.notice("zones: marking refused, no region to hide a zone in (\(source, privacy: .public))")
             return
         }
@@ -850,7 +932,7 @@ final class SelectionView: NSView {
             needsDisplay = true
             return true
         }
-        if event.keyCode == UInt16(kVK_Delete), isMarkingZones, !maskZones.isEmpty {
+        if event.keyCode == UInt16(kVK_Delete), !maskZones.isEmpty {
             removeLastZone()
             return true
         }
@@ -885,7 +967,12 @@ final class SelectionView: NSView {
             return true
         }
 
-        switch RecordingOverlayKey.action(for: event) {
+        let action = RecordingOverlayKey.action(for: event)
+        // A held key repeats: H, P, M, S, X and A would flip back and forth at the repeat rate.
+        if event.isARepeat, action != nil {
+            return true
+        }
+        switch action {
         case .start:
             if !sizeInput.isEmpty {
                 applyTypedSize()
@@ -1284,17 +1371,27 @@ final class SelectionView: NSView {
         guard let cursorPoint else { return }
 
         let badge = OverlayHUD.badgeHost
-        let (primary, secondary) = badgeText(for: cursorPoint)
-        OverlayHUD.badge.primary = primary
-        OverlayHUD.badge.secondary = secondary
-        if badge.superview !== self {
-            addSubview(badge)
+        let showsBadge = Self.showsBadge(purpose: purpose, typingSize: !sizeInput.isEmpty)
+        if badgeShown != showsBadge {
+            badgeShown = showsBadge
+            let reason = purpose == .screenshot ? "screenshot" : (showsBadge ? "a size is being typed" : "recording, nothing typed")
+            Self.logger.notice("badge \(showsBadge ? "shown" : "hidden", privacy: .public): \(reason, privacy: .public)")
         }
-        let badgeSize = badge.fittingSize
-        badge.frame = CGRect(
-            origin: SelectionGeometry.badgeOrigin(cursor: cursorPoint, badgeSize: badgeSize, bounds: bounds),
-            size: badgeSize
-        )
+        if showsBadge {
+            let (primary, secondary) = badgeText(for: cursorPoint)
+            OverlayHUD.badge.primary = primary
+            OverlayHUD.badge.secondary = secondary
+            if badge.superview !== self {
+                addSubview(badge)
+            }
+            let badgeSize = badge.fittingSize
+            badge.frame = CGRect(
+                origin: SelectionGeometry.badgeOrigin(cursor: cursorPoint, badgeSize: badgeSize, bounds: bounds),
+                size: badgeSize
+            )
+        } else if badge.superview === self {
+            badge.removeFromSuperview()
+        }
 
         let toolbarTop = layOutToolbar()
 

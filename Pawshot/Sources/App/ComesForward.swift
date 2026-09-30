@@ -18,6 +18,9 @@ struct ComesForward: NSViewRepresentable {
 
     /// Each named window once its view is in it; weak, so a closed window SwiftUI lets go of goes.
     @MainActor fileprivate static let windows = NSMapTable<NSString, NSWindow>.strongToWeakObjects()
+    /// The latest check per window: a menu's `bringFront` right after the window's first showing
+    /// asked twice, and the log said "not key" twice in the same millisecond.
+    @MainActor private static var checks: [String: Int] = [:]
 
     private let name: String
 
@@ -48,22 +51,38 @@ struct ComesForward: NSViewRepresentable {
         order(window, name: name, what: "brought front")
     }
 
-    /// Activates, orders the window above everyone, and says half a second later whether it
-    /// became key — not key is the window left behind another app.
+    /// When a check looks, and when "not key" becomes an error: macOS hands the activation to a
+    /// background app late — in the owner's 0.5.3 log a second after the menu — so half a second
+    /// is only a first look.
+    static let checkTimes = [500, 1500]
+
+    /// Activates, orders the window above everyone, and says whether it became key — not key at
+    /// the last look is the window left behind another app.
     @MainActor
     fileprivate static func order(_ window: NSWindow, name: String, what: String) {
         let wasActive = NSApp.isActive
         NSApp.activate()
         window.orderFrontRegardless()
         logger.notice("\(name, privacy: .public) window \(what, privacy: .public): app was active \(wasActive, privacy: .public), ordered front")
+        let check = (checks[name] ?? 0) + 1
+        checks[name] = check
         Task { @MainActor [weak window] in
-            try? await Task.sleep(for: .milliseconds(500))
-            guard let window, window.isVisible else { return }
-            let isActive = NSApp.isActive
-            if window.isKeyWindow {
-                Self.logger.notice("\(name, privacy: .public) window after 500 ms: key true, app active \(isActive, privacy: .public)")
-            } else {
-                Self.logger.error("\(name, privacy: .public) window after 500 ms: not key — behind another app? app active \(isActive, privacy: .public)")
+            var waited = 0
+            for (index, ms) in checkTimes.enumerated() {
+                try? await Task.sleep(for: .milliseconds(ms - waited))
+                waited = ms
+                // A newer check of the same window, or the window gone: nothing for this one to say.
+                guard checks[name] == check, let window, window.isVisible else { return }
+                let isActive = NSApp.isActive
+                if window.isKeyWindow {
+                    Self.logger.notice("\(name, privacy: .public) window after \(ms, privacy: .public) ms: key true, app active \(isActive, privacy: .public)")
+                    return
+                }
+                if index < checkTimes.count - 1 {
+                    Self.logger.notice("\(name, privacy: .public) window after \(ms, privacy: .public) ms: not key yet, app active \(isActive, privacy: .public)")
+                } else {
+                    Self.logger.error("\(name, privacy: .public) window after \(ms, privacy: .public) ms: not key — behind another app? app active \(isActive, privacy: .public)")
+                }
             }
         }
     }

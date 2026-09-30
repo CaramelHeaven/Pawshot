@@ -20,12 +20,17 @@ enum RecordingPreflight {
     }
 
     enum Problem: Equatable {
+        /// Zones to hide drawn on the region, and a window or the whole screen picked to record:
+        /// they would not be hidden — they are counted from a region the take doesn't have.
+        case zonesIgnored(Int)
         case microphoneSilent
         case shortcutsTaken([Taken])
         case lowDisk(freeBytes: Int64)
 
         var message: String {
             switch self {
+            case let .zonesIgnored(count):
+                String(localized: "Zones to hide work for a region only: \(count) won't be hidden in this take")
             case .microphoneSilent:
                 String(localized: "The microphone is on and hears nothing")
             case let .shortcutsTaken(taken):
@@ -43,6 +48,8 @@ enum RecordingPreflight {
         /// The same in English and without the words a person would translate: for the log.
         var logDescription: String {
             switch self {
+            case let .zonesIgnored(count):
+                "\(count) zone(s) to hide ignored outside region mode"
             case .microphoneSilent:
                 "microphone silent"
             case let .shortcutsTaken(taken):
@@ -53,15 +60,20 @@ enum RecordingPreflight {
         }
     }
 
-    /// In the order they are worth reading. `freeBytes` is `nil` when it couldn't be read: no
-    /// warning then, and whoever read it has logged why.
+    /// In the order they are worth reading — what would show what it shouldn't comes first.
+    /// `freeBytes` is `nil` when it couldn't be read: no warning then, and whoever read it has
+    /// logged why. `ignoredZones` is how many zones a window or whole-screen take would leave out.
     static func problems(
         microphoneIsOn: Bool,
         microphoneIsSilent: Bool,
         taken: [Taken],
-        freeBytes: Int64?
+        freeBytes: Int64?,
+        ignoredZones: Int = 0
     ) -> [Problem] {
         var problems: [Problem] = []
+        if ignoredZones > 0 {
+            problems.append(.zonesIgnored(ignoredZones))
+        }
         if microphoneIsOn, microphoneIsSilent {
             problems.append(.microphoneSilent)
         }

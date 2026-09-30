@@ -45,7 +45,14 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         self.movieURL = movieURL
         openingScreen = screen
         model = VideoEditorModel(videoSize: videoSize, preset: Settings.shared.videoPreset)
-        model.timeline = EventTimeline.load(nextTo: movieURL)
+        switch EventTimeline.read(nextTo: movieURL) {
+        case let .read(timeline):
+            model.timeline = timeline
+        case .missing, .unreadable:
+            // Every take writes one; without it the clicks, zooms and — what matters — the hidden
+            // parts are gone, and the window says so rather than export them plain.
+            model.timelineIsLost = true
+        }
         let settings = Settings.shared
         model.effects = EffectsOptions(clicks: settings.showsClicks, keys: true, zooms: settings.showsZooms)
         model.showsHints = settings.videoEditorOpenCount < 5
@@ -89,8 +96,9 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         let file = movieURL.lastPathComponent
         Self.logger.notice("video editor opens: \(file, privacy: .public)")
         let timeline = model.timeline
+        let lost = model.timelineIsLost
         Self.logger.notice(
-            "timeline loaded: \(timeline.cursor.count, privacy: .public) cursor, \(timeline.clicks.count, privacy: .public) clicks, \(timeline.keys.count, privacy: .public) keys, \(timeline.zoomMarks.count, privacy: .public) zooms"
+            "timeline loaded: \(timeline.cursor.count, privacy: .public) cursor, \(timeline.clicks.count, privacy: .public) clicks, \(timeline.keys.count, privacy: .public) keys, \(timeline.zoomMarks.count, privacy: .public) zoom marks, \(timeline.zoomHolds.count, privacy: .public) zooms held, \(timeline.spotlights.count, privacy: .public) spotlights, \(timeline.blurs.count, privacy: .public) hidden stretches, \(timeline.masks.count, privacy: .public) hidden zones, \(timeline.badTakes.count, privacy: .public) bad takes, lost \(lost, privacy: .public)"
         )
         Settings.shared.recordVideoEditorOpen()
         guard let window else { return }
@@ -146,6 +154,11 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         var keep = whole
         let marked = model.timeline.badTakes
         let cut = marked.count(where: { keep.cut(from: $0.start, to: $0.end) })
+        if cut < marked.count {
+            // The pill said "cut" while recording; the editor could not — it would have left
+            // nothing, or a sliver.
+            Self.logger.error("bad takes: \(marked.count - cut, privacy: .public) of \(marked.count, privacy: .public) not cut, what would be left is too short")
+        }
         model.keep = keep
         if cut > 0 {
             registerUndo(restoring: whole)
@@ -467,7 +480,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         let started = Date()
         let target = String(describing: destination)
         Self.logger.notice(
-            "export \(preset.rawValue, privacy: .public) to \(target, privacy: .public): \(keep.pieces.count, privacy: .public) pieces, \(String(format: "%.1f", keep.totalLength), privacy: .public) of \(String(format: "%.1f", keep.duration), privacy: .public) s, effects clicks \(effects.clicks, privacy: .public) keys \(effects.keys, privacy: .public) zooms \(effects.zooms, privacy: .public), events \(timeline.clicks.count, privacy: .public) clicks \(timeline.keys.count, privacy: .public) keys \(timeline.zoomMarks.count, privacy: .public) zooms"
+            "export \(preset.rawValue, privacy: .public) to \(target, privacy: .public): \(keep.pieces.count, privacy: .public) pieces, \(String(format: "%.1f", keep.totalLength), privacy: .public) of \(String(format: "%.1f", keep.duration), privacy: .public) s, effects clicks \(effects.clicks, privacy: .public) keys \(effects.keys, privacy: .public) zooms \(effects.zooms, privacy: .public) spotlights \(effects.spotlights, privacy: .public) hidden \(effects.blurs, privacy: .public) zones \(effects.masks, privacy: .public), events \(timeline.clicks.count, privacy: .public) clicks \(timeline.keys.count, privacy: .public) keys \(timeline.zoomMarks.count + timeline.zoomHolds.count, privacy: .public) zooms \(timeline.spotlights.count, privacy: .public) spotlights \(timeline.blurs.count, privacy: .public) hidden stretches \(timeline.masks.count, privacy: .public) hidden zones"
         )
         exportTask = Task { [weak self] in
             do {
@@ -476,8 +489,8 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
                 ) { value in
                     Task { @MainActor in self?.model.exportProgress = value }
                 }
-                if destination == .clipboard {
-                    VideoHandOff.copy(url)
+                if destination == .clipboard, !VideoHandOff.copy(url) {
+                    throw VideoExportError.clipboard
                 }
                 let elapsed = Int(Date().timeIntervalSince(started) * 1000)
                 let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0

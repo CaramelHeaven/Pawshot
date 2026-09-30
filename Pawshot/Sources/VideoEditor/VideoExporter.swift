@@ -8,12 +8,14 @@ enum VideoExportError: LocalizedError {
     case unsupported
     case gifFailed
     case noVideo
+    case clipboard
 
     var errorDescription: String? {
         switch self {
         case .unsupported: String(localized: "This recording can't be exported in that format.")
         case .gifFailed: String(localized: "The GIF couldn't be written.")
         case .noVideo: String(localized: "The recording has no picture in it.")
+        case .clipboard: String(localized: "The video couldn't be put on the clipboard.")
         }
     }
 }
@@ -454,24 +456,35 @@ enum VideoHandOff {
     }
 
     /// The file itself, the way Finder copies one: apps take it as an attachment. A GIF also goes
-    /// as GIF data, for the apps that paste pictures rather than files.
-    static func copy(_ file: URL, to pasteboard: NSPasteboard = .general) {
+    /// as GIF data, for the apps that paste pictures rather than files. `false` when the
+    /// clipboard didn't take it — then the window must not close, or the recording goes with it.
+    @discardableResult
+    static func copy(_ file: URL, to pasteboard: NSPasteboard = .general) -> Bool {
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         item.setString(file.absoluteString, forType: .fileURL)
         var gifBytes = 0
-        if file.pathExtension == "gif", let data = try? Data(contentsOf: file) {
-            item.setData(data, forType: NSPasteboard.PasteboardType(UTType.gif.identifier))
-            gifBytes = data.count
+        if file.pathExtension == "gif" {
+            do {
+                let data = try Data(contentsOf: file)
+                item.setData(data, forType: NSPasteboard.PasteboardType(UTType.gif.identifier))
+                gifBytes = data.count
+            } catch {
+                // The file alone still pastes into most apps.
+                logger.error("clipboard: the GIF's data not read, the file alone goes: \(String(describing: error), privacy: .public)")
+            }
         }
         let written = pasteboard.writeObjects([item])
         let ext = file.pathExtension
-        logger.notice(
-            "clipboard: \(ext, privacy: .public) file, gif data \(gifBytes, privacy: .public) B, written \(written, privacy: .public)"
-        )
+        if written {
+            logger.notice("clipboard: \(ext, privacy: .public) file, gif data \(gifBytes, privacy: .public) B")
+        } else {
+            logger.error("clipboard: the \(ext, privacy: .public) file was not taken")
+        }
+        return written
     }
 
-    private static func sweep(_ folder: URL, olderThan age: TimeInterval) {
+    static func sweep(_ folder: URL, olderThan age: TimeInterval) {
         let files = (try? FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: [.contentModificationDateKey]
         )) ?? []
