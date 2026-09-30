@@ -446,12 +446,6 @@
         "ru" : {
           "variations" : {
             "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "После %lld клика"
-                }
-              },
               "few" : {
                 "stringUnit" : {
                   "state" : "translated",
@@ -464,6 +458,12 @@
                   "value" : "После %lld кликов"
                 }
               },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "После %lld клика"
+                }
+              },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
@@ -471,6 +471,16 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "After the zoom shortcut a halo follows the cursor; each click zooms there and spreads rings. Only you see the halo." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "После клавиши зума у курсора появляется кружок; каждый клик зумит туда и расходится кругами. Кружок видите только вы."
           }
         }
       }
@@ -931,6 +941,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Клики"
+          }
+        }
+      }
+    },
+    "Clicks that zoom" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Клики, которые зумят"
           }
         }
       }
@@ -1703,36 +1723,6 @@
     "HEX" : {
       "shouldTranslate" : false
     },
-    "Halo round the cursor" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кружок у курсора"
-          }
-        }
-      }
-    },
-    "Halo round the cursor goes" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кружок у курсора пропадает"
-          }
-        }
-      }
-    },
-    "Halo round the cursor — only you see it" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кружок у курсора — видите только вы"
-          }
-        }
-      }
-    },
     "Hidden in the video" : {
       "localizations" : {
         "ru" : {
@@ -2253,16 +2243,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Только с ⌘, ⌥ или ⌃"
-          }
-        }
-      }
-    },
-    "Only you see it; clicks spread rings like water" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Видите только вы; клики расходятся кругами, как по воде"
           }
         }
       }
@@ -3458,16 +3438,6 @@
         }
       }
     },
-    "Shown on the screen" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Показано на экране"
-          }
-        }
-      }
-    },
     "Shows its level before you start" : {
       "localizations" : {
         "ru" : {
@@ -4281,22 +4251,32 @@
         }
       }
     },
-    "Zoom in here" : {
+    "Zoom" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Приблизить здесь"
+            "value" : "Зум"
           }
         }
       }
     },
-    "Zoom in here at export" : {
+    "Zoom works by a click now. Press ⇧⌘6, or the magnifier on the pill: a halo follows the cursor, and every click zooms the video there, with rings spreading so you see it took. The halo goes after five clicks — Settings → Recording → Zoom changes that. The orange outline and holding the key to zoom are gone, and so is ⇧⌘K.\n\nIn the screenshot editor, the window's edge is easy to grab again for growing or cropping the shot." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Приблизить здесь при экспорте"
+            "value" : "Зум теперь ставится кликом. Нажмите ⇧⌘6 или лупу на пилюле: у курсора появится кружок, и каждый клик зумит видео в это место, а от клика расходятся круги — видно, что зум встал. Кружок пропадает после пяти кликов — это меняется в «Настройки → Запись → Зум». Рыжей рамки и зума удержанием клавиши больше нет, как и ⇧⌘K.\n\nВ редакторе скриншота край окна снова легко поймать, чтобы растянуть или обрезать снимок."
+          }
+        }
+      }
+    },
+    "Zoom — then click where" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зум — потом клик, куда"
           }
         }
       }
@@ -4311,22 +4291,22 @@
         }
       }
     },
-    "Zooms go wherever you pressed %@ while recording." : {
+    "Zooms go wherever you clicked after %@ while recording." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Зум ставится там, где во время записи было нажато %@."
+            "value" : "Зум ставится там, куда вы кликнули после %@ во время записи."
           }
         }
       }
     },
-    "Zooms go wherever you pressed the magnifier on the pill while recording." : {
+    "Zooms go wherever you clicked after the pill's magnifier while recording." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Зум ставится там, где во время записи была нажата лупа на пилюле."
+            "value" : "Зум ставится там, куда вы кликнули после лупы на пилюле во время записи."
           }
         }
       }
@@ -4397,16 +4377,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "формат"
-          }
-        }
-      }
-    },
-    "halo round the cursor" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "кружок у курсора"
           }
         }
       }

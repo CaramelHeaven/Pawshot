@@ -451,7 +451,7 @@ final class HeldEffectsRenderTests: XCTestCase {
     }
 }
 
-/// The halo round the cursor during a take: it goes after the clicks set, or never.
+/// The zoom's halo round the cursor: it goes after the clicks set, or never.
 final class CursorHaloTests: XCTestCase {
     func testTheHaloGoesAfterTheClicksSet() {
         for limit in [1, 3, 4, 5] {
@@ -472,19 +472,17 @@ final class CursorHaloTests: XCTestCase {
         }
     }
 
-    /// Five by default, ⇧⌘K by default — the owner's picks — and ⇧⌘K does nothing else of ours.
+    /// Five clicks by default — the owner's pick — and "never" is kept as it is.
     @MainActor
-    func testTheDefaultsAreFiveClicksAndShiftCommandK() throws {
+    func testZoomClicksDefaultToFiveAndNeverIsKept() throws {
         let suite = "pawshot.halo-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { UserDefaults().removePersistentDomain(forName: suite) }
         let settings = Settings(defaults: defaults)
 
-        XCTAssertEqual(settings.cursorHaloClicks, 5)
-        settings.cursorHaloClicks = 0
-        XCTAssertEqual(settings.cursorHaloClicks, 0, "\"never\" is kept, not read back as the default")
-        XCTAssertEqual(settings.cursorHaloHotKey?.displayString, "⇧⌘K")
-        let others = settings.allHotKeys.filter { $0 != settings.cursorHaloHotKey }
-        XCTAssertEqual(others.count, settings.allHotKeys.count - 1, "no other shortcut of ours is ⇧⌘K")
+        XCTAssertEqual(settings.zoomClicks, 5)
+        settings.zoomClicks = 0
+        XCTAssertEqual(settings.zoomClicks, 0, "\"never\" is kept, not read back as the default")
+        XCTAssertEqual(settings.zoomMarkHotKey?.displayString, "⇧⌘6", "the zoom keeps its key")
     }
 }

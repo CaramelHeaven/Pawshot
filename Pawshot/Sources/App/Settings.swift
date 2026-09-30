@@ -31,8 +31,8 @@ final class Settings {
         case spotlightHotKey = "hotkey.spotlight"
         case blurHotKey = "hotkey.blur"
         case muteHotKey = "hotkey.mute"
-        case cursorHaloHotKey = "hotkey.cursorHalo"
-        case cursorHaloClicks = "recording.cursorHaloClicks"
+        // Named for the halo it first went with in 0.6.6; kept so a value picked then stays.
+        case zoomClicks = "recording.cursorHaloClicks"
         case noticesTalkingWhileMuted = "recording.noticesTalkingWhileMuted"
         case recordingGoal = "recording.goal"
         case recordsMicrophone = "recording.microphone"
@@ -153,25 +153,19 @@ final class Settings {
         set { store(newValue, for: .muteHotKey, default: .muteDefault) }
     }
 
-    /// The halo round the cursor, on the screen only. Only registered during a take.
-    var cursorHaloHotKey: HotKeyBinding? {
-        get { binding(for: .cursorHaloHotKey, default: .cursorHaloDefault) }
-        set { store(newValue, for: .cursorHaloHotKey, default: .cursorHaloDefault) }
-    }
-
-    /// After how many clicks the halo round the cursor goes by itself; 0 keeps it until it is
+    /// How many clicks zoom after ⇧⌘6 before its halo goes by itself; 0 keeps it until it is
     /// switched off. Five by default — the owner's pick.
-    static let cursorHaloChoices = [1, 3, 4, 5, 0]
+    static let zoomClickChoices = [1, 3, 4, 5, 0]
 
-    var cursorHaloClicks: Int {
+    var zoomClicks: Int {
         get {
             _ = revision
-            guard defaults.object(forKey: Key.cursorHaloClicks.rawValue) != nil else { return 5 }
-            return defaults.integer(forKey: Key.cursorHaloClicks.rawValue)
+            guard defaults.object(forKey: Key.zoomClicks.rawValue) != nil else { return 5 }
+            return defaults.integer(forKey: Key.zoomClicks.rawValue)
         }
         set {
-            Self.logger.notice("cursor halo goes after \(newValue, privacy: .public) click(s) (0: never)")
-            defaults.set(newValue, forKey: Key.cursorHaloClicks.rawValue)
+            Self.logger.notice("zoom halo goes after \(newValue, privacy: .public) click(s) (0: never)")
+            defaults.set(newValue, forKey: Key.zoomClicks.rawValue)
             revision += 1
         }
     }
@@ -206,7 +200,7 @@ final class Settings {
         [
             regionHotKey, fullScreenHotKey, recordRegionHotKey, recordFullScreenHotKey,
             zoomMarkHotKey, penHotKey, restartHotKey, badTakeHotKey,
-            spotlightHotKey, blurHotKey, muteHotKey, cursorHaloHotKey,
+            spotlightHotKey, blurHotKey, muteHotKey,
         ].compactMap(\.self)
     }
 
@@ -531,7 +525,6 @@ final class Settings {
         defaults.removeObject(forKey: Key.spotlightHotKey.rawValue)
         defaults.removeObject(forKey: Key.blurHotKey.rawValue)
         defaults.removeObject(forKey: Key.muteHotKey.rawValue)
-        defaults.removeObject(forKey: Key.cursorHaloHotKey.rawValue)
         revision += 1
         onHotKeysChange?()
     }

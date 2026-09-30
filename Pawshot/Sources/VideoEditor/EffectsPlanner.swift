@@ -33,15 +33,8 @@ enum EffectsPlanner {
     /// How long a caption stays after its last press.
     static let keyHold: Double = 1.2
 
-    /// The zoom key held this long is a hold, not a tap: a tap leaves a mark, a hold zooms from
-    /// the press to the release.
-    static let zoomHoldAfter: TimeInterval = 0.35
-
-    static func isZoomHold(heldFor held: TimeInterval) -> Bool {
-        held > zoomHoldAfter
-    }
-
-    /// How often a held zoom looks at where the cursor went.
+    /// How often a held zoom looks at where the cursor went. Holds are no longer made (0.6.7 zooms
+    /// by a click); recordings from 0.6.1–0.6.6 still carry them and still export them.
     static let zoomFollowStep: Double = 0.1
 
     /// The spotlight's hole, as a share of the video's shorter side, and how dark the rest gets.

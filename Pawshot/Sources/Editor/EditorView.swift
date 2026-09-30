@@ -235,8 +235,15 @@ private struct ToolsGrip: View {
             .frame(width: Self.width)
             .frame(maxHeight: .infinity)
             .contentShape(.rect)
-            .onHover { isHovered = $0 }
-            .pointerStyle(.frameResize(position: isLeading ? .leading : .trailing))
+            // The resize cursor is set on entering, not with `.pointerStyle`: that one may put
+            // SwiftUI in charge of the cursor over the whole window, the window's own resize edge
+            // included.
+            .onHover { hovering in
+                isHovered = hovering
+                if hovering {
+                    NSCursor.frameResize(position: isLeading ? .left : .right, directions: .all).set()
+                }
+            }
             .animation(.easeOut(duration: 0.12), value: isHovered)
             .help("Drag to resize the tools; double-click for 100%")
             .accessibilityLabel("Resize the tools")

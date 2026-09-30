@@ -7,7 +7,7 @@ struct CursorHaloCounter: Equatable {
     let limit: Int?
     private(set) var clicks = 0
 
-    /// `setting` is `Settings.cursorHaloClicks`: 0 keeps the halo until it is switched off.
+    /// `setting` is `Settings.zoomClicks`: 0 keeps the halo until it is switched off.
     init(clicksBeforeItGoes setting: Int) {
         limit = setting > 0 ? setting : nil
     }
@@ -19,8 +19,9 @@ struct CursorHaloCounter: Equatable {
     }
 }
 
-/// The halo round the cursor during a take — the owner's К-A of 2026-09-30: a soft ring in the paw
-/// colour that follows the mouse, and three rings spreading from every click like rings on water.
+/// The zoom's halo round the cursor during a take — the owner's К-A of 2026-09-30: a soft ring in
+/// the paw colour that follows the mouse, and three rings spreading from every click that zoomed,
+/// like rings on water. ⇧⌘6 or the pill's magnifier put it up; `onClick` is the zoom.
 /// For the person recording only: it is a Pawshot window, and the recording filter leaves every
 /// Pawshot window out of the video but the pen's. No sound.
 ///
@@ -42,6 +43,9 @@ final class CursorHaloController {
 
     /// Told when the halo went by itself after its last click, with how many it showed.
     var onGone: ((_ clicks: Int) -> Void)?
+    /// A click while the halo is up: `true` when it did what the halo is for (a zoom there). Only
+    /// then does it ripple and count — a click during a pause zooms nothing.
+    var onClick: (() -> Bool)?
 
     private(set) var isShown = false
     private var counter = CursorHaloCounter(clicksBeforeItGoes: 0)
@@ -115,6 +119,7 @@ final class CursorHaloController {
 
     private func clicked() {
         guard isShown, let panel, let layer = panel.contentView?.layer else { return }
+        guard onClick?() ?? true else { return }
         follow()
         let mouse = NSEvent.mouseLocation
         ripple(at: CGPoint(x: mouse.x - panel.frame.minX, y: mouse.y - panel.frame.minY), in: layer)

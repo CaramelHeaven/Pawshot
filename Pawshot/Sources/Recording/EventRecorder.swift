@@ -114,15 +114,6 @@ final class EventRecorder {
         return time
     }
 
-    /// The zoom key turned out to be held, not tapped: the mark its press left at `start`
-    /// becomes a zoom that lasts until `end`.
-    func holdZoom(from start: TimeInterval, to end: TimeInterval) {
-        if let index = timeline.zoomMarks.lastIndex(of: start) {
-            timeline.zoomMarks.remove(at: index)
-        }
-        timeline.zoomHolds.append(.init(start: start, end: max(start, end)))
-    }
-
     /// What a key held during a take does to the video.
     enum HeldEffect: String {
         case spotlight

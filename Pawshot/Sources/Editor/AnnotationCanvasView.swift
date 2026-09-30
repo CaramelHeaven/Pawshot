@@ -181,8 +181,13 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     /// tools took the resize cursor away from their grips. `hitTest` can't tell: SwiftUI content
     /// over a representable view is not a view of its own, and the canvas answers there too —
     /// measured in `AnnotationCanvasViewTests`. So the panel reports its frame instead.
+    ///
+    /// And only over the canvas itself: first responder, it gets mouse moves from all over the
+    /// window, and setting the tool's cursor at the window's edge fought the system's resize cursor
+    /// there — the edge that grows or crops the shot caught in about a pixel (the owner,
+    /// 2026-09-30).
     func ownsCursor(atWindowPoint point: CGPoint) -> Bool {
-        !(cursorExclusion?.contains(point) ?? false)
+        convert(visibleRect, to: nil).contains(point) && !(cursorExclusion?.contains(point) ?? false)
     }
 
     private func updateCursor(at point: CGPoint) {

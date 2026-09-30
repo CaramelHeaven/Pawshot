@@ -29,9 +29,9 @@ take weighs so far — a warning instead, once the disk has under five minutes o
 rate — and, with a length picked in Settings → Recording ("Aim for"), the time against it and a
 bar that fills up and turns red for the last ten seconds; the take is never stopped by it. The
 menu bar shows the time instead of the paw. While a take
-runs, **⇧⌘6** tapped marks a zoom — an orange outline shows for 2.5 s exactly the part the export
-will zoom to — and **held** zooms for as long as it is held, the outline and the export following
-the cursor; **⇧⌘7** switches the pen (the mouse draws on the screen, into the video, every stroke
+runs, **⇧⌘6** (or the pill's magnifier) puts a halo round the cursor, and each click then is a
+zoom there — rings spread from the click so you see it took — for as many clicks as Settings →
+Recording → Zoom says (five by default); **⇧⌘7** switches the pen (the mouse draws on the screen, into the video, every stroke
 fades after four seconds, Esc gives the mouse back); **⌃⌘X** marks the last 10 seconds as a bad
 take — the take goes on, and the video editor opens with them already cut, one ⌘Z away;
 **⇧⌘5** restarts, and the shortcut that
@@ -136,7 +136,7 @@ if the window is closed, then delivers anyway.
 
 **Effects are added at export, from a timeline recorded alongside the video**
 (`<raw>.events.json`): orange rings on clicks, a caption for shortcuts with ⌘, ⌥ or ⌃ (`⌘Z ×3`),
-and a 2× zoom wherever ⇧⌘6 or the pill's magnifier marked one. Across a cut they follow their
+and a 2× zoom wherever a click after ⇧⌘6 or the pill's magnifier marked one. Across a cut they follow their
 piece: an event in the grey is dropped, a zoom or caption over a seam stops at the piece's edge.
 The editor previews them live — the same layer tree as the export, run by an
 `AVSynchronizedLayer` — and has a switch for each one the take actually has. What it starts with is
@@ -224,15 +224,27 @@ edges and corners, and ↩ (or R, or the Record button) starts. It behaves the w
   `isOnActiveSpace` (it did already, for the log) and builds a fresh window in its place; half a
   second on, an overlay still on no active Space is closed so the next press starts afresh. The
   log line carries each window's age and how many captures it served.
-- **A halo round the cursor** (0.6.6, the owner's К-A of 2026-09-30, picked from a page of four):
-  ⇧⌘K during a take, or the pill's button after the pen, puts a soft ring in the paw colour round
-  the cursor; every click spreads three rings like water. **On the screen only** — a Pawshot window,
-  so the recording filter keeps it out of the video — and silent. It goes after the clicks set in
-  Settings → Recording → Shown on the screen (1, 3, 4, 5 — five by default — or never, until
-  switched off). One click-through panel over the cursor's screen, the ring a layer moved sixty
+- **Zoom by a click** (0.6.7; the halo came in 0.6.6 as a feature of its own on ⇧⌘K, then the
+  owner said it was meant to be the zoom). ⇧⌘6 or the pill's magnifier puts a soft ring in the paw
+  colour round the cursor (the owner's К-A of 2026-09-30); each click while it is up is a zoom mark
+  at that moment, centred where the click is (the cursor's place, which the export centres a mark
+  on), and three rings spread from it like water. The halo goes after the clicks set in Settings →
+  Recording → Zoom (1, 3, 4, 5 — five by default — or never, until switched off) or on ⇧⌘6 again;
+  the magnifier is lit while it is up. **On the screen only** — a Pawshot window, so the recording
+  filter keeps it out of the video — and silent. A click during a pause zooms nothing: no rings,
+  not counted. One click-through panel over the cursor's screen, the ring a layer moved sixty
   times a second, clicks from a global monitor (no permission); a click on a Pawshot window isn't
-  counted (`Recording/CursorHalo.swift`). ⇧⌘K is also Finder's, Xcode's and Slack's — the owner's
-  call, knowing that while a take runs they don't get it.
+  counted (`Recording/CursorHalo.swift`). **Gone in 0.6.7**: the tap that marked a zoom at the
+  cursor at once with an orange outline for 2.5 s, and the held key that zoomed after the cursor.
+  Recordings made with holds (`zoomHolds`) still read and export them.
+- **The editor window's edge is the system's** (0.6.7). The canvas is first responder and gets
+  mouse moves from all over the window; it used to set its tool's cursor at the window's edge too,
+  and the resize cursor — the way to grow or crop the shot — survived in about a pixel (the owner,
+  2026-09-30). `AnnotationCanvasView.ownsCursor` now answers only over the canvas's visible part,
+  and the floating tools' grips set their resize cursor on hover instead of `.pointerStyle`, which
+  may put SwiftUI in charge of the cursor over the whole window. That these were the cause is the
+  best reading of the code, not seen on a screen: `testTheCanvasLeavesTheCursorAloneAtTheWindowsEdges`
+  pins the canvas's part (red before).
 - **The keyboard follows the hand** (0.6.5): a press on the overlay of another display makes that
   overlay key, so ↩, `H`, the arrows and `A` act on the region last touched; Record on the toolbar
   records that region too (`SelectionOverlayController.viewWithRegion`). With a region restored on
@@ -683,7 +695,6 @@ Paths are given relative to `Pawshot/Sources/`.
 | The pill shown while recording, and its notch look    | `Recording/RecordingPill.swift`         |
 | The pen: its panel, strokes and fading                | `Recording/InkPanel.swift`              |
 | The dimming and frame around a region being recorded  | `Recording/RecordingFrame.swift`        |
-| The outline shown for a zoom mark while recording     | `Recording/ZoomMarkIndicator.swift`     |
 | The microphone permission                             | `Recording/MicrophonePermission.swift`  |
 | The Input Monitoring permission                       | `Recording/InputMonitoringPermission.swift` |
 | The mic level on the overlay, "no signal"             | `Recording/MicrophoneLevelMeter.swift`  |
@@ -695,7 +706,7 @@ Paths are given relative to `Pawshot/Sources/`.
 | What the overlay warns about before a take            | `Recording/RecordingPreflight.swift`    |
 | Recording profiles (Bug report, Demo)                 | `Recording/RecordingProfile.swift`      |
 | The frame a paused region is moved by                 | `Recording/RegionMoveFrame.swift`       |
-| The halo round the cursor and its click rings         | `Recording/CursorHalo.swift`            |
+| Zoom by a click: the halo, its rings, the click count  | `Recording/CursorHalo.swift`, `RecordingController.toggleZoom` |
 | Zones to hide: drawing / storing / blurring           | `Overlay/SelectionView.swift` / `EventTimeline.masks` / `EffectsLayerBuilder.maskZone` |
 | The video editor window, its keys, hand-off, closing  | `VideoEditor/VideoEditorWindowController.swift` |
 | Player, film strip, piece brackets, hints, footer     | `VideoEditor/VideoEditorView.swift`     |
@@ -1026,10 +1037,9 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
   12–49 ms on the owner's machine. `InkPanelCaptureTests` went red without it.
 - **A held key needs the hotkey's release.** Carbon sends `kEventHotKeyReleased` as well as the
   press; `GlobalHotKey` hears both, and a hotkey registered with `onRelease` is one that can be
-  held. The zoom key leaves its mark on the press — a tap is nothing more — and if it is still
-  down after 0.35 s (`EffectsPlanner.zoomHoldAfter`), the release turns that mark into a span in
-  `zoomHolds`. Whether Carbon repeats the press of a held hotkey was not measured; a second
-  press while one is down is ignored either way. Not tried on a live take by the agent.
+  held — the spotlight, the blur and the mute are. (The zoom key was, until 0.6.7 made it a press
+  that puts up the halo.) Whether Carbon repeats the press of a held hotkey was not measured; a
+  second press while one is down is ignored either way.
 - **A hidden stretch is a Core Image blur on the content layer, and the video must say its
   colours.** `AVVideoCompositionCoreAnimationTool` does draw a layer's `filters` and does animate
   `filters.hide.inputRadius`; a `CIAffineClamp` before the blur carries the edge outwards, or the
@@ -1067,14 +1077,15 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
 - **A held zoom follows the cursor, a marked one stays put.** `EffectsPlanner.zoomPath` gives the
   centres — one for a mark, the cursor's place every tenth of a second for a hold — and the
   builder turns them into one keyframe animation per kept piece. The way out comes after the
-  release, so a hold's segment ends `zoomRamp` later than its span.
+  release, so a hold's segment ends `zoomRamp` later than its span. Holds are only read from
+  recordings of 0.6.1–0.6.6 now; 0.6.7 makes marks by clicks.
 - **The file's size is read once a second, and means nothing for the first five.** The movie is
   written in 5 s fragments, so the size on disk grows in steps; the pill shows nothing until the
   first one lands, and the rate for the disk warning is bytes so far over seconds so far.
-- **The zoom outline follows the export's merge, not the cursor.** `EffectsPlanner.zoomSegments`
-  folds a mark within `zoomMergeGap` of the previous zoom into it, centred on the first mark, so a
-  second ⇧⌘6 close behind only extends the outline where it already is. A mark while paused is
-  not recorded, and nothing lights up for it.
+- **Clicks close together are one zoom.** `EffectsPlanner.zoomSegments` folds a mark within
+  `zoomMergeGap` of the previous zoom into it, centred on the first mark, so a second click soon
+  after only makes the zoom longer where it already is. A click while paused is not recorded, and
+  no rings spread for it.
 - **The editor plays the export's own splice, not the recording.** Jumping over the grey from a
   periodic observer let up to ~33 ms of cut footage through at every seam, and the effects, built
   on the whole recording, ran on past seams the export cuts them at. So there are two players:

@@ -86,12 +86,6 @@ final class TakeMarksTests: XCTestCase {
 
     // MARK: - A zoom held
 
-    /// A tap is a mark, as it always was; held longer, the zoom lasts from the press to the release.
-    func testAZoomKeyHeldPastAThirdOfASecondIsAHold() {
-        XCTAssertFalse(EffectsPlanner.isZoomHold(heldFor: 0.2))
-        XCTAssertTrue(EffectsPlanner.isZoomHold(heldFor: 0.5))
-    }
-
     func testAHeldZoomLastsFromThePressToTheReleaseAndFollowsTheCursor() {
         var timeline = EventTimeline()
         timeline.cursor = [.init(time: 0, x: 0.2, y: 0.2), .init(time: 5, x: 0.8, y: 0.6)]

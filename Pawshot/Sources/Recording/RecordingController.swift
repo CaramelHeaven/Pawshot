@@ -56,8 +56,8 @@ final class RecordingController {
     private var spotlightHotKey: GlobalHotKey?
     private var blurHotKey: GlobalHotKey?
     private var muteHotKey: GlobalHotKey?
-    /// The halo round the cursor (⇧⌘K by default), on the same terms.
-    private var cursorHaloHotKey: GlobalHotKey?
+    /// The zoom's halo round the cursor: ⇧⌘6 or the pill's magnifier put it up, and every click
+    /// while it is up is a zoom there.
     private let cursorHalo = CursorHaloController()
     /// When each held effect's key went down, in the file's time.
     private var heldSince: [EventRecorder.HeldEffect: TimeInterval] = [:]
@@ -65,10 +65,6 @@ final class RecordingController {
     /// Listens to the microphone during a take recorded without it, to tell when somebody talks.
     private var talkMeter: MicrophoneLevelMeter?
     private var speech = SpeechWatch()
-    /// The zoom key is down: the mark its press left, and when it went down. Held past
-    /// `EffectsPlanner.zoomHoldAfter`, the mark becomes a zoom that lasts until the release.
-    private var zoomPress: (mark: TimeInterval, at: Date)?
-    private var zoomFollowTimer: Timer?
     /// Counts the ticks, a quarter of a second each: the file's size is looked at once a second.
     private var ticks = 0
     private var diskWarningLogged = false
@@ -80,21 +76,16 @@ final class RecordingController {
     private let grabFrame = RegionMoveFrameController()
     /// A moved region is being handed to the stream; resuming waits for it.
     private var regionMoveInFlight = false
-    private let zoomIndicator = ZoomMarkIndicator()
     private var isStarting = false
     /// Stop pressed while the take was still starting (or restarting): honoured once it is up.
     private var stopWhenStarted = false
-    /// The zoom the outline shows, in the recording's clock: a mark close behind it only extends
-    /// it, the way `EffectsPlanner.zoomSegments` merges them at export.
-    private var zoomOutline: (cursor: CGPoint, end: TimeInterval)?
     private var ticker: Timer?
     private lazy var pill = RecordingPillController(actions: RecordingPillActions(
         togglePause: { [weak self] in self?.togglePause() },
         restart: { [weak self] in self?.restart() },
         stop: { [weak self] in self?.stop() },
-        zoom: { [weak self] in self?.markZoom() },
+        zoom: { [weak self] in self?.toggleZoom(source: "the pill") },
         togglePen: { [weak self] in self?.togglePen() },
-        toggleCursorHalo: { [weak self] in self?.toggleCursorHalo(source: "the pill") },
         badTake: { [weak self] in self?.markBadTake() },
         recordWithMicrophone: { [weak self] in self?.restartWithMicrophone() },
         dismissMicrophoneHint: { [weak self] in self?.closeMicrophoneHint() }
@@ -234,77 +225,55 @@ final class RecordingController {
         }
     }
 
-    /// The moment to zoom in on at export, centred where the cursor is now. The part of the
-    /// screen the zoom will show is outlined for as long as it will last, so the mark can be
-    /// seen while recording; the outline is a Pawshot window and never reaches the video.
-    @discardableResult
-    func markZoom() -> TimeInterval? {
-        // Paused, the mark isn't recorded — and then nothing may pretend it was.
-        guard let events, let target else { return nil }
-        guard let time = events.markZoom() else {
-            Self.logger.notice("zoom mark ignored: paused")
-            return nil
-        }
-        let marks = events.timeline.zoomMarks.count
-        Self.logger.notice(
-            "zoom mark at \(String(format: "%.1f", time), privacy: .public) s (\(marks, privacy: .public) so far)"
-        )
-        var outline = (cursor: NSEvent.mouseLocation, end: time + EffectsPlanner.zoomLength)
-        if let last = zoomOutline, time <= last.end + EffectsPlanner.zoomMergeGap {
-            outline = (last.cursor, max(last.end, outline.end))
-        }
-        zoomOutline = outline
-        zoomIndicator.show(
-            around: outline.cursor,
-            in: Self.appKitRect(of: target),
-            scale: EffectsPlanner.zoomScale,
-            for: outline.end - time
-        )
-        pill.flashZoom()
-        return time
-    }
-
-    /// The zoom key went down. It is a mark at once — a tap is nothing more — and the start of a
-    /// hold if the key stays down: then the outline follows the cursor until the release.
-    private func zoomKeyDown() {
-        // A held key may repeat; only the first press counts.
-        guard zoomPress == nil, let mark = markZoom() else { return }
-        zoomPress = (mark, Date())
-        let timer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.followHeldZoom() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        zoomFollowTimer = timer
-    }
-
-    private func followHeldZoom() {
-        guard let zoomPress, let target else { return }
-        guard EffectsPlanner.isZoomHold(heldFor: Date().timeIntervalSince(zoomPress.at)) else { return }
-        zoomIndicator.follow(NSEvent.mouseLocation, in: Self.appKitRect(of: target), scale: EffectsPlanner.zoomScale)
-    }
-
-    /// The zoom key came up. Held long enough, the mark of its press becomes a zoom from the
-    /// press to now; let go sooner, it was a tap and the mark stands.
-    private func zoomKeyUp() {
-        zoomFollowTimer?.invalidate()
-        zoomFollowTimer = nil
-        guard let press = zoomPress else { return }
-        zoomPress = nil
-        let held = Date().timeIntervalSince(press.at)
-        // Let go at once: it was a tap, and its mark stands.
-        guard EffectsPlanner.isZoomHold(heldFor: held) else { return }
-        guard let engine, let events else {
-            Self.logger.error("zoom key let go with no take running: the hold is lost")
+    /// ⇧⌘6 or the pill's magnifier: the halo goes up round the cursor, and every click while it
+    /// is up is a zoom there — rings spread from the click so the person sees it took. The halo goes
+    /// after the clicks set in Settings → Recording, or when this is pressed again. The owner's
+    /// rework of 2026-09-30: the tap that marked a zoom at once with an orange outline, and the
+    /// held key that zoomed after the cursor, are gone.
+    func toggleZoom(source: String) {
+        guard engine != nil else {
+            Self.logger.notice("zoom asked with no take running")
             return
         }
+        if cursorHalo.isShown {
+            let clicks = cursorHalo.hide()
+            Self.logger.notice("zoom halo off by \(source, privacy: .public) after \(clicks, privacy: .public) zoom(s)")
+            pill.setZooming(false)
+            return
+        }
+        let limit = settings.zoomClicks
+        cursorHalo.onClick = { [weak self] in self?.zoomAtClick() ?? false }
+        cursorHalo.onGone = { [weak self] clicks in
+            Self.logger.notice("zoom halo gone by itself after \(clicks, privacy: .public) zoom(s)")
+            self?.pill.setZooming(false)
+        }
+        cursorHalo.show(clicksBeforeItGoes: limit)
+        Self.logger.notice("zoom halo on by \(source, privacy: .public): the next click(s) zoom, \(limit, privacy: .public) (0: until switched off)")
+        pill.setZooming(true)
+    }
 
-        let end = engine.duration
-        events.holdZoom(from: press.mark, to: end)
-        zoomOutline = nil
-        zoomIndicator.letGo()
-        Self.logger.notice(
-            "zoom held \(String(format: "%.1f", press.mark), privacy: .public)–\(String(format: "%.1f", end), privacy: .public) s (the key was down \(String(format: "%.1f", held), privacy: .public) s)"
-        )
+    /// A click with the halo up: a zoom at this moment, centred where the click is — the cursor's
+    /// place now, which is what the export centres a mark on. `false` when paused: the mark isn't
+    /// recorded, so the click neither ripples nor counts.
+    private func zoomAtClick() -> Bool {
+        guard let events else {
+            Self.logger.error("zoom click with no take running")
+            return false
+        }
+        guard let time = events.markZoom() else {
+            Self.logger.notice("zoom click ignored: paused")
+            return false
+        }
+        let marks = events.timeline.zoomMarks.count
+        Self.logger.notice("zoom at \(String(format: "%.1f", time), privacy: .public) s by a click (\(marks, privacy: .public) so far)")
+        return true
+    }
+
+    private func hideZoomHalo(because reason: String) {
+        guard cursorHalo.isShown else { return }
+        let clicks = cursorHalo.hide()
+        Self.logger.notice("zoom halo off: \(reason, privacy: .public), after \(clicks, privacy: .public) zoom(s)")
+        pill.setZooming(false)
     }
 
     // MARK: - Keys that are held
@@ -358,8 +327,6 @@ final class RecordingController {
         for effect in Array(heldSince.keys) {
             heldKeyUp(effect)
         }
-        // The zoom key too: held at the stop, it is a zoom to the stop, not a short mark.
-        zoomKeyUp()
         engine?.setMicrophoneMuted(false)
         pill.hold(notice: nil)
     }
@@ -499,36 +466,6 @@ final class RecordingController {
         pill.setPen(isOn: drawing)
     }
 
-    /// The halo round the cursor on or off — the shortcut or the pill. It goes by itself after
-    /// the clicks set in Settings → Recording; the pill's button follows.
-    func toggleCursorHalo(source: String) {
-        guard engine != nil else {
-            Self.logger.notice("cursor halo asked with no take running")
-            return
-        }
-        if cursorHalo.isShown {
-            let clicks = cursorHalo.hide()
-            Self.logger.notice("cursor halo off by \(source, privacy: .public) after \(clicks, privacy: .public) click(s)")
-            pill.setCursorHalo(isOn: false)
-            return
-        }
-        let limit = settings.cursorHaloClicks
-        cursorHalo.onGone = { [weak self] clicks in
-            Self.logger.notice("cursor halo gone by itself after \(clicks, privacy: .public) click(s)")
-            self?.pill.setCursorHalo(isOn: false)
-        }
-        cursorHalo.show(clicksBeforeItGoes: limit)
-        Self.logger.notice("cursor halo on by \(source, privacy: .public), goes after \(limit, privacy: .public) click(s) (0: never)")
-        pill.setCursorHalo(isOn: true)
-    }
-
-    private func hideCursorHalo(because reason: String) {
-        guard cursorHalo.isShown else { return }
-        let clicks = cursorHalo.hide()
-        Self.logger.notice("cursor halo off: \(reason, privacy: .public), after \(clicks, privacy: .public) click(s)")
-        pill.setCursorHalo(isOn: false)
-    }
-
     func togglePause() {
         guard let engine else {
             Self.logger.notice("pause pressed with no take running")
@@ -657,14 +594,12 @@ final class RecordingController {
         // Still "active" while the old take winds down, so ⇧⌘3 in between stops rather than
         // opening a second overlay.
         isStarting = true
-        zoomOutline = nil
         _ = events?.stop()
         events = nil
         // The frame stays: the region is the same, and closing it would flash the bare screen.
         grabFrame.close()
-        hideCursorHalo(because: "the take restarts")
+        hideZoomHalo(because: "the take restarts")
         closeInk()
-        zoomIndicator.close()
         unregisterRecordingHotKeys()
         stopTicker()
         state.recording = AppState.RecordingStatus(elapsed: 0, isPaused: false)
@@ -749,12 +684,9 @@ final class RecordingController {
         // restart the new ones would fail while the old ones were still alive.
         unregisterRecordingHotKeys()
         guard engine != nil else { return }
-        zoomHotKey = GlobalHotKey.register(
-            settings.zoomMarkHotKey,
-            for: "mark a zoom",
-            onRelease: { [weak self] in self?.zoomKeyUp() },
-            action: { [weak self] in self?.zoomKeyDown() }
-        )
+        zoomHotKey = GlobalHotKey.register(settings.zoomMarkHotKey, for: "zoom by a click") { [weak self] in
+            self?.toggleZoom(source: "the shortcut")
+        }
         badTakeHotKey = GlobalHotKey.register(settings.badTakeHotKey, for: "mark a bad take") { [weak self] in
             self?.markBadTake()
         }
@@ -779,9 +711,6 @@ final class RecordingController {
         restartHotKey = GlobalHotKey.register(settings.restartHotKey, for: "restart the take") { [weak self] in
             self?.restart()
         }
-        cursorHaloHotKey = GlobalHotKey.register(settings.cursorHaloHotKey, for: "switch the cursor halo") { [weak self] in
-            self?.toggleCursorHalo(source: "the shortcut")
-        }
         if ink != nil {
             penHotKey = GlobalHotKey.register(settings.penHotKey, for: "switch the pen") { [weak self] in
                 self?.togglePen()
@@ -798,12 +727,7 @@ final class RecordingController {
         spotlightHotKey = nil
         blurHotKey = nil
         muteHotKey = nil
-        cursorHaloHotKey = nil
         releaseHeldKeys()
-        // A zoom key that was down has nobody left to hear its release.
-        zoomFollowTimer?.invalidate()
-        zoomFollowTimer = nil
-        zoomPress = nil
     }
 
     private func teardown() {
@@ -811,12 +735,10 @@ final class RecordingController {
         unregisterRecordingHotKeys()
         closeInk()
         grabFrame.close()
-        hideCursorHalo(because: "the take ended")
+        hideZoomHalo(because: "the take ended")
         frame.close()
-        zoomIndicator.close()
         heldIndicator.hide()
         stopListeningForTalking()
-        zoomOutline = nil
         _ = events?.stop()
         events = nil
         stopTicker()

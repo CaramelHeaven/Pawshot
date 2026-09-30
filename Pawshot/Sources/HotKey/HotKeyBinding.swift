@@ -249,12 +249,4 @@ extension HotKeyBinding {
         carbonModifiers: UInt32(cmdKey | shiftKey),
         label: "7"
     )
-
-    /// ⇧⌘K puts the halo round the cursor during a take — the owner's pick of 2026-09-30, knowing
-    /// Finder, Xcode and Slack use it too: while a take runs, they don't get it.
-    static let cursorHaloDefault = HotKeyBinding(
-        keyCode: UInt32(kVK_ANSI_K),
-        carbonModifiers: UInt32(cmdKey | shiftKey),
-        label: "K"
-    )
 }

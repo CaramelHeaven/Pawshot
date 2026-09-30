@@ -14,6 +14,15 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.7", text: String(localized: """
+            Zoom works by a click now. Press ⇧⌘6, or the magnifier on the pill: a halo follows the \
+            cursor, and every click zooms the video there, with rings spreading so you see it \
+            took. The halo goes after five clicks — Settings → Recording → Zoom changes that. The \
+            orange outline and holding the key to zoom are gone, and so is ⇧⌘K.
+
+            In the screenshot editor, the window's edge is easy to grab again for growing or \
+            cropping the shot.
+            """)),
             Entry(version: "0.6.6", text: String(localized: """
             A halo round the cursor while you record: press ⇧⌘K, or the new button on the pill \
             after the pen. It follows the mouse, and every click spreads rings like water. Only \

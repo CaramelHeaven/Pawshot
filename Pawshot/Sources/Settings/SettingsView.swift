@@ -419,8 +419,8 @@ private struct RecordingSettings: View {
     private var shownInTheVideo: some View {
         // Only the zoom sentence depends on the shortcut; the rest is written once.
         let zooms = settings.zoomMarkHotKey.map {
-            String(localized: "Zooms go wherever you pressed \($0.displayString) while recording.")
-        } ?? String(localized: "Zooms go wherever you pressed the magnifier on the pill while recording.")
+            String(localized: "Zooms go wherever you clicked after \($0.displayString) while recording.")
+        } ?? String(localized: "Zooms go wherever you clicked after the pill's magnifier while recording.")
         let help = Text("""
         Drawn in when the video is saved, never while you record. Clicks become orange \
         rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain \
@@ -462,11 +462,12 @@ private struct RecordingSettings: View {
         }
     }
 
-    /// What only the person recording sees: the halo round the cursor, never in the video.
+    /// How the zoom is aimed: ⇧⌘6 puts a halo round the cursor that only the person recording
+    /// sees, and each click is a zoom there — for this many clicks.
     private var shownOnTheScreen: some View {
         Section {
-            Picker(selection: $settings.cursorHaloClicks) {
-                ForEach(Settings.cursorHaloChoices, id: \.self) { clicks in
+            Picker(selection: $settings.zoomClicks) {
+                ForEach(Settings.zoomClickChoices, id: \.self) { clicks in
                     if clicks == 0 {
                         Text("Never — until switched off").tag(0)
                     } else {
@@ -475,14 +476,14 @@ private struct RecordingSettings: View {
                 }
             } label: {
                 title(
-                    "Halo round the cursor goes",
-                    subtitle: "Only you see it; clicks spread rings like water",
-                    icon: "circle.circle",
-                    hint: settings.cursorHaloHotKey.map { KeyHint(key: $0.displayString, place: "while recording") }
+                    "Clicks that zoom",
+                    subtitle: "After the zoom shortcut a halo follows the cursor; each click zooms there and spreads rings. Only you see the halo.",
+                    icon: "plus.magnifyingglass",
+                    hint: settings.zoomMarkHotKey.map { KeyHint(key: $0.displayString, place: "while recording") }
                 )
             }
         } header: {
-            Text("Shown on the screen")
+            Text("Zoom")
         }
     }
 
@@ -658,9 +659,8 @@ private struct ShortcutSettings: View {
 
     /// Live only during a take, so they can be anything that doesn't clash with the rest.
     private static let duringRecordingRows: [Row] = [
-        ("Zoom in here", "mark a zoom", \.zoomMarkHotKey),
+        ("Zoom — then click where", "zoom by a click", \.zoomMarkHotKey),
         ("Pen on / off", "switch the pen", \.penHotKey),
-        ("Halo round the cursor", "switch the cursor halo", \.cursorHaloHotKey),
         ("Restart", "restart the take", \.restartHotKey),
         ("Cut the last 10 seconds", "mark a bad take", \.badTakeHotKey),
         ("Hold: spotlight", "hold the spotlight", \.spotlightHotKey),

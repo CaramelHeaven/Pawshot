@@ -83,6 +83,44 @@ final class EditorWindowControllerTests: XCTestCase {
         return view.subviews.lazy.compactMap { self.canvas(in: $0) }.first
     }
 
+    /// The window's own edge is the system's to show the resize cursor on — the way to grow or crop
+    /// the shot. The canvas, first responder, gets mouse moves from all over the window, and it used
+    /// to put its tool's cursor there too: the resize cursor survived in about a pixel (the owner,
+    /// 2026-09-30). Near every edge the canvas must leave the cursor alone, and it never reaches
+    /// closer to an edge than the padding round the shot.
+    func testTheCanvasLeavesTheCursorAloneAtTheWindowsEdges() async throws {
+        let document = try makeDocument(pointSize: CGSize(width: 600, height: 400), scale: 1)
+        let (controller, window) = try shownController(document)
+        defer { controller.close() }
+        var found: AnnotationCanvasView?
+        for _ in 0 ..< 40 {
+            found = canvas(in: window.contentView)
+            if let found, found.visibleRect.width > 0 {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        let canvas = try XCTUnwrap(found, "no canvas in the editor")
+        let content = try XCTUnwrap(window.contentView).bounds
+
+        let nearEdges = [
+            CGPoint(x: content.minX + 2, y: content.midY),
+            CGPoint(x: content.maxX - 2, y: content.midY),
+            CGPoint(x: content.midX, y: content.minY + 2),
+        ]
+        for point in nearEdges {
+            XCTAssertFalse(canvas.ownsCursor(atWindowPoint: point), "the canvas takes the cursor at \(point), by the window's edge")
+        }
+        let middle = canvas.convert(CGPoint(x: canvas.visibleRect.midX, y: canvas.visibleRect.midY), to: nil)
+        XCTAssertTrue(canvas.ownsCursor(atWindowPoint: middle), "over the shot the cursor is the canvas's")
+
+        let onWindow = canvas.convert(canvas.visibleRect, to: nil)
+        let margin = EditorView.shotPadding - 1
+        XCTAssertGreaterThanOrEqual(onWindow.minX - content.minX, margin, "\(onWindow) in \(content)")
+        XCTAssertGreaterThanOrEqual(content.maxX - onWindow.maxX, margin, "\(onWindow) in \(content)")
+        XCTAssertGreaterThanOrEqual(onWindow.minY - content.minY, margin, "\(onWindow) in \(content)")
+    }
+
     /// Esc lets go of the selection and then does nothing at all: it used to close the window
     /// once everything else was let go of, and a shot was lost to one press too many.
     func testEscapeNeverClosesTheEditor() throws {

@@ -534,7 +534,6 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             (String(localized: "restart"), settings.restartHotKey),
             (String(localized: "zoom mark"), settings.zoomMarkHotKey),
             (String(localized: "pen"), settings.penHotKey),
-            (String(localized: "halo round the cursor"), settings.cursorHaloHotKey),
             (String(localized: "bad take"), settings.badTakeHotKey),
             (String(localized: "spotlight"), settings.spotlightHotKey),
             (String(localized: "hide the picture"), settings.blurHotKey),
