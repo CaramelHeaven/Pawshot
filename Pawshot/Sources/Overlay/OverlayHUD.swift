@@ -114,6 +114,11 @@ enum OverlayHUD {
         var microphones: [MicrophoneDevices.Device] = []
         /// The one a take would record from.
         var microphoneID: String?
+        /// The microphone is on and allowed, so a check of it (three seconds and back) can run.
+        var canCheckMicrophone = false
+        /// The profile the settings add up to, if they do.
+        var profile: RecordingProfile?
+        var echoPhase: MicrophoneEcho.Phase = .idle
 
         var showsClicks = true
         var showsKeystrokes = false
@@ -124,10 +129,29 @@ enum OverlayHUD {
         /// A display with one pixel per point has nothing to switch.
         var canSwitchScale = true
 
+        /// Our shortcuts of the take that macOS still holds, and the room on the disk. Read once,
+        /// just after the overlay is up (`SelectionOverlayController.runPreflight`) — the
+        /// preferences are not for the 4–13 ms between the hotkey and the dimming.
+        var takenShortcuts: [RecordingPreflight.Taken] = []
+        var freeBytes: Int64?
+
+        /// What is wrong with the take right now: the facts above plus the microphone's, which
+        /// change while the overlay is up. Empty means the line is not shown.
+        var problems: [RecordingPreflight.Problem] {
+            RecordingPreflight.problems(
+                microphoneIsOn: microphoneIsOn,
+                microphoneIsSilent: microphoneIsSilent,
+                taken: takenShortcuts,
+                freeBytes: freeBytes
+            )
+        }
+
         @ObservationIgnored var setMode: (SelectionView.Mode) -> Void = { _ in }
         @ObservationIgnored var toggleOptions: () -> Void = {}
         /// `nil` turns the microphone off.
         @ObservationIgnored var chooseMicrophone: (String?) -> Void = { _ in }
+        @ObservationIgnored var toggleEcho: () -> Void = {}
+        @ObservationIgnored var chooseProfile: (RecordingProfile) -> Void = { _ in }
         @ObservationIgnored var toggleSystemAudio: () -> Void = {}
         @ObservationIgnored var toggleClicks: () -> Void = {}
         @ObservationIgnored var toggleKeystrokes: () -> Void = {}
@@ -199,6 +223,7 @@ struct OverlayHintsView: View {
         hint("X", "1x / 2x")
         hint("M", "microphone")
         hint("S", "sound")
+        hint("P", "profile")
         hint("Space", model.mode == .region ? "window" : "region")
         hint("Esc", "cancel")
     }
@@ -250,6 +275,9 @@ struct RecordingToolbarView: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            if !model.problems.isEmpty {
+                problems
+            }
             if model.optionsShown {
                 options
             }
@@ -306,6 +334,28 @@ struct RecordingToolbarView: View {
         .glassEffect(.clear, in: .rect(cornerRadius: 16))
     }
 
+    /// What will go wrong with the take, one line each, above the toolbar — nothing when nothing
+    /// will. It only says; fixing is the person's move (a shortcut in System Settings, a cable).
+    private var problems: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(model.problems.map(\.message), id: \.self) { message in
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.yellow)
+                    Text(verbatim: message)
+                        .font(.callout)
+                        .frame(width: 340, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.black.opacity(0.45), in: .rect(cornerRadius: 14))
+        .glassEffect(.clear, in: .rect(cornerRadius: 14))
+    }
+
     private func modeButton(_ mode: SelectionView.Mode, symbol: String, tip: LocalizedStringKey) -> some View {
         Button(action: { model.setMode(mode) }) {
             Image(systemName: symbol)
@@ -316,6 +366,13 @@ struct RecordingToolbarView: View {
 
     private var options: some View {
         VStack(alignment: .leading, spacing: 2) {
+            header("Profile")
+            ForEach(RecordingProfile.allCases) { profile in
+                check(Text(verbatim: profile.title), isOn: model.profile == profile, action: { model.chooseProfile(profile) }) {
+                    Text(verbatim: profile.summary).foregroundStyle(.white.opacity(0.55))
+                }
+            }
+
             header("Microphone")
             check(Text("None"), isOn: !model.microphoneIsOn) { model.chooseMicrophone(nil) }
             ForEach(model.microphones) { device in
@@ -330,6 +387,10 @@ struct RecordingToolbarView: View {
                         }
                     }
                 }
+            }
+
+            if model.canCheckMicrophone {
+                check(Text(echoTitle), isOn: false) { model.toggleEcho() }
             }
 
             header("Sound")
@@ -353,6 +414,14 @@ struct RecordingToolbarView: View {
         .padding(8)
         .background(.black.opacity(0.45), in: .rect(cornerRadius: 16))
         .glassEffect(.clear, in: .rect(cornerRadius: 16))
+    }
+
+    private var echoTitle: LocalizedStringKey {
+        switch model.echoPhase {
+        case .idle: "Check the microphone"
+        case .listening: "Say something… (tap to stop)"
+        case .playing: "Playing it back… (tap to stop)"
+        }
     }
 
     private func header(_ title: LocalizedStringKey) -> some View {

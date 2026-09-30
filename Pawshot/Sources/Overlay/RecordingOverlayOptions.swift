@@ -107,6 +107,7 @@ enum RecordingOverlayKey: Equatable {
     case scale
     case microphone
     case systemAudio
+    case profile
 
     static func action(for event: NSEvent) -> RecordingOverlayKey? {
         if event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) {
@@ -118,6 +119,7 @@ enum RecordingOverlayKey: Equatable {
         case "x": return .scale
         case "m": return .microphone
         case "s": return .systemAudio
+        case "p": return .profile
         default: return nil
         }
     }

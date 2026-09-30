@@ -37,6 +37,11 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
     private var completion: ((Selection?) -> Void)?
     private var purpose: OverlayPurpose = .screenshot
     private var levelMeter: MicrophoneLevelMeter?
+    /// The three-seconds-and-back microphone check, while one is running.
+    private var echo: MicrophoneEcho?
+    /// Which echo the phases coming back belong to: one stopped a moment ago must not clear the
+    /// next.
+    private var echoRun = 0
     /// The app that was in front when the overlay went up. The overlay never activates Pawshot,
     /// so after a cancel this one is still in front; kept for the log and for safety.
     private var previousApp: NSRunningApplication?
@@ -204,6 +209,12 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         for view in selectionViews {
             view.syncToCurrentMouseLocation()
         }
+
+        // After the dimming is on screen, on the next turn of the run loop: reading the system's
+        // shortcut preferences and the disk is not for the way from the hotkey to the overlay.
+        if purpose == .recording {
+            DispatchQueue.main.async { [weak self] in self?.runPreflight() }
+        }
     }
 
     /// The overlay over frames already captured — how the tests and the older path show it.
@@ -257,6 +268,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
     func dismiss() {
         Self.logger.notice("overlay dismissed")
         OverlayDiagnostics.ended()
+        stopEcho()
         stopLevelMeter()
         OverlayHUD.hide()
         for window in windows {
@@ -331,6 +343,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             for other in selectionViews where other !== view {
                 other.nativeResolution = view.nativeResolution
             }
+        case .profile:
+            applyProfile(RecordingProfile.next(after: RecordingProfile.current(in: settings)), by: "P")
+            return
         case .start, .aspect:
             break
         }
@@ -358,6 +373,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         bar.hoverPoint = nil
         bar.level = 0
         bar.microphoneIsSilent = false
+        bar.takenShortcuts = []
+        bar.freeBytes = nil
+        bar.echoPhase = .idle
         bar.setMode = { [weak self] mode in
             Self.logger.notice("toolbar: mode \(String(describing: mode), privacy: .public) pressed")
             self?.switchAll(to: mode)
@@ -371,9 +389,12 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
                 settings.microphoneDeviceID = device
             }
             // A different microphone is a different thing to listen to.
+            self?.stopEcho()
             self?.stopLevelMeter()
             self?.syncRecordingBar()
         }
+        bar.toggleEcho = { [weak self] in self?.toggleEcho() }
+        bar.chooseProfile = { [weak self] profile in self?.applyProfile(profile, by: "Options") }
         bar.toggleSystemAudio = { [weak self] in self?.toggleFromBar(.systemAudio) }
         bar.toggleScale = { [weak self] in
             guard let self, let view = toolbarView else { return }
@@ -403,6 +424,49 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             view.commitRecording()
         }
         syncRecordingBar()
+    }
+
+    /// Works out what is wrong with the take before it starts — a shortcut of the take that macOS
+    /// still holds, little room on the disk — and hands it to the toolbar, which shows a line for
+    /// each. The microphone's part arrives on its own, from the level meter.
+    private func runPreflight() {
+        guard isActive, purpose == .recording else { return }
+        let settings = Settings.shared
+        let bindings: [(action: String, binding: HotKeyBinding?)] = [
+            (String(localized: "stop recording"), settings.recordRegionHotKey),
+            (String(localized: "stop a full-screen recording"), settings.recordFullScreenHotKey),
+            (String(localized: "restart"), settings.restartHotKey),
+            (String(localized: "zoom mark"), settings.zoomMarkHotKey),
+            (String(localized: "pen"), settings.penHotKey),
+            (String(localized: "bad take"), settings.badTakeHotKey),
+            (String(localized: "spotlight"), settings.spotlightHotKey),
+            (String(localized: "hide the picture"), settings.blurHotKey),
+            (String(localized: "mute the microphone"), settings.muteHotKey),
+        ]
+        let taken = RecordingPreflight.taken(bindings: bindings, by: SystemScreenshotShortcuts.current())
+
+        // Where the take will be written, so the volume is the right one.
+        var free: Int64?
+        do {
+            let values = try FileManager.default.temporaryDirectory
+                .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            free = values.volumeAvailableCapacityForImportantUsage
+        } catch {
+            Self.logger.error("preflight: the free space can't be read: \(String(describing: error), privacy: .public)")
+        }
+
+        let bar = OverlayHUD.recordingBar
+        bar.takenShortcuts = taken
+        bar.freeBytes = free
+        let found = bar.problems.map(\.logDescription).joined(separator: "; ")
+        let freeDescribed = free.map { "\($0) B" } ?? "unknown"
+        Self.logger.notice(
+            "preflight: \(bar.problems.count, privacy: .public) problem(s) [\(found, privacy: .public)], free \(freeDescribed, privacy: .public)"
+        )
+        // A line appearing changes the toolbar's size, and its frame is set by hand.
+        DispatchQueue.main.async { [weak self] in
+            self?.toolbarView?.needsDisplay = true
+        }
     }
 
     private func toggleFromBar(_ option: RecordingOverlayKey) {
@@ -440,6 +504,67 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         Self.logger.notice("overlay mode → \(String(describing: mode), privacy: .public)")
     }
 
+    /// A profile picked with P or in Options: written into the ordinary settings, then every
+    /// screen and the toolbar follow, as they do for M, S and X.
+    private func applyProfile(_ profile: RecordingProfile, by source: String) {
+        let settings = Settings.shared
+        profile.apply(to: settings)
+        for view in selectionViews {
+            view.nativeResolution = settings.recordsAtNativeResolution
+        }
+        let mic = settings.recordsMicrophone
+        let system = settings.recordsSystemAudio
+        let native = settings.recordsAtNativeResolution
+        let preset = settings.videoPreset.rawValue
+        Self.logger.notice(
+            "profile \(profile.rawValue, privacy: .public) picked by \(source, privacy: .public) → mic \(mic, privacy: .public), system audio \(system, privacy: .public), native \(native, privacy: .public), format \(preset, privacy: .public)"
+        )
+        // The microphone may have just been turned on or off; the meter and the echo follow it.
+        stopEcho()
+        syncRecordingBar()
+    }
+
+    /// "Check the microphone": three seconds of listening, then the same three seconds back. Pressed
+    /// again while it runs, it stops. The level meter steps aside for it (both would hold the
+    /// input), and comes back by itself when the echo is over.
+    private func toggleEcho() {
+        let bar = OverlayHUD.recordingBar
+        if echo != nil {
+            Self.logger.notice("options: microphone check stopped by the person")
+            stopEcho()
+            return
+        }
+        let settings = Settings.shared
+        guard settings.recordsMicrophone, MicrophonePermission.isGranted else {
+            Self.logger.error("options: microphone check pressed without a microphone on and allowed")
+            return
+        }
+        Self.logger.notice("options: microphone check started")
+        stopLevelMeter()
+        echoRun += 1
+        let mine = echoRun
+        let check = MicrophoneEcho(deviceUID: settings.microphoneDeviceID) { [weak self] phase in
+            guard let self, echoRun == mine else { return }
+            OverlayHUD.recordingBar.echoPhase = phase
+            if phase == .idle {
+                echo = nil
+                syncRecordingBar()
+            }
+        }
+        echo = check
+        bar.echoPhase = .listening
+        check.start()
+    }
+
+    private func stopEcho() {
+        guard let echo else { return }
+        echoRun += 1
+        echo.cancel()
+        self.echo = nil
+        OverlayHUD.recordingBar.echoPhase = .idle
+        syncRecordingBar()
+    }
+
     private func stopLevelMeter() {
         levelMeter?.stop()
         levelMeter = nil
@@ -459,6 +584,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         bar.showsKeystrokes = settings.showsKeystrokes
         bar.keystrokesAllowed = InputMonitoringPermission.isGranted
         bar.nativeResolution = settings.recordsAtNativeResolution
+        bar.profile = RecordingProfile.current(in: settings)
         bar.canSwitchScale = selectionViews.contains { $0.scale > 1 }
         // Which row is ticked: known only once the list is there, that is, once Options opened.
         if !bar.microphones.isEmpty {
@@ -469,7 +595,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             )
         }
 
-        let wantsMeter = purpose == .recording && settings.recordsMicrophone && MicrophonePermission.isGranted
+        bar.canCheckMicrophone = purpose == .recording && settings.recordsMicrophone && MicrophonePermission.isGranted
+        // Not while the echo holds the input.
+        let wantsMeter = bar.canCheckMicrophone && echo == nil
         if wantsMeter, levelMeter == nil {
             let meter = MicrophoneLevelMeter(deviceUID: settings.microphoneDeviceID) { level, silent in
                 if OverlayHUD.recordingBar.microphoneIsSilent != silent {

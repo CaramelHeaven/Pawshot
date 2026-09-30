@@ -330,6 +330,7 @@ private struct RecordingSettings: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
             Form {
+                profiles
                 sound
                 shownInTheVideo
                 quality
@@ -337,6 +338,36 @@ private struct RecordingSettings: View {
             .formStyle(.grouped)
         }
         .frame(height: 520)
+    }
+
+    private var profiles: some View {
+        Section {
+            Picker(selection: profileBinding) {
+                // What the settings below add up to when they match none; not something to pick.
+                Text("Custom").tag(RecordingProfile?.none).disabled(true)
+                ForEach(RecordingProfile.allCases) { profile in
+                    Text(verbatim: "\(profile.title) · \(profile.summary)").tag(Optional(profile))
+                }
+            } label: {
+                title(
+                    "Profile",
+                    subtitle: "Sets the sound, clicks, zooms, resolution and format below in one go",
+                    icon: "slider.horizontal.3",
+                    hint: KeyHint(key: "P", place: "overlay")
+                )
+            }
+        }
+    }
+
+    private var profileBinding: Binding<RecordingProfile?> {
+        Binding(
+            get: { RecordingProfile.current(in: settings) },
+            set: { picked in
+                guard let picked else { return }
+                Self.logger.notice("profile \(picked.rawValue, privacy: .public) picked in Settings")
+                picked.apply(to: settings)
+            }
+        )
     }
 
     private var sound: some View {

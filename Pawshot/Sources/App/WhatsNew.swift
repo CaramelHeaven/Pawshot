@@ -14,6 +14,20 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.3", text: String(localized: """
+            Before you start recording, Pawshot now says what is about to go wrong. A line above \
+            the toolbar appears when the microphone is on but hears nothing, when macOS still \
+            holds one of the recording shortcuts (it names the item to untick in Keyboard \
+            Shortcuts), and when the disk has under 5 GB free.
+
+            Options has a new Check the microphone: say something for three seconds, then hear \
+            it played back.
+
+            Recording profiles set the sound, clicks, zooms, resolution and format in one move: \
+            Bug report is a GIF with clicks and no sound, Demo is full resolution with your \
+            voice and zooms. P on the recording screen switches between them; they are also in \
+            Options and in Settings → Recording.
+            """)),
             Entry(version: "0.6.2", text: String(localized: """
             Three keys to hold while a recording runs, all under the left hand.
 

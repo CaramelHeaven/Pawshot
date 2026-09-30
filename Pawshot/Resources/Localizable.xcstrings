@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    " and %lld more" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " и ещё %lld"
+          }
+        }
+      }
+    },
     "%@ (%@)" : {
       "localizations" : {
         "en" : {
@@ -531,6 +541,16 @@
         }
       }
     },
+    "Before you start recording, Pawshot now says what is about to go wrong. A line above the toolbar appears when the microphone is on but hears nothing, when macOS still holds one of the recording shortcuts (it names the item to untick in Keyboard Shortcuts), and when the disk has under 5 GB free.\n\nOptions has a new Check the microphone: say something for three seconds, then hear it played back.\n\nRecording profiles set the sound, clicks, zooms, resolution and format in one move: Bug report is a GIF with clicks and no sound, Demo is full resolution with your voice and zooms. P on the recording screen switches between them; they are also in Options and in Settings → Recording." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перед началом записи Pawshot теперь говорит, что пойдёт не так. Над панелью появляется строка, если микрофон включён, но ничего не слышит, если macOS всё ещё держит одно из сочетаний записи (называет пункт, с которого снять флажок в «Сочетания клавиш») и если на диске меньше 5 ГБ.\n\nВ «Параметрах» есть новая кнопка «Проверить микрофон»: скажите что-нибудь три секунды и послушайте себя.\n\nПрофили записи задают звук, клики, зумы, разрешение и формат одним выбором: «Баг-репорт» — это GIF с кликами и без звука, «Демо» — полное разрешение с голосом и зумами. Клавиша P на экране записи переключает их, они же есть в «Параметрах» и в «Настройки → Запись»."
+          }
+        }
+      }
+    },
     "Black" : {
       "localizations" : {
         "ru" : {
@@ -577,6 +597,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Перекуры за кадром."
+          }
+        }
+      }
+    },
+    "Bug report" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Баг-репорт"
           }
         }
       }
@@ -717,6 +747,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Проверить обновления…"
+          }
+        }
+      }
+    },
+    "Check the microphone" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверить микрофон"
           }
         }
       }
@@ -1127,6 +1167,16 @@
         }
       }
     },
+    "Custom" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свой"
+          }
+        }
+      }
+    },
     "Cut the last 10 seconds" : {
       "localizations" : {
         "ru" : {
@@ -1163,6 +1213,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Дней подряд"
+          }
+        }
+      }
+    },
+    "Demo" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Демо"
           }
         }
       }
@@ -1473,6 +1533,16 @@
     "GIF" : {
       "shouldTranslate" : false
     },
+    "GIF 720p · clicks · no sound" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GIF 720p · клики · без звука"
+          }
+        }
+      }
+    },
     "General" : {
       "localizations" : {
         "ru" : {
@@ -1519,6 +1589,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Зелёный"
+          }
+        }
+      }
+    },
+    "HEVC 2x · voice · zooms" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HEVC 2x · голос · зумы"
           }
         }
       }
@@ -2000,6 +2080,16 @@
         }
       }
     },
+    "Only %@ free on the disk" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На диске свободно только %@"
+          }
+        }
+      }
+    },
     "Only the first one is required. The rest are for videos and can wait." : {
       "localizations" : {
         "ru" : {
@@ -2326,6 +2416,16 @@
         }
       }
     },
+    "Playing it back… (tap to stop)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проигрываю запись… (нажмите, чтобы остановить)"
+          }
+        }
+      }
+    },
     "Press %@ and pick a region." : {
       "localizations" : {
         "ru" : {
@@ -2362,6 +2462,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Нажатые сочетания"
+          }
+        }
+      }
+    },
+    "Profile" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Профиль"
           }
         }
       }
@@ -2995,6 +3105,16 @@
         }
       }
     },
+    "Say something… (tap to stop)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скажите что-нибудь… (нажмите, чтобы остановить)"
+          }
+        }
+      }
+    },
     "Screen Recording" : {
       "localizations" : {
         "ru" : {
@@ -3117,6 +3237,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Отправить почтой…"
+          }
+        }
+      }
+    },
+    "Sets the sound, clicks, zooms, resolution and format below in one go" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Одним выбором задаёт звук, клики, зумы, разрешение и формат ниже"
           }
         }
       }
@@ -3511,6 +3641,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Микрофон выключен"
+          }
+        }
+      }
+    },
+    "The microphone is on and hears nothing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Микрофон включён и ничего не слышит"
           }
         }
       }
@@ -3994,6 +4134,16 @@
         }
       }
     },
+    "bad take" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "плохой дубль"
+          }
+        }
+      }
+    },
     "cancel" : {
       "localizations" : {
         "ru" : {
@@ -4050,6 +4200,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "скрыть лупу"
+          }
+        }
+      }
+    },
+    "hide the picture" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "спрятать картинку"
           }
         }
       }
@@ -4124,6 +4284,22 @@
         }
       }
     },
+    "macOS takes %@ (%@): untick “%@” in Keyboard Shortcuts" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "macOS takes %1$@ (%2$@): untick “%3$@” in Keyboard Shortcuts"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS забирает %1$@ (%2$@): снимите флажок «%3$@» в «Сочетания клавиш»"
+          }
+        }
+      }
+    },
     "macOS takes %@ for itself, so Pawshot never sees the key." : {
       "localizations" : {
         "ru" : {
@@ -4170,6 +4346,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "двигать"
+          }
+        }
+      }
+    },
+    "mute the microphone" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "выключить микрофон"
           }
         }
       }
@@ -4224,12 +4410,32 @@
         }
       }
     },
+    "pen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "перо"
+          }
+        }
+      }
+    },
     "play" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "воспроизвести"
+          }
+        }
+      }
+    },
+    "profile" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "профиль"
           }
         }
       }
@@ -4274,6 +4480,16 @@
         }
       }
     },
+    "restart" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "начать заново"
+          }
+        }
+      }
+    },
     "save" : {
       "localizations" : {
         "ru" : {
@@ -4290,6 +4506,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "звук"
+          }
+        }
+      }
+    },
+    "spotlight" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "прожектор"
+          }
+        }
+      }
+    },
+    "stop a full-screen recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "остановить запись экрана"
+          }
+        }
+      }
+    },
+    "stop recording" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "остановить запись"
           }
         }
       }
@@ -4321,6 +4567,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "окно"
+          }
+        }
+      }
+    },
+    "zoom mark" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "метка зума"
           }
         }
       }

@@ -170,9 +170,21 @@ edges and corners, and ↩ (or R, or the Record button) starts. It behaves the w
   Space, which records the window itself. Resizing, drawing or typing a size forgets the old one.
 - **The toolbar** sits at the bottom of the screen the cursor is on and never moves: region /
   window / whole screen, Options, Record. "Screen" records what ⇧⌘4 does. Options is a panel of
-  the same SwiftUI view, not a menu — the microphone (none, or one of the Mac's inputs, with the
-  live level), the system sound, clicks, pressed shortcuts, the scale. The glass bar that hung
+  the same SwiftUI view, not a menu — a profile, the microphone (none, or one of the Mac's
+  inputs, with the live level, and a "Check the microphone" that listens for three seconds and
+  plays it back), the system sound, clicks, pressed shortcuts, the scale. The glass bar that hung
   under the region and hid on every drag is gone.
+- **A line above the toolbar says what will go wrong** (0.6.3) — only when something will: the
+  microphone is on and hears nothing, one of the take's shortcuts is still held by macOS (with the
+  System Settings item to untick), the disk has under 5 GB free (a round number: the take's rate
+  is unknown until it runs). The facts are read once on the next turn of the run loop after the
+  overlay is up, never on the way from the hotkey (`RecordingPreflight`,
+  `SelectionOverlayController.runPreflight`).
+- **Profiles** (0.6.3): *Bug report* (GIF 720p, clicks, no sound) and *Demo* (HEVC 2x, voice,
+  zooms) write the ordinary settings and keep nothing of their own; `P` on the overlay walks them,
+  they are also in Options and Settings → Recording, and "Custom" is what the settings add up to
+  when they match none. A third one, a GIF for a chat with a size limit, waits for the video
+  editor's release (M9).
 
 | Key | On the recording overlay |
 |---|---|
@@ -181,6 +193,7 @@ edges and corners, and ↩ (or R, or the Record button) starts. It behaves the w
 | digits, `x`, digits | an exact size in pixels of the file, `1920x1080`, then `↩` |
 | `X` | 2x (the display's pixels) ↔ 1x (one pixel per point) |
 | `M` / `S` | microphone / system audio on or off |
+| `P` | recording profile: Bug report → Demo → … |
 | arrows | move the region 1 pt; `⇧` — 10 pt; `⌥` — move the right and bottom edges instead |
 | `⇧` dragging a corner | keep the region's proportions |
 | `⌥` dragging an edge or a corner | grow from the middle |
@@ -616,6 +629,9 @@ Paths are given relative to `Pawshot/Sources/`.
 | Recording overlay: region handles, grips, magnet, toolbar | `Overlay/SelectionView.swift` + `OverlayHUD.swift` |
 | Hover and press on the toolbar's and the pill's buttons | `App/Design/ChromeButtonStyle.swift`     |
 | The microphones a take can record from                | `Recording/MicrophoneDevices.swift`     |
+| The three-seconds-and-back microphone check           | `Recording/MicrophoneEcho.swift`        |
+| What the overlay warns about before a take            | `Recording/RecordingPreflight.swift`    |
+| Recording profiles (Bug report, Demo)                 | `Recording/RecordingProfile.swift`      |
 | The video editor window, its keys, hand-off, closing  | `VideoEditor/VideoEditorWindowController.swift` |
 | Player, film strip, piece brackets, hints, footer     | `VideoEditor/VideoEditorView.swift`     |
 | The kept pieces' rules, formats, size and time texts  | `VideoEditor/VideoEditing.swift`        |
