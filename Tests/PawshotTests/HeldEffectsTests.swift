@@ -267,6 +267,31 @@ final class HeldEffectsRenderTests: XCTestCase {
         XCTAssertGreaterThan(rim, lowest - 0.08, "the blur must not darken the edge of the frame: \(rim) against \(during)")
     }
 
+    /// A zone marked before the take is blurred from the first frame to the last, and only it.
+    /// Black and white stripes again: sharp, every pixel is one or the other; blurred, grey.
+    func testTheExportBlursAMarkedZoneThroughoutAndNothingElse() async throws {
+        let source = try await SyntheticVideo.write(to: folder.appendingPathComponent("in.mov"), audioTracks: 0, stripes: true)
+        var timeline = EventTimeline()
+        timeline.masks = [EventTimeline.Mask(x: 0.55, y: 0, width: 0.45, height: 1)]
+        let out = folder.appendingPathComponent("out.mp4")
+
+        try await VideoExporter.export(
+            source: source, keep: KeepRanges(duration: 2), preset: .original, to: out,
+            timeline: timeline, effects: EffectsOptions()
+        ) { _ in }
+
+        for time in [0.0, 1.0] {
+            let rep = try await frame(of: out, at: time)
+            // Outside the zone: a white and a black stripe, as sharp as the source.
+            let sharp = [brightness(rep, 60, 120), brightness(rep, 100, 60)]
+            XCTAssertGreaterThan(sharp[0], 0.85, "at \(time) s outside the zone white is white: \(sharp)")
+            XCTAssertLessThan(sharp[1], 0.15, "at \(time) s outside the zone black is black: \(sharp)")
+            // Inside: a white and a black stripe melt into one grey.
+            let inside = [brightness(rep, 204, 180), brightness(rep, 212, 120)]
+            XCTAssertLessThan(abs(inside[0] - inside[1]), 0.12, "at \(time) s inside the zone the stripes melt: \(inside)")
+        }
+    }
+
     /// The video is one flat colour: with the spotlight on, it stays that colour around the
     /// cursor and is darker everywhere else.
     func testTheExportDimsEverythingButTheCursor() async throws {

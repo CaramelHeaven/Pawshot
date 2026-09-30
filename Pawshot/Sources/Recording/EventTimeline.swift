@@ -24,6 +24,15 @@ struct EventTimeline: Codable, Equatable {
         var label: String
     }
 
+    /// A zone hidden for the whole video, as fractions of the recorded area: 0…1, origin top
+    /// left, like the cursor.
+    struct Mask: Codable, Equatable {
+        var x: Double
+        var y: Double
+        var width: Double
+        var height: Double
+    }
+
     /// From one moment of the file to another.
     struct Span: Codable, Equatable {
         var start: Double
@@ -43,13 +52,15 @@ struct EventTimeline: Codable, Equatable {
     var spotlights: [Span] = []
     /// The blur key held: the whole picture is hidden — a password being typed.
     var blurs: [Span] = []
+    /// Zones blurred from the first frame to the last: a tab bar, a mailbox, a token.
+    var masks: [Mask] = []
 
     private static var logger: Logger {
         .pawshot("recording")
     }
 
     var isEmpty: Bool {
-        clicks.isEmpty && keys.isEmpty && !hasZooms && spotlights.isEmpty && blurs.isEmpty
+        clicks.isEmpty && keys.isEmpty && !hasZooms && spotlights.isEmpty && blurs.isEmpty && masks.isEmpty
     }
 
     var hasZooms: Bool {
@@ -115,6 +126,7 @@ extension EventTimeline {
         badTakes = try container.decodeIfPresent([Span].self, forKey: .badTakes) ?? []
         spotlights = try container.decodeIfPresent([Span].self, forKey: .spotlights) ?? []
         blurs = try container.decodeIfPresent([Span].self, forKey: .blurs) ?? []
+        masks = try container.decodeIfPresent([Mask].self, forKey: .masks) ?? []
     }
 }
 

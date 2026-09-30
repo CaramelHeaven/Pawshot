@@ -42,7 +42,8 @@ UI_TESTS := \
 	EditorWindowControllerTests/testQuitKeyAsksBeforeThrowingAwayWork \
 	WhatsNewTests/testTheWindowComesForwardByItself \
 	RecordingBarTests/testButtonsCallTheActionsSetAfterTheFirstDraw \
-	RecordingEngineTests/testRecordsAPlayableMovieOfARegion
+	RecordingEngineTests/testRecordsAPlayableMovieOfARegion \
+	RecordingEngineTests/testTheSourceOfARunningStreamCanMove
 
 # English, whatever language the app was switched to: the test host is the app itself.
 TEST_RUN = $(MISE) tuist xcodebuild test -scheme $(TEST_SCHEME) -workspace $(WORKSPACE) \

@@ -118,6 +118,9 @@ enum OverlayHUD {
         var canCheckMicrophone = false
         /// The profile the settings add up to, if they do.
         var profile: RecordingProfile?
+        /// Zones to hide drawn on the region so far, and whether H is on (drawing one).
+        var zoneCount = 0
+        var isMarkingZones = false
         var echoPhase: MicrophoneEcho.Phase = .idle
 
         var showsClicks = true
@@ -152,6 +155,8 @@ enum OverlayHUD {
         @ObservationIgnored var chooseMicrophone: (String?) -> Void = { _ in }
         @ObservationIgnored var toggleEcho: () -> Void = {}
         @ObservationIgnored var chooseProfile: (RecordingProfile) -> Void = { _ in }
+        @ObservationIgnored var toggleZoneMarking: () -> Void = {}
+        @ObservationIgnored var clearZones: () -> Void = {}
         @ObservationIgnored var toggleSystemAudio: () -> Void = {}
         @ObservationIgnored var toggleClicks: () -> Void = {}
         @ObservationIgnored var toggleKeystrokes: () -> Void = {}
@@ -224,6 +229,7 @@ struct OverlayHintsView: View {
         hint("M", "microphone")
         hint("S", "sound")
         hint("P", "profile")
+        hint("H", "hide a zone")
         hint("Space", model.mode == .region ? "window" : "region")
         hint("Esc", "cancel")
     }
@@ -395,6 +401,12 @@ struct RecordingToolbarView: View {
 
             header("Sound")
             check(Text("System Audio"), isOn: model.systemAudioIsOn, key: "S") { model.toggleSystemAudio() }
+
+            header("Hidden in the video")
+            check(Text("Draw a zone to hide"), isOn: model.isMarkingZones, key: "H") { model.toggleZoneMarking() }
+            if model.zoneCount > 0 {
+                check(Text("Clear zones (\(model.zoneCount))"), isOn: false) { model.clearZones() }
+            }
 
             header("Shown in the video")
             check(Text("Clicks"), isOn: model.showsClicks) { model.toggleClicks() }

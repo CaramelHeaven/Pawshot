@@ -180,6 +180,25 @@ edges and corners, and ↩ (or R, or the Record button) starts. It behaves the w
   is unknown until it runs). The facts are read once on the next turn of the run loop after the
   overlay is up, never on the way from the hotkey (`RecordingPreflight`,
   `SelectionOverlayController.runPreflight`).
+- **A paused region take can be moved** (0.6.4): on the pause a thin frame of four bars appears just
+  outside the region (`RegionMoveFrame`; four small panels, because a ring with a transparent
+  middle might swallow the recorded app's clicks — not tried); dragging one moves the region, same
+  size, stopping at the display's edge. The dimming, the pen panel and the pill follow live; on
+  the drop the stream is told (`RecordingEngine.moveSource`, `SCStream.updateConfiguration`), the
+  timeline's area moves (`EventRecorder.move` — positions are fractions of the area at the time
+  they were seen) and the region is remembered. If the stream refuses, everything goes back and the
+  pill says so. Whether ScreenCaptureKit takes a new `sourceRect` on a live stream was not tried
+  by the agent: `RecordingEngineTests/testTheSourceOfARunningStreamCanMove` (`make test-ui`) is how
+  to find out. A window take and a whole-screen take have no frame.
+- **Zones to hide** (0.6.4): `H` on the recording overlay, then drag inside the region (the rim
+  stays the region's, to pull); `⌫` takes the last one back, `Esc` leaves the drawing. Zones are
+  fractions of the region, so they follow it when it moves; drawing a new region forgets them.
+  They go to `EventTimeline.masks` and are blurred from the first frame to the last at export
+  (`EffectsLayerBuilder.maskZone`: a layer over the video whose `backgroundFilters` hold a Gaussian
+  blur). Measured on a rendered file, not assumed: `HeldEffectsRenderTests` looks at the pixels and
+  went red without the filter. The editor has a "Hidden zones" switch; that the editor's live
+  preview shows the blur was not seen by the agent. Nothing is drawn on the screen during the
+  take — anything inside the region would cover what the person is recording.
 - **Profiles** (0.6.3): *Bug report* (GIF 720p, clicks, no sound) and *Demo* (HEVC 2x, voice,
   zooms) write the ordinary settings and keep nothing of their own; `P` on the overlay walks them,
   they are also in Options and Settings → Recording, and "Custom" is what the settings add up to
@@ -194,6 +213,7 @@ edges and corners, and ↩ (or R, or the Record button) starts. It behaves the w
 | `X` | 2x (the display's pixels) ↔ 1x (one pixel per point) |
 | `M` / `S` | microphone / system audio on or off |
 | `P` | recording profile: Bug report → Demo → … |
+| `H` | draw zones to hide in the video (`⌫` — the last one back, `Esc` — stop drawing) |
 | arrows | move the region 1 pt; `⇧` — 10 pt; `⌥` — move the right and bottom edges instead |
 | `⇧` dragging a corner | keep the region's proportions |
 | `⌥` dragging an edge or a corner | grow from the middle |
@@ -632,6 +652,8 @@ Paths are given relative to `Pawshot/Sources/`.
 | The three-seconds-and-back microphone check           | `Recording/MicrophoneEcho.swift`        |
 | What the overlay warns about before a take            | `Recording/RecordingPreflight.swift`    |
 | Recording profiles (Bug report, Demo)                 | `Recording/RecordingProfile.swift`      |
+| The frame a paused region is moved by                 | `Recording/RegionMoveFrame.swift`       |
+| Zones to hide: drawing / storing / blurring           | `Overlay/SelectionView.swift` / `EventTimeline.masks` / `EffectsLayerBuilder.maskZone` |
 | The video editor window, its keys, hand-off, closing  | `VideoEditor/VideoEditorWindowController.swift` |
 | Player, film strip, piece brackets, hints, footer     | `VideoEditor/VideoEditorView.swift`     |
 | The kept pieces' rules, formats, size and time texts  | `VideoEditor/VideoEditing.swift`        |

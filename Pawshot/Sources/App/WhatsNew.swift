@@ -14,6 +14,16 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.4", text: String(localized: """
+            A recording on pause can be moved: a thin frame appears round the region, drag it to \
+            another window and carry on. The size stays the same, and clicks inside the region \
+            still go to the app you are recording.
+
+            Zones to hide. On the recording screen press H and draw over what must not be seen: \
+            a tab bar, a mailbox, a token. The zone is blurred in the video from the first frame \
+            to the last; the recording itself stays sharp, and the editor has a switch for it. \
+            ⌫ removes the last zone, Esc stops drawing.
+            """)),
             Entry(version: "0.6.3", text: String(localized: """
             Before you start recording, Pawshot now says what is about to go wrong. A line above \
             the toolbar appears when the microphone is on but hears nothing, when macOS still \

@@ -64,6 +64,12 @@ final class InkPanelController {
         panel.orderFrontRegardless()
     }
 
+    /// The region moved (while paused): the panel goes with it, same size. It is the same window,
+    /// so the recording filter's exception for it still holds.
+    func move(to area: CGRect) {
+        panel.setFrame(area, display: true)
+    }
+
     /// Waits until the window server has actually put the panel on screen.
     ///
     /// Measured: straight after `orderFrontRegardless` ScreenCaptureKit lists the window with a

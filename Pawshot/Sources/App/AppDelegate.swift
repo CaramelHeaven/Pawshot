@@ -466,7 +466,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     // The toolbar's "screen" is the take ⇧⌘4 makes: the whole display, no region.
                     rect: selection.isWholeDisplay ? nil : selection.rect,
                     screen: selection.screen,
-                    windowID: selection.windowID
+                    windowID: selection.windowID,
+                    maskZones: selection.maskZones
                 ),
                 returningTo: previous
             )

@@ -17,8 +17,9 @@ final class EventRecorder {
         .pawshot("recording")
     }
 
-    /// The recorded area in AppKit screen coordinates, where `NSEvent.mouseLocation` lives.
-    private let area: CGRect
+    /// The recorded area in AppKit screen coordinates, where `NSEvent.mouseLocation` lives. Moves
+    /// only while the take is paused; what is recorded after is counted from the new place.
+    private(set) var area: CGRect
     private let clock: () -> Double?
     private(set) var timeline = EventTimeline()
 
@@ -31,6 +32,16 @@ final class EventRecorder {
     init(area: CGRect, clock: @escaping () -> Double?) {
         self.area = area
         self.clock = clock
+    }
+
+    /// Zones hidden throughout, as fractions of the area (0…1, origin top left).
+    func setMasks(_ zones: [CGRect]) {
+        timeline.masks = zones.map {
+            EventTimeline.Mask(x: $0.minX, y: $0.minY, width: $0.width, height: $0.height)
+        }
+        if !zones.isEmpty {
+            Self.logger.notice("\(zones.count, privacy: .public) zone(s) to hide marked before the take")
+        }
     }
 
     func start(recordingKeys: Bool) {
@@ -54,12 +65,18 @@ final class EventRecorder {
         }
     }
 
+    /// The region moved while paused. Positions already recorded stay as they are: each is a
+    /// fraction of the area it was seen in, and that is what the export wants.
+    func move(to newArea: CGRect) {
+        area = newArea
+    }
+
     func stop() -> EventTimeline {
         if cursorTimer != nil {
             let recorded = timeline
             let reenabled = tapReenabled
             Self.logger.notice(
-                "events: \(recorded.cursor.count, privacy: .public) cursor, \(recorded.clicks.count, privacy: .public) clicks, \(recorded.keys.count, privacy: .public) keys, \(recorded.zoomMarks.count, privacy: .public) zoom marks, \(recorded.zoomHolds.count, privacy: .public) zooms held, \(recorded.badTakes.count, privacy: .public) bad takes, \(recorded.spotlights.count, privacy: .public) spotlights, \(recorded.blurs.count, privacy: .public) hidden stretches, tap re-enabled \(reenabled, privacy: .public)×"
+                "events: \(recorded.cursor.count, privacy: .public) cursor, \(recorded.clicks.count, privacy: .public) clicks, \(recorded.keys.count, privacy: .public) keys, \(recorded.zoomMarks.count, privacy: .public) zoom marks, \(recorded.zoomHolds.count, privacy: .public) zooms held, \(recorded.badTakes.count, privacy: .public) bad takes, \(recorded.spotlights.count, privacy: .public) spotlights, \(recorded.blurs.count, privacy: .public) hidden stretches, \(recorded.masks.count, privacy: .public) hidden zones, tap re-enabled \(reenabled, privacy: .public)×"
             )
         }
         cursorTimer?.invalidate()

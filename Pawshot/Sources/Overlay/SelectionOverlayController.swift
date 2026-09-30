@@ -21,6 +21,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         var windowID: CGWindowID?
         /// The whole display was picked — the toolbar's "screen" — rather than a part of it.
         var isWholeDisplay = false
+        /// Zones to blur for the whole take, as fractions of the region (0…1, origin top left).
+        var maskZones: [CGRect] = []
     }
 
     /// The windows of the capture on screen now; empty between captures.
@@ -48,6 +50,11 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
 
     private var selectionViews: [SelectionView] {
         windows.compactMap(\.selectionView)
+    }
+
+    /// The screen the recording region is on — where its zones live.
+    private var viewWithRegion: SelectionView? {
+        selectionViews.first { $0.recordingRegion != nil }
     }
 
     var isActive: Bool {
@@ -325,7 +332,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             screen: screen,
             frame: frame,
             windowID: windowID,
-            isWholeDisplay: isWholeDisplay
+            isWholeDisplay: isWholeDisplay,
+            // Only a region has a picture to fraction the zones of.
+            maskZones: windowID == nil && !isWholeDisplay ? view.maskZones : []
         ))
     }
 
@@ -345,6 +354,10 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             }
         case .profile:
             applyProfile(RecordingProfile.next(after: RecordingProfile.current(in: settings)), by: "P")
+            return
+        case .hideZone:
+            // Not a setting: the view says its zones changed, and the toolbar follows.
+            syncRecordingBar()
             return
         case .start, .aspect:
             break
@@ -395,6 +408,14 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         }
         bar.toggleEcho = { [weak self] in self?.toggleEcho() }
         bar.chooseProfile = { [weak self] profile in self?.applyProfile(profile, by: "Options") }
+        bar.toggleZoneMarking = { [weak self] in
+            guard let view = self?.viewWithRegion else {
+                Self.logger.notice("options: hide a zone pressed with no region to hide it in")
+                return
+            }
+            view.setMarkingZones(!view.isMarkingZones, by: "Options")
+        }
+        bar.clearZones = { [weak self] in self?.viewWithRegion?.clearZones(because: "Options") }
         bar.toggleSystemAudio = { [weak self] in self?.toggleFromBar(.systemAudio) }
         bar.toggleScale = { [weak self] in
             guard let self, let view = toolbarView else { return }
@@ -585,6 +606,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         bar.keystrokesAllowed = InputMonitoringPermission.isGranted
         bar.nativeResolution = settings.recordsAtNativeResolution
         bar.profile = RecordingProfile.current(in: settings)
+        bar.zoneCount = viewWithRegion?.maskZones.count ?? 0
+        bar.isMarkingZones = viewWithRegion?.isMarkingZones ?? false
         bar.canSwitchScale = selectionViews.contains { $0.scale > 1 }
         // Which row is ticked: known only once the list is there, that is, once Options opened.
         if !bar.microphones.isEmpty {

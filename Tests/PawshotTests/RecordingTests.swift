@@ -214,4 +214,40 @@ final class RecordingEngineTests: XCTestCase {
         XCTAssertEqual(size.width % 2, 0)
         XCTAssertEqual(size.height % 2, 0)
     }
+
+    /// The region moved on a pause: ScreenCaptureKit has to take a new `sourceRect` on a running
+    /// stream, and the file has to go on at the size it started. That ScreenCaptureKit does is the
+    /// one thing moving the region rests on, and only a live stream can tell.
+    @MainActor
+    func testTheSourceOfARunningStreamCanMove() async throws {
+        try XCTSkipUnless(CGPreflightScreenCaptureAccess(), "No screen recording access — the recording test is skipped")
+
+        let screen = try XCTUnwrap(NSScreen.main)
+        let displayID = try XCTUnwrap(SelectionOverlayController.displayID(of: screen))
+        let displayBounds = CGDisplayBounds(displayID)
+        let region = CGRect(x: displayBounds.minX + 10, y: displayBounds.minY + 10, width: 401, height: 301)
+
+        let (engine, size) = try await RecordingController.makeEngine(
+            displayID: displayID,
+            rect: region,
+            capturesSystemAudio: false,
+            capturesMicrophone: false
+        )
+        try await engine.start()
+        try await Task.sleep(for: .seconds(0.7))
+        engine.pause()
+        let elsewhere = SelectionGeometry.sourceRect(displayRect: region.offsetBy(dx: 200, dy: 150), displayFrame: displayBounds)
+        try await engine.moveSource(to: elsewhere)
+        engine.resume()
+        try await Task.sleep(for: .seconds(0.7))
+        let movie = try await engine.stop()
+        defer { try? FileManager.default.removeItem(at: movie) }
+
+        let asset = AVURLAsset(url: movie)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        let video = try XCTUnwrap(tracks.first)
+        let naturalSize = try await video.load(.naturalSize)
+        XCTAssertEqual(Int(naturalSize.width), size.width)
+        XCTAssertEqual(Int(naturalSize.height), size.height)
+    }
 }

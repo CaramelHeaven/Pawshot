@@ -79,6 +79,14 @@ final class SelectionView: NSView {
     /// A press that landed on the sound bar: its drag and release are not a region either.
     private var ignoresBarClick = false
 
+    /// Zones to hide for the whole take, as fractions of the recording region (0…1, origin top
+    /// left), so they follow the region when it moves. Drawn with H; the recording blurs them.
+    private(set) var maskZones: [CGRect] = []
+    /// H is on: a press inside the region draws a zone instead of moving the region.
+    private(set) var isMarkingZones = false
+    private var zoneStart: CGPoint?
+    private var zoneDraft: CGRect?
+
     private var dragStart: CGPoint?
     /// A press beside a recording region is a new region only once the mouse has moved; until
     /// then, and after a plain click, the region that was there stays.
@@ -486,6 +494,16 @@ final class SelectionView: NSView {
             return
         }
 
+        // H is on: a press well inside the region starts a zone. The rim stays the region's — its
+        // edges and corners are still there to pull.
+        if purpose == .recording, isMarkingZones, let region = recordingRegion,
+           region.insetBy(dx: 12, dy: 12).contains(point)
+        {
+            zoneStart = point
+            zoneDraft = nil
+            return
+        }
+
         // A recording region that is already there: a press on it moves it or pulls a handle, a
         // press elsewhere starts a new one — once the mouse moves.
         if purpose == .recording, let selection, !selection.isEmpty,
@@ -516,6 +534,12 @@ final class SelectionView: NSView {
         guard mode == .region, !ignoresBarClick else { return }
         let point = convert(event.locationInWindow, from: nil)
         cursorPoint = point
+
+        if let zoneStart, let region = recordingRegion {
+            zoneDraft = SelectionGeometry.rect(from: zoneStart, to: point).intersection(region)
+            needsDisplay = true
+            return
+        }
 
         if let grabbedHandle, let grabPoint {
             if grabbedHandle == .inside {
@@ -618,6 +642,10 @@ final class SelectionView: NSView {
             ignoresBarClick = false
             return
         }
+        if zoneStart != nil {
+            finishZone()
+            return
+        }
         if purpose == .recording, mode == .region {
             finishAdjusting()
             return
@@ -648,6 +676,77 @@ final class SelectionView: NSView {
         delegate?.selectionView(self, didSelect: selection, windowID: nil)
     }
 
+    // MARK: - Zones to hide
+
+    /// H, or the Options row: the next drags inside the region draw zones that are blurred in the
+    /// video from the first frame to the last.
+    func setMarkingZones(_ on: Bool, by source: String) {
+        guard purpose == .recording else { return }
+        guard !on || recordingRegion != nil, mode == .region || !on else {
+            Self.logger.notice("zones: marking refused, no region to hide a zone in (\(source, privacy: .public))")
+            return
+        }
+        isMarkingZones = on
+        zoneStart = nil
+        zoneDraft = nil
+        let count = maskZones.count
+        Self.logger.notice("zones: marking \(on ? "on" : "off", privacy: .public) by \(source, privacy: .public), \(count, privacy: .public) zone(s)")
+        needsDisplay = true
+        delegate?.selectionView(self, didToggle: .hideZone)
+    }
+
+    func clearZones(because reason: String) {
+        let count = maskZones.count
+        maskZones = []
+        zoneDraft = nil
+        Self.logger.notice("zones: \(count, privacy: .public) cleared (\(reason, privacy: .public))")
+        needsDisplay = true
+        delegate?.selectionView(self, didToggle: .hideZone)
+    }
+
+    private func removeLastZone() {
+        guard !maskZones.isEmpty else { return }
+        maskZones.removeLast()
+        let left = maskZones.count
+        Self.logger.notice("zones: last one removed, \(left, privacy: .public) left")
+        needsDisplay = true
+        delegate?.selectionView(self, didToggle: .hideZone)
+    }
+
+    private func finishZone() {
+        defer {
+            zoneStart = nil
+            zoneDraft = nil
+            needsDisplay = true
+        }
+        guard let draft = zoneDraft, let region = recordingRegion else {
+            Self.logger.notice("zones: a click with no drag drew nothing")
+            return
+        }
+        guard let fractions = SelectionGeometry.zoneFractions(of: draft, in: region) else {
+            Self.logger.notice("zones: too small to hide (\(Int(draft.width), privacy: .public)×\(Int(draft.height), privacy: .public) pt)")
+            return
+        }
+        maskZones.append(fractions)
+        let now = maskZones.count
+        Self.logger.notice("zones: one added, \(now, privacy: .public) now (\(Int(draft.width), privacy: .public)×\(Int(draft.height), privacy: .public) pt)")
+        delegate?.selectionView(self, didToggle: .hideZone)
+    }
+
+    /// Hatched paw colour over each zone, and the one being drawn.
+    private func drawZones(in region: CGRect) {
+        let zones = maskZones.map { SelectionGeometry.zone(fromFractions: $0, in: region) } + [zoneDraft].compactMap(\.self)
+        for zone in zones {
+            Tokens.pawNSColor.withAlphaComponent(0.28).setFill()
+            zone.fill()
+            let outline = NSBezierPath(rect: zone.insetBy(dx: 0.75, dy: 0.75))
+            outline.lineWidth = 1.5
+            outline.setLineDash([5, 3], count: 2, phase: 0)
+            Tokens.pawNSColor.setStroke()
+            outline.stroke()
+        }
+    }
+
     /// Mouse up on the recording overlay leaves the region alive. A click that drew nothing
     /// leaves the region that was there.
     ///
@@ -676,6 +775,10 @@ final class SelectionView: NSView {
         case nil:
             if isDrawing, let selection, !SelectionGeometry.isTooSmall(selection) {
                 gesture = "drawn"
+                // The zones were fractions of the region that is gone.
+                if !maskZones.isEmpty {
+                    clearZones(because: "a new region was drawn")
+                }
             } else {
                 selection = regionBeforeDrag
                 gesture = regionBeforeDrag == nil ? "click (no region)" : "click beside (region kept)"
@@ -747,6 +850,10 @@ final class SelectionView: NSView {
             needsDisplay = true
             return true
         }
+        if event.keyCode == UInt16(kVK_Delete), isMarkingZones, !maskZones.isEmpty {
+            removeLastZone()
+            return true
+        }
         // An arrow moves the region by a point, ten with ⇧; with ⌥ it moves the right and the
         // bottom edges instead.
         if mode == .region, let step = RecordingOverlayKey.arrow(for: event), let region = recordingRegion {
@@ -795,6 +902,8 @@ final class SelectionView: NSView {
                 unfittedSize = nil
             }
             needsDisplay = true
+        case .hideZone:
+            setMarkingZones(!isMarkingZones, by: "H")
         case .scale:
             // One pixel per point is all a non-Retina display has; there is nothing to switch.
             guard scale > 1 else { return true }
@@ -850,6 +959,11 @@ final class SelectionView: NSView {
             needsDisplay = true
             return
         }
+        // Then marking zones: one Esc ends it, the region stays.
+        if purpose == .recording, isMarkingZones {
+            setMarkingZones(false, by: "Esc")
+            return
+        }
         // Then the Options panel, the way Esc closes a menu before anything else.
         if purpose == .recording, OverlayHUD.recordingBar.optionsShown {
             Self.logger.notice("options closed by Esc")
@@ -893,6 +1007,7 @@ final class SelectionView: NSView {
             }
             drawBorder(around: selection, hot: hot)
             if live {
+                drawZones(in: selection)
                 drawGrips(on: selection, hot: hot)
                 drawSnapGuides()
                 drawSizeOnTheDraggedEdge(of: selection)

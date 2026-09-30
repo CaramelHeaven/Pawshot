@@ -13,6 +13,8 @@ struct EffectsOptions: Equatable {
     /// The stretches hidden with the blur key. Off, they go out plain: the recording itself was
     /// never blurred, which is what lets a stretch hidden by mistake be shown after all.
     var blurs = true
+    /// The zones marked before the take, blurred throughout.
+    var masks = true
 
     /// Nothing to draw: the video can go out as it is.
     func isEmpty(for timeline: EventTimeline) -> Bool {
@@ -21,6 +23,7 @@ struct EffectsOptions: Equatable {
             && (!zooms || !timeline.hasZooms)
             && (!spotlights || timeline.spotlights.isEmpty)
             && (!blurs || timeline.blurs.isEmpty)
+            && (!masks || timeline.masks.isEmpty)
     }
 }
 
@@ -70,6 +73,12 @@ enum EffectsLayerBuilder {
 
         videoLayer.frame = root.bounds
         content.addSublayer(videoLayer)
+
+        if options.masks {
+            for mask in timeline.masks {
+                content.addSublayer(maskZone(mask, videoSize: videoSize))
+            }
+        }
 
         if options.spotlights {
             for span in timeline.spotlights {
@@ -292,6 +301,24 @@ enum EffectsLayerBuilder {
         group.isRemovedOnCompletion = false
         sheet.add(group, forKey: "spotlight")
         return sheet
+    }
+
+    /// A zone blurred whatever happens: a layer over the video, the size of the zone, whose
+    /// background — the video under it — goes through a Gaussian blur.
+    private static func maskZone(_ mask: EventTimeline.Mask, videoSize: CGSize) -> CALayer {
+        let zone = CALayer()
+        // Fractions count from the top left, Core Animation from the bottom left.
+        zone.frame = CGRect(
+            x: mask.x * videoSize.width,
+            y: (1 - mask.y - mask.height) * videoSize.height,
+            width: mask.width * videoSize.width,
+            height: mask.height * videoSize.height
+        )
+        zone.masksToBounds = true
+        let blur = CIFilter(name: "CIGaussianBlur")
+        blur?.setValue(EffectsPlanner.blurRadius(for: videoSize), forKey: kCIInputRadiusKey)
+        zone.backgroundFilters = [blur].compactMap(\.self)
+        return zone
     }
 
     /// The blur of a hidden stretch coming in, staying and going: the radius of the filter named

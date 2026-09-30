@@ -101,7 +101,7 @@ let project = Project(
             settings: .settings(
                 // The build number is the version: Sparkle compares CFBundleVersion, and a constant
                 // "1" would never read as newer.
-                base: ["MARKETING_VERSION": "0.6.3", "CURRENT_PROJECT_VERSION": "$(MARKETING_VERSION)"],
+                base: ["MARKETING_VERSION": "0.6.4", "CURRENT_PROJECT_VERSION": "$(MARKETING_VERSION)"],
                 configurations: [
                     .debug(
                         name: .debug,

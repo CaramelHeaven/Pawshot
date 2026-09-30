@@ -52,6 +52,8 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     let outputURL: URL
     private let queue = DispatchQueue(label: "com.caramelheaven.pawshot.recording", qos: .userInitiated)
     private var stream: SCStream?
+    /// Kept to change `sourceRect` on a running stream (`moveSource`).
+    private var streamConfiguration: SCStreamConfiguration?
     private let writer: AVAssetWriter
     private let videoInput: AVAssetWriterInput
     private let systemAudioInput: AVAssetWriterInput?
@@ -134,6 +136,7 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: queue)
         }
         self.stream = stream
+        self.streamConfiguration = streamConfiguration
     }
 
     private static func audioInput(channels: Int) -> AVAssetWriterInput {
@@ -163,6 +166,25 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
 
     func pause() {
         queue.async { self.clock.pause(at: Self.now) }
+    }
+
+    /// Points the running stream at another part of the display, same size — the region moved
+    /// while the take is paused. `rect` is in the display's own points, origin top left, like
+    /// `Configuration.sourceRect`. Throws what ScreenCaptureKit says when it won't have it; the
+    /// stream then still shows the old part.
+    ///
+    /// Whether ScreenCaptureKit takes a new `sourceRect` on a live stream is not something the
+    /// agent could try; this is the one call to find out with, and the caller logs the answer.
+    func moveSource(to rect: CGRect) async throws {
+        guard let stream, let configuration = streamConfiguration else { return }
+        let previous = configuration.sourceRect
+        configuration.sourceRect = rect
+        do {
+            try await stream.updateConfiguration(configuration)
+        } catch {
+            configuration.sourceRect = previous
+            throw error
+        }
     }
 
     /// The microphone's track goes silent — a cough, a word to someone in the room — and comes

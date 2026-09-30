@@ -168,6 +168,9 @@ struct VideoEditorView: View {
             if !timeline.blurs.isEmpty {
                 effectToggle("eye.slash", "Hidden stretches", isOn: model.effects.blurs) { $0.blurs.toggle() }
             }
+            if !timeline.masks.isEmpty {
+                effectToggle("rectangle.dashed", "Hidden zones", isOn: model.effects.masks) { $0.masks.toggle() }
+            }
         }
     }
 

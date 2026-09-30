@@ -655,6 +655,50 @@ enum SelectionGeometry {
         )
     }
 
+    /// The smallest zone worth hiding, in points on either side.
+    static let minimumZoneSide: CGFloat = 8
+
+    /// A zone drawn over a recording region, as fractions of the region: 0…1, origin top left —
+    /// the way the timeline keeps it, so it survives any size of the file, and follows the region
+    /// when that moves. Cut to the region; `nil` when what is left is smaller than
+    /// `minimumZoneSide` either way.
+    static func zoneFractions(of zone: CGRect, in region: CGRect) -> CGRect? {
+        let inside = zone.standardized.intersection(region)
+        guard !inside.isNull, inside.width >= minimumZoneSide, inside.height >= minimumZoneSide,
+              region.width > 0, region.height > 0
+        else { return nil }
+        return CGRect(
+            x: (inside.minX - region.minX) / region.width,
+            y: (inside.minY - region.minY) / region.height,
+            width: inside.width / region.width,
+            height: inside.height / region.height
+        )
+    }
+
+    /// The inverse: where a zone kept as fractions lies on the region now.
+    static func zone(fromFractions fractions: CGRect, in region: CGRect) -> CGRect {
+        CGRect(
+            x: region.minX + fractions.minX * region.width,
+            y: region.minY + fractions.minY * region.height,
+            width: fractions.width * region.width,
+            height: fractions.height * region.height
+        )
+    }
+
+    /// Four bars round `area`, `thickness` wide, none over it: what a paused recording's region is
+    /// grabbed by. Left, right, then the bars at `minY` and at `maxY`; the side bars include the
+    /// corners, so the ring has no gap for a click to slip through. Inside `area` there is no bar
+    /// at all — a click in the region goes to the app being recorded, as it did before the pause.
+    static func grabBars(around area: CGRect, thickness: CGFloat) -> [CGRect] {
+        let tall = area.height + 2 * thickness
+        return [
+            CGRect(x: area.minX - thickness, y: area.minY - thickness, width: thickness, height: tall),
+            CGRect(x: area.maxX, y: area.minY - thickness, width: thickness, height: tall),
+            CGRect(x: area.minX, y: area.minY - thickness, width: area.width, height: thickness),
+            CGRect(x: area.minX, y: area.maxY, width: area.width, height: thickness),
+        ]
+    }
+
     /// `rect` reshaped to `aspect`: the same area and the same middle, shrunk if it no longer fits
     /// `bounds`, then moved back inside them. Keeping the area — rather than fitting into the old
     /// rectangle — is what lets the proportions be cycled without the region shrinking each time.

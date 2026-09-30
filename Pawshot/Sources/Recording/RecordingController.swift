@@ -13,6 +13,8 @@ struct RecordingTarget {
     let screen: NSScreen
     /// A window recording follows the window wherever it goes, even under other windows.
     var windowID: CGWindowID?
+    /// Zones blurred in the video throughout, as fractions of the region (0…1, origin top left).
+    var maskZones: [CGRect] = []
 }
 
 /// One recording at a time, from the hotkey to the file: the engine, the pill, the time in the
@@ -63,6 +65,10 @@ final class RecordingController {
     private var ink: InkPanelController?
     /// The dimming around a recorded region, the way macOS shows a region being recorded.
     private let frame = RecordingFrameController()
+    /// Four bars round the region while a take is paused, to move it by.
+    private let grabFrame = RegionMoveFrameController()
+    /// A moved region is being handed to the stream; resuming waits for it.
+    private var regionMoveInFlight = false
     private let zoomIndicator = ZoomMarkIndicator()
     private var isStarting = false
     /// Stop pressed while the take was still starting (or restarting): honoured once it is up.
@@ -167,6 +173,7 @@ final class RecordingController {
 
         self.engine = engine
         self.target = target
+        wireRegionMove()
         recordedSize = CGSize(width: size.width, height: size.height)
         let systemAudio = settings.recordsSystemAudio
         let native = settings.recordsAtNativeResolution
@@ -179,6 +186,7 @@ final class RecordingController {
             guard let engine, !engine.isPaused else { return nil }
             return engine.duration
         }
+        events.setMasks(target.maskZones)
         events.start(recordingKeys: settings.showsKeystrokes)
         self.events = events
         registerRecordingHotKeys()
@@ -442,12 +450,77 @@ final class RecordingController {
         if !resumes {
             Stats.shared.add(.pauses)
         }
+        if resumes, regionMoveInFlight {
+            Self.logger.notice("resume ignored: the moved region is still being handed to the stream")
+            return
+        }
         if engine.isPaused {
             engine.resume()
         } else {
             engine.pause()
         }
+        updateGrabFrame(paused: !resumes)
         tick()
+    }
+
+    // MARK: - Moving the region while paused
+
+    /// A region take can be moved on a pause; a window follows its window and a whole screen has
+    /// nowhere to go.
+    private var canMoveRegion: Bool {
+        target.map { $0.rect != nil && $0.windowID == nil } ?? false
+    }
+
+    private func wireRegionMove() {
+        grabFrame.onMove = { [weak self] area in self?.regionMoves(to: area) }
+        grabFrame.onDrop = { [weak self] old, new in self?.regionDropped(from: old, to: new) }
+    }
+
+    private func updateGrabFrame(paused: Bool) {
+        guard paused, canMoveRegion, let target else {
+            grabFrame.close()
+            return
+        }
+        grabFrame.show(area: Self.appKitRect(of: target), within: target.screen.frame)
+    }
+
+    /// Every step of a drag: what shows the region follows, the stream is not touched yet.
+    private func regionMoves(to area: CGRect) {
+        guard let target else { return }
+        frame.show(area: area, on: target.screen)
+        ink?.move(to: area)
+        pill.follow(area: area, on: target.screen)
+    }
+
+    /// The mouse was let go: the stream, the timeline and the remembered region all follow. When
+    /// the stream won't take the new place, everything goes back where it was.
+    private func regionDropped(from old: CGRect, to new: CGRect) {
+        guard let engine, let target else { return }
+        let primaryMaxY = NSScreen.screens.first.map(\.frame.maxY) ?? 0
+        let global = SelectionGeometry.convertToCoreGraphics(rect: new, primaryScreenMaxY: primaryMaxY)
+        let display = CGDisplayBounds(target.displayID)
+        let source = SelectionGeometry.sourceRect(displayRect: global, displayFrame: display)
+            .intersection(CGRect(origin: .zero, size: display.size))
+        let fromText = "\(Int(old.minX)),\(Int(old.minY))"
+        let toText = "\(Int(new.minX)),\(Int(new.minY))"
+        regionMoveInFlight = true
+        Task {
+            defer { regionMoveInFlight = false }
+            do {
+                try await engine.moveSource(to: source)
+                self.target = RecordingTarget(
+                    displayID: target.displayID, rect: global, screen: target.screen, windowID: nil, maskZones: target.maskZones
+                )
+                events?.move(to: new)
+                settings.setLastRecordingArea(source, on: target.displayID)
+                Self.logger.notice("region moved while paused: \(fromText, privacy: .public) → \(toText, privacy: .public) pt (AppKit), stream follows")
+            } catch {
+                Self.logger.error("region move refused by the stream, put back: \(String(describing: error), privacy: .public)")
+                regionMoves(to: old)
+                grabFrame.place(old)
+                pill.flash(notice: String(localized: "The region can't be moved"))
+            }
+        }
     }
 
     /// Throws the take away and starts again at once, with the same region and sound.
@@ -466,6 +539,7 @@ final class RecordingController {
         _ = events?.stop()
         events = nil
         // The frame stays: the region is the same, and closing it would flash the bare screen.
+        grabFrame.close()
         closeInk()
         zoomIndicator.close()
         unregisterRecordingHotKeys()
@@ -609,6 +683,7 @@ final class RecordingController {
         target = nil
         unregisterRecordingHotKeys()
         closeInk()
+        grabFrame.close()
         frame.close()
         zoomIndicator.close()
         heldIndicator.hide()

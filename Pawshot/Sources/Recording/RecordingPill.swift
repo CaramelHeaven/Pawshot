@@ -104,6 +104,13 @@ final class RecordingPillController {
         proximityTimer = timer
     }
 
+    /// The region moved (while paused): a floating pill follows it, a pill in the notch stays put.
+    func follow(area: CGRect, on screen: NSScreen) {
+        guard notchFrames == nil else { return }
+        let origin = SelectionGeometry.pillOrigin(below: area, pillSize: Self.size, visibleFrame: screen.visibleFrame)
+        panel.setFrame(CGRect(origin: origin, size: Self.size), display: true)
+    }
+
     func hide() {
         proximityTimer?.invalidate()
         proximityTimer = nil

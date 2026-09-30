@@ -108,6 +108,8 @@ enum RecordingOverlayKey: Equatable {
     case microphone
     case systemAudio
     case profile
+    /// H, and also what the view tells the controller when its zones changed.
+    case hideZone
 
     static func action(for event: NSEvent) -> RecordingOverlayKey? {
         if event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) {
@@ -120,6 +122,7 @@ enum RecordingOverlayKey: Equatable {
         case "m": return .microphone
         case "s": return .systemAudio
         case "p": return .profile
+        case "h": return .hideZone
         default: return nil
         }
     }
