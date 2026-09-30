@@ -281,12 +281,22 @@ enum SyntheticVideo {
     static let fps: Int32 = 30
     static let sampleRate = 44100.0
 
-    static func write(to url: URL, seconds: Int = 2, audioTracks: Int) async throws -> URL {
+    /// `stripes` draws black and white stripes eight pixels wide instead of a flat shade: something
+    /// with detail, for tests that look at what a blur does.
+    static func write(to url: URL, seconds: Int = 2, audioTracks: Int, stripes: Bool = false) async throws -> URL {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         let video = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: Int(size.width),
             AVVideoHeightKey: Int(size.height),
+            // Said out loud, as a real recording says it. A video with no colour tags comes out
+            // of `AVVideoCompositionCoreAnimationTool` as a white frame — measured: the effects
+            // were drawn, the picture under them was not, and no test looked at the picture.
+            AVVideoColorPropertiesKey: [
+                AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+                AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
+                AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2,
+            ],
         ])
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: video, sourcePixelBufferAttributes: nil)
         writer.add(video)
@@ -309,7 +319,10 @@ enum SyntheticVideo {
         for index in 0 ..< frames {
             let time = CMTime(value: CMTimeValue(index), timescale: fps)
             try waitUntilReady(video)
-            try adaptor.append(pixelBuffer(shade: CGFloat(index) / CGFloat(frames)), withPresentationTime: time)
+            try adaptor.append(
+                pixelBuffer(shade: CGFloat(index) / CGFloat(frames), stripes: stripes),
+                withPresentationTime: time
+            )
             for (track, input) in audio.enumerated() {
                 try waitUntilReady(input)
                 let start = CMTime(value: CMTimeValue(index * audioPerFrame), timescale: CMTimeScale(sampleRate))
@@ -332,7 +345,7 @@ enum SyntheticVideo {
         }
     }
 
-    private static func pixelBuffer(shade: CGFloat) throws -> CVPixelBuffer {
+    private static func pixelBuffer(shade: CGFloat, stripes: Bool) throws -> CVPixelBuffer {
         var buffer: CVPixelBuffer?
         CVPixelBufferCreate(nil, Int(size.width), Int(size.height), kCVPixelFormatType_32BGRA, nil, &buffer)
         guard let buffer else { throw VideoExportError.unsupported }
@@ -346,6 +359,13 @@ enum SyntheticVideo {
         )
         context?.setFillColor(red: shade, green: 1 - shade, blue: 0.5, alpha: 1)
         context?.fill(CGRect(origin: .zero, size: size))
+        if stripes {
+            for stripe in stride(from: 0, to: Int(size.width), by: 8) {
+                let white: CGFloat = (stripe / 8).isMultiple(of: 2) ? 0 : 1
+                context?.setFillColor(red: white, green: white, blue: white, alpha: 1)
+                context?.fill(CGRect(x: CGFloat(stripe), y: 0, width: 8, height: size.height))
+            }
+        }
         return buffer
     }
 

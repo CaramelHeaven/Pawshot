@@ -162,6 +162,12 @@ struct VideoEditorView: View {
             if timeline.hasZooms {
                 effectToggle("plus.magnifyingglass", "Zooms", isOn: model.effects.zooms) { $0.zooms.toggle() }
             }
+            if !timeline.spotlights.isEmpty {
+                effectToggle("flashlight.on.fill", "Spotlight", isOn: model.effects.spotlights) { $0.spotlights.toggle() }
+            }
+            if !timeline.blurs.isEmpty {
+                effectToggle("eye.slash", "Hidden stretches", isOn: model.effects.blurs) { $0.blurs.toggle() }
+            }
         }
     }
 
@@ -475,6 +481,9 @@ final class EffectsPreviewView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer = CALayer()
+        // A hidden stretch is a Core Image blur on a layer of the effects tree; a view draws
+        // those only when told to.
+        layerUsesCoreImageFilters = true
     }
 
     @available(*, unavailable)

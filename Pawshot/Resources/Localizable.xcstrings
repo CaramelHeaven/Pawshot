@@ -1526,6 +1526,26 @@
     "HEX" : {
       "shouldTranslate" : false
     },
+    "Hidden in the video" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В видео это скрыто"
+          }
+        }
+      }
+    },
+    "Hidden stretches" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрытые отрезки"
+          }
+        }
+      }
+    },
     "Hold" : {
       "comment" : "The quit toast, before the ⌘Q key caps: Hold ⌘Q to Quit",
       "localizations" : {
@@ -1543,6 +1563,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Удерживайте ⌘Q, чтобы выйти; отпустите раньше — останетесь."
+          }
+        }
+      }
+    },
+    "Hold: hide the picture" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживать: скрыть картинку"
+          }
+        }
+      }
+    },
+    "Hold: mute the microphone" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживать: выключить микрофон"
+          }
+        }
+      }
+    },
+    "Hold: spotlight" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживать: прожектор"
           }
         }
       }
@@ -1603,6 +1653,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Живёт в строке меню и ждёт сочетания клавиш."
+          }
+        }
+      }
+    },
+    "Keep recording without the microphone" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить запись без микрофона"
           }
         }
       }
@@ -1776,6 +1836,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Микрофон разрешён"
+          }
+        }
+      }
+    },
+    "Microphone muted" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Микрофон молчит"
           }
         }
       }
@@ -2112,6 +2182,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Значок Pawshot"
+          }
+        }
+      }
+    },
+    "Pawshot listens during such a take and keeps nothing. macOS shows its orange microphone dot meanwhile." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Во время такой записи Pawshot слушает микрофон и ничего не сохраняет. macOS в это время показывает оранжевую точку микрофона."
           }
         }
       }
@@ -3141,12 +3221,32 @@
         }
       }
     },
+    "Spotlight" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прожектор"
+          }
+        }
+      }
+    },
     "Standard, 1x" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Обычное, 1x"
+          }
+        }
+      }
+    },
+    "Start over with it" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начать заново с ним"
           }
         }
       }
@@ -3315,6 +3415,16 @@
         }
       }
     },
+    "Tell me when I talk with the microphone off" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подсказывать, если я говорю с выключенным микрофоном"
+          }
+        }
+      }
+    },
     "Text" : {
       "localizations" : {
         "ru" : {
@@ -3391,6 +3501,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Шрифт и панель меняются сразу, в том числе в открытых окнах редактора. Поверх снимка панель можно растянуть за край."
+          }
+        }
+      }
+    },
+    "The microphone is off" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Микрофон выключен"
           }
         }
       }
@@ -3531,6 +3651,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Это окно теперь открывается поверх остальных окон. После прошлого обновления оно могло спрятаться под ними."
+          }
+        }
+      }
+    },
+    "Three keys to hold while a recording runs, all under the left hand.\n\n⌃⌘A — a spotlight: everything but a circle around the cursor goes dim in the video.\n\n⌃⌘B — hide the picture: the video is blurred for as long as you hold, for a password or a private message. The recording itself stays sharp, so the editor can show that stretch again.\n\n⌃⌘V — mute: the microphone records silence while you cough or answer someone.\n\nCutting the last 10 seconds moved from ⇧⌘8 to ⌃⌘X. All four are changed in Settings → Shortcuts.\n\nWhen you record with the microphone off and start talking, the pill says so once and offers to start over with the microphone on. For that Pawshot listens during such a recording and keeps nothing; macOS shows its orange microphone dot meanwhile. Settings → Recording → Sound switches it off." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Три клавиши, которые удерживают во время записи. Все под левой рукой.\n\n⌃⌘A — прожектор: в видео всё, кроме круга вокруг курсора, затемняется.\n\n⌃⌘B — скрыть картинку: видео размыто, пока вы держите клавиши, для пароля или личного сообщения. Сама запись остаётся чёткой, так что в редакторе этот отрезок можно показать снова.\n\n⌃⌘V — тишина: пока вы кашляете или отвечаете кому-то, микрофон записывает тишину.\n\nВырезание последних 10 секунд переехало с ⇧⌘8 на ⌃⌘X. Все четыре сочетания меняются в Настройки → Сочетания клавиш.\n\nЕсли вы записываете с выключенным микрофоном и начинаете говорить, пилюля один раз скажет об этом и предложит начать заново с микрофоном. Для этого Pawshot слушает микрофон во время такой записи и ничего не сохраняет; macOS в это время показывает оранжевую точку микрофона. Отключается в Настройки → Запись → Звук."
+          }
+        }
+      }
+    },
+    "Throws this take away and records again with the microphone on" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрасывает этот дубль и записывает заново с включённым микрофоном"
           }
         }
       }
@@ -3743,6 +3883,16 @@
     },
     "X" : {
       "shouldTranslate" : false
+    },
+    "You're talking, and the microphone is off" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы говорите, а микрофон выключен"
+          }
+        }
+      }
     },
     "Your colour" : {
       "localizations" : {

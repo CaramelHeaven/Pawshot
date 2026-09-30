@@ -39,13 +39,17 @@ struct EventTimeline: Codable, Equatable {
     var zoomHolds: [Span] = []
     /// Stretches marked as a bad take while recording: the editor opens with them cut out.
     var badTakes: [Span] = []
+    /// The spotlight key held: everything but a circle around the cursor is dimmed.
+    var spotlights: [Span] = []
+    /// The blur key held: the whole picture is hidden — a password being typed.
+    var blurs: [Span] = []
 
     private static var logger: Logger {
         .pawshot("recording")
     }
 
     var isEmpty: Bool {
-        clicks.isEmpty && keys.isEmpty && !hasZooms
+        clicks.isEmpty && keys.isEmpty && !hasZooms && spotlights.isEmpty && blurs.isEmpty
     }
 
     var hasZooms: Bool {
@@ -109,6 +113,8 @@ extension EventTimeline {
         zoomMarks = try container.decodeIfPresent([Double].self, forKey: .zoomMarks) ?? []
         zoomHolds = try container.decodeIfPresent([Span].self, forKey: .zoomHolds) ?? []
         badTakes = try container.decodeIfPresent([Span].self, forKey: .badTakes) ?? []
+        spotlights = try container.decodeIfPresent([Span].self, forKey: .spotlights) ?? []
+        blurs = try container.decodeIfPresent([Span].self, forKey: .blurs) ?? []
     }
 }
 

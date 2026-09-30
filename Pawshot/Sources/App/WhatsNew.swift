@@ -14,6 +14,25 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.2", text: String(localized: """
+            Three keys to hold while a recording runs, all under the left hand.
+
+            ⌃⌘A — a spotlight: everything but a circle around the cursor goes dim in the video.
+
+            ⌃⌘B — hide the picture: the video is blurred for as long as you hold, for a password \
+            or a private message. The recording itself stays sharp, so the editor can show that \
+            stretch again.
+
+            ⌃⌘V — mute: the microphone records silence while you cough or answer someone.
+
+            Cutting the last 10 seconds moved from ⇧⌘8 to ⌃⌘X. All four are changed in \
+            Settings → Shortcuts.
+
+            When you record with the microphone off and start talking, the pill says so once and \
+            offers to start over with the microphone on. For that Pawshot listens during such a \
+            recording and keeps nothing; macOS shows its orange microphone dot meanwhile. \
+            Settings → Recording → Sound switches it off.
+            """)),
             Entry(version: "0.6.1", text: String(localized: """
             New while a recording runs.
 

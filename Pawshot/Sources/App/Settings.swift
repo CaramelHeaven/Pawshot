@@ -28,6 +28,10 @@ final class Settings {
         case penHotKey = "hotkey.pen"
         case restartHotKey = "hotkey.restart"
         case badTakeHotKey = "hotkey.badTake"
+        case spotlightHotKey = "hotkey.spotlight"
+        case blurHotKey = "hotkey.blur"
+        case muteHotKey = "hotkey.mute"
+        case noticesTalkingWhileMuted = "recording.noticesTalkingWhileMuted"
         case recordingGoal = "recording.goal"
         case recordsMicrophone = "recording.microphone"
         case microphoneDevice = "recording.microphoneDevice"
@@ -129,6 +133,33 @@ final class Settings {
         set { store(newValue, for: .badTakeHotKey, default: .badTakeDefault) }
     }
 
+    /// Held: a spotlight around the cursor. Only registered during a take.
+    var spotlightHotKey: HotKeyBinding? {
+        get { binding(for: .spotlightHotKey, default: .spotlightDefault) }
+        set { store(newValue, for: .spotlightHotKey, default: .spotlightDefault) }
+    }
+
+    /// Held: the picture is hidden. Only registered during a take.
+    var blurHotKey: HotKeyBinding? {
+        get { binding(for: .blurHotKey, default: .blurDefault) }
+        set { store(newValue, for: .blurHotKey, default: .blurDefault) }
+    }
+
+    /// Held: the microphone records silence. Only registered during a take.
+    var muteHotKey: HotKeyBinding? {
+        get { binding(for: .muteHotKey, default: .muteDefault) }
+        set { store(newValue, for: .muteHotKey, default: .muteDefault) }
+    }
+
+    /// A take recorded with the microphone off still listens to it, to say once in the pill
+    /// "you are talking, and the microphone is off". On by default — the owner's call of
+    /// 2026-09-30, knowing the price: macOS shows its orange microphone dot for the whole take,
+    /// though nothing of the voice is kept. Off, the microphone isn't touched at all.
+    var noticesTalkingWhileMuted: Bool {
+        get { flag(.noticesTalkingWhileMuted, default: true) }
+        set { setFlag(newValue, for: .noticesTalkingWhileMuted) }
+    }
+
     /// How long a take is meant to be, in seconds; 0 aims for nothing. The pill shows the time
     /// against it and a bar that fills up — the take is never stopped by it.
     var recordingGoal: TimeInterval {
@@ -150,6 +181,7 @@ final class Settings {
         [
             regionHotKey, fullScreenHotKey, recordRegionHotKey, recordFullScreenHotKey,
             zoomMarkHotKey, penHotKey, restartHotKey, badTakeHotKey,
+            spotlightHotKey, blurHotKey, muteHotKey,
         ].compactMap(\.self)
     }
 
@@ -471,6 +503,9 @@ final class Settings {
         defaults.removeObject(forKey: Key.penHotKey.rawValue)
         defaults.removeObject(forKey: Key.restartHotKey.rawValue)
         defaults.removeObject(forKey: Key.badTakeHotKey.rawValue)
+        defaults.removeObject(forKey: Key.spotlightHotKey.rawValue)
+        defaults.removeObject(forKey: Key.blurHotKey.rawValue)
+        defaults.removeObject(forKey: Key.muteHotKey.rawValue)
         revision += 1
         onHotKeysChange?()
     }

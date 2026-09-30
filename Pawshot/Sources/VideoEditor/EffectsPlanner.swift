@@ -44,6 +44,38 @@ enum EffectsPlanner {
     /// How often a held zoom looks at where the cursor went.
     static let zoomFollowStep: Double = 0.1
 
+    /// The spotlight's hole, as a share of the video's shorter side, and how dark the rest gets.
+    static let spotlightRadius: CGFloat = 0.16
+    static let spotlightDim: CGFloat = 0.55
+    /// The spotlight's hole has to stay on the cursor, so it looks at it every frame of 30.
+    static let spotlightStep: Double = 1.0 / 30
+    /// The way in and out of a spotlight and of a hidden stretch.
+    static let effectFade: Double = 0.15
+
+    /// How strong the blur of a hidden stretch is: a fortieth of the video's longer side, enough
+    /// to melt text of any size a screen shows.
+    static func blurRadius(for videoSize: CGSize) -> CGFloat {
+        max(videoSize.width, videoSize.height) / 40
+    }
+
+    /// Where the cursor was from `start` to `end`, a point every `step` and one at the end;
+    /// `fallback` while no cursor was recorded.
+    static func cursorPath(
+        from start: Double,
+        to end: Double,
+        timeline: EventTimeline,
+        step: Double,
+        fallback: CGPoint
+    ) -> [(time: Double, point: CGPoint)] {
+        let steps = max(1, Int(((end - start) / step - 1e-9).rounded(.up)))
+        var path = (0 ..< steps).map { index -> (time: Double, point: CGPoint) in
+            let time = start + Double(index) * step
+            return (time, timeline.cursorPosition(at: time) ?? fallback)
+        }
+        path.append((max(start, end), timeline.cursorPosition(at: end) ?? fallback))
+        return path
+    }
+
     /// One segment per mark and per hold, merged where they touch, cut at the end of the video,
     /// centred where the cursor was at the start of each. A mark lasts `zoomLength`; a hold lasts
     /// until its release, and the way out comes after that.
@@ -77,14 +109,8 @@ enum EffectsPlanner {
         guard segment.follows, end > start else {
             return [(start, segment.center), (max(start, end), segment.center)]
         }
-        var path: [(time: Double, center: CGPoint)] = []
-        var time = start
-        while time < end {
-            path.append((time, timeline.cursorPosition(at: time) ?? segment.center))
-            time += zoomFollowStep
-        }
-        path.append((end, timeline.cursorPosition(at: end) ?? segment.center))
-        return path
+        return cursorPath(from: start, to: end, timeline: timeline, step: zoomFollowStep, fallback: segment.center)
+            .map { (time: $0.time, center: $0.point) }
     }
 
     /// Captions for the shortcuts. A repeat within a second becomes `×2`, `×3` on the same

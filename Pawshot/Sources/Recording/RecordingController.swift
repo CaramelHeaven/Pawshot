@@ -39,8 +39,19 @@ final class RecordingController {
     private var penHotKey: GlobalHotKey?
     /// Restart (⇧⌘5), on the same terms. Stopping is the shortcut that started the take.
     private var restartHotKey: GlobalHotKey?
-    /// "Cut the last seconds" (⇧⌘8), on the same terms.
+    /// "Cut the last seconds" (⌃⌘X), on the same terms.
     private var badTakeHotKey: GlobalHotKey?
+    /// The three keys that do something for as long as they are held: a spotlight around the
+    /// cursor (⌃⌘A), the picture hidden (⌃⌘B), the microphone silent (⌃⌘V).
+    private var spotlightHotKey: GlobalHotKey?
+    private var blurHotKey: GlobalHotKey?
+    private var muteHotKey: GlobalHotKey?
+    /// When each held effect's key went down, in the file's time.
+    private var heldSince: [EventRecorder.HeldEffect: TimeInterval] = [:]
+    private let heldIndicator = HeldEffectIndicator()
+    /// Listens to the microphone during a take recorded without it, to tell when somebody talks.
+    private var talkMeter: MicrophoneLevelMeter?
+    private var speech = SpeechWatch()
     /// The zoom key is down: the mark its press left, and when it went down. Held past
     /// `EffectsPlanner.zoomHoldAfter`, the mark becomes a zoom that lasts until the release.
     private var zoomPress: (mark: TimeInterval, at: Date)?
@@ -66,7 +77,9 @@ final class RecordingController {
         stop: { [weak self] in self?.stop() },
         zoom: { [weak self] in self?.markZoom() },
         togglePen: { [weak self] in self?.togglePen() },
-        badTake: { [weak self] in self?.markBadTake() }
+        badTake: { [weak self] in self?.markBadTake() },
+        recordWithMicrophone: { [weak self] in self?.restartWithMicrophone() },
+        dismissMicrophoneHint: { [weak self] in self?.closeMicrophoneHint() }
     ))
 
     /// Handed the finished take — the raw file, its pixel size, and the screen it was recorded on —
@@ -185,6 +198,7 @@ final class RecordingController {
         if goal > 0 {
             Self.logger.notice("the take aims for \(goal, privacy: .public) s")
         }
+        listenForTalking(takeHasMicrophone: microphone)
         startTicker()
         if stopWhenStarted {
             stop()
@@ -259,6 +273,123 @@ final class RecordingController {
         )
     }
 
+    // MARK: - Keys that are held
+
+    /// A spotlight or a blur key went down: the effect starts here in the file, and the screen
+    /// shows that it took.
+    private func heldKeyDown(_ effect: EventRecorder.HeldEffect) {
+        // A held key may repeat; only the first press counts.
+        guard heldSince[effect] == nil, let events, let target else { return }
+        guard let start = events.now else {
+            Self.logger.notice("\(effect.rawValue, privacy: .public) key ignored: paused")
+            return
+        }
+        heldSince[effect] = start
+        heldIndicator.show(effect, over: Self.appKitRect(of: target))
+        Self.logger.notice("\(effect.rawValue, privacy: .public) held from \(String(format: "%.1f", start), privacy: .public) s")
+    }
+
+    /// The key came up: the stretch from its press to now goes into the timeline, and the export
+    /// draws the effect over it.
+    private func heldKeyUp(_ effect: EventRecorder.HeldEffect) {
+        guard let start = heldSince.removeValue(forKey: effect) else { return }
+        heldIndicator.hide()
+        guard let engine, let events else { return }
+        let end = engine.duration
+        if events.hold(effect, from: start, to: end) == nil {
+            Self.logger.notice("\(effect.rawValue, privacy: .public) key let go at once: nothing recorded")
+        } else {
+            Self.logger.notice(
+                "\(effect.rawValue, privacy: .public) held \(String(format: "%.1f", start), privacy: .public)–\(String(format: "%.1f", end), privacy: .public) s"
+            )
+        }
+    }
+
+    /// A key that is down when its shortcut goes away — the take stops, restarts, or a shortcut
+    /// field starts recording — has nobody left to hear its release: what it held ends here.
+    private func releaseHeldKeys() {
+        for effect in Array(heldSince.keys) {
+            heldKeyUp(effect)
+        }
+        engine?.setMicrophoneMuted(false)
+        pill.hold(notice: nil)
+    }
+
+    /// The mute key went down or came up: while it is down the microphone records silence.
+    private func setMuteHeld(_ held: Bool) {
+        guard let engine else { return }
+        guard engine.recordsMicrophone else {
+            if held {
+                Self.logger.notice("mute key: this take has no microphone")
+                pill.flash(notice: String(localized: "The microphone is off"))
+            }
+            return
+        }
+        engine.setMicrophoneMuted(held)
+        pill.hold(notice: held ? String(localized: "Microphone muted") : nil)
+        Self.logger.notice(
+            "microphone \(held ? "muted" : "back", privacy: .public) at \(String(format: "%.1f", engine.duration), privacy: .public) s"
+        )
+    }
+
+    // MARK: - Talking into a microphone that is off
+
+    /// A take recorded without the microphone listens to it all the same — keeping nothing — so
+    /// the pill can say, once, that somebody is talking. Only with the setting on and access
+    /// already granted: the take never asks for the microphone for this.
+    private func listenForTalking(takeHasMicrophone: Bool) {
+        stopListeningForTalking()
+        let wanted = settings.noticesTalkingWhileMuted
+        let granted = MicrophonePermission.isGranted
+        guard !takeHasMicrophone, wanted, granted else {
+            if !takeHasMicrophone {
+                Self.logger.notice(
+                    "not listening for talk: setting \(wanted, privacy: .public), microphone access \(granted, privacy: .public)"
+                )
+            }
+            return
+        }
+        speech = SpeechWatch()
+        let started = Date()
+        let meter = MicrophoneLevelMeter(deviceUID: settings.microphoneDeviceID) { [weak self] level, _ in
+            guard let self, talkMeter != nil else { return }
+            if speech.feed(level: level, at: Date().timeIntervalSince(started)) {
+                talkingHeard()
+            }
+        }
+        meter.start()
+        talkMeter = meter
+        Self.logger.notice("listening for talk: this take has no microphone")
+    }
+
+    private func talkingHeard() {
+        let elapsed = engine.map { String(format: "%.1f", $0.duration) } ?? "?"
+        Self.logger.notice("talk heard at \(elapsed, privacy: .public) s with the microphone off: the pill says so")
+        // Said once a take; after that there is nothing left to listen for.
+        stopListeningForTalking()
+        pill.showMicrophoneHint()
+    }
+
+    private func stopListeningForTalking() {
+        talkMeter?.stop()
+        talkMeter = nil
+    }
+
+    /// The hint's cross: the take goes on as it is, without the microphone.
+    private func closeMicrophoneHint() {
+        pill.dismissMicrophoneHint(reason: "closed with the cross")
+    }
+
+    /// From the pill's hint: the microphone goes on and the take starts over with it.
+    private func restartWithMicrophone() {
+        Self.logger.notice("hint answered: starting over with the microphone on")
+        pill.dismissMicrophoneHint(reason: "start over with the microphone")
+        settings.recordsMicrophone = true
+        restart()
+    }
+
+    // MARK: - Marks
+
     /// The last seconds were no good: they are marked, the take goes on, and the editor opens
     /// with them already cut.
     func markBadTake() {
@@ -322,6 +453,8 @@ final class RecordingController {
     /// Throws the take away and starts again at once, with the same region and sound.
     func restart() {
         guard let engine, let target else { return }
+        releaseHeldKeys()
+        stopListeningForTalking()
         let thrownAway = String(format: "%.1f", engine.duration)
         Self.logger.notice("recording restarts: \(thrownAway, privacy: .public) s thrown away")
         Stats.shared.add(.restarts)
@@ -372,6 +505,8 @@ final class RecordingController {
         if let error {
             Self.logger.error("the stream ended on its own: \(String(describing: error), privacy: .public)")
         }
+        // While the engine and the timeline are still there: a key held at the stop keeps its stretch.
+        releaseHeldKeys()
         let seconds = engine.duration
         self.engine = nil
         let size = recordedSize
@@ -426,6 +561,24 @@ final class RecordingController {
         badTakeHotKey = GlobalHotKey.register(settings.badTakeHotKey, for: "mark a bad take") { [weak self] in
             self?.markBadTake()
         }
+        spotlightHotKey = GlobalHotKey.register(
+            settings.spotlightHotKey,
+            for: "hold the spotlight",
+            onRelease: { [weak self] in self?.heldKeyUp(.spotlight) },
+            action: { [weak self] in self?.heldKeyDown(.spotlight) }
+        )
+        blurHotKey = GlobalHotKey.register(
+            settings.blurHotKey,
+            for: "hold the blur",
+            onRelease: { [weak self] in self?.heldKeyUp(.blur) },
+            action: { [weak self] in self?.heldKeyDown(.blur) }
+        )
+        muteHotKey = GlobalHotKey.register(
+            settings.muteHotKey,
+            for: "hold the mute",
+            onRelease: { [weak self] in self?.setMuteHeld(false) },
+            action: { [weak self] in self?.setMuteHeld(true) }
+        )
         restartHotKey = GlobalHotKey.register(settings.restartHotKey, for: "restart the take") { [weak self] in
             self?.restart()
         }
@@ -442,6 +595,10 @@ final class RecordingController {
         penHotKey = nil
         restartHotKey = nil
         badTakeHotKey = nil
+        spotlightHotKey = nil
+        blurHotKey = nil
+        muteHotKey = nil
+        releaseHeldKeys()
         // A zoom key that was down has nobody left to hear its release.
         zoomFollowTimer?.invalidate()
         zoomFollowTimer = nil
@@ -454,6 +611,8 @@ final class RecordingController {
         closeInk()
         frame.close()
         zoomIndicator.close()
+        heldIndicator.hide()
+        stopListeningForTalking()
         zoomOutline = nil
         _ = events?.stop()
         events = nil

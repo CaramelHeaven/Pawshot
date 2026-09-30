@@ -209,13 +209,38 @@ extension HotKeyBinding {
         label: "5"
     )
 
-    /// ⇧⌘8 marks the last seconds of a recording as a bad take. Registered only while a take
-    /// runs. The next digit of the row, picked by the agent on 2026-09-30, not by the owner —
-    /// it is one click to change in Settings → Shortcuts.
+    /// ⌃⌘X cuts the last seconds of a recording as a bad take. Registered only while a take runs.
+    ///
+    /// This one and the three held keys below are ⌃⌘ and a letter under the left hand — the right
+    /// one is on the mouse. The owner found the ⇧⌘ digits past 7 hard to press and left the pick
+    /// to the agent (2026-09-30): ⌃⌘ is the pair the fewest apps use, and these letters keep
+    /// clear of the ones known to be taken there — F, Q, D, S, Space by macOS and Finder, E, R, J,
+    /// Y by Xcode. Not checked against every app; each is one click to change in Settings.
     static let badTakeDefault = HotKeyBinding(
-        keyCode: UInt32(kVK_ANSI_8),
-        carbonModifiers: UInt32(cmdKey | shiftKey),
-        label: "8"
+        keyCode: UInt32(kVK_ANSI_X),
+        carbonModifiers: UInt32(cmdKey | controlKey),
+        label: "X"
+    )
+
+    /// ⌃⌘A held: a spotlight around the cursor.
+    static let spotlightDefault = HotKeyBinding(
+        keyCode: UInt32(kVK_ANSI_A),
+        carbonModifiers: UInt32(cmdKey | controlKey),
+        label: "A"
+    )
+
+    /// ⌃⌘B held: the picture is hidden under a blur.
+    static let blurDefault = HotKeyBinding(
+        keyCode: UInt32(kVK_ANSI_B),
+        carbonModifiers: UInt32(cmdKey | controlKey),
+        label: "B"
+    )
+
+    /// ⌃⌘V held: the voice is off — the microphone records silence.
+    static let muteDefault = HotKeyBinding(
+        keyCode: UInt32(kVK_ANSI_V),
+        carbonModifiers: UInt32(cmdKey | controlKey),
+        label: "V"
     )
 
     /// ⇧⌘7 switches the pen in a recording. Registered only while a take runs.

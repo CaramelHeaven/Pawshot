@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import CoreImage
 import CoreText
 import QuartzCore
 
@@ -8,12 +9,18 @@ struct EffectsOptions: Equatable {
     var clicks = true
     var keys = true
     var zooms = true
+    var spotlights = true
+    /// The stretches hidden with the blur key. Off, they go out plain: the recording itself was
+    /// never blurred, which is what lets a stretch hidden by mistake be shown after all.
+    var blurs = true
 
     /// Nothing to draw: the video can go out as it is.
     func isEmpty(for timeline: EventTimeline) -> Bool {
         (!clicks || timeline.clicks.isEmpty)
             && (!keys || timeline.keys.isEmpty)
             && (!zooms || !timeline.hasZooms)
+            && (!spotlights || timeline.spotlights.isEmpty)
+            && (!blurs || timeline.blurs.isEmpty)
     }
 }
 
@@ -23,11 +30,18 @@ struct EffectsOptions: Equatable {
 ///
 /// ```
 /// root (the video's size, clipping)
-///   ├ content (zoomed)
+///   ├ content (zoomed; blurred over the hidden stretches)
 ///   │   ├ video
+///   │   ├ spotlights (a dark sheet with a hole that follows the cursor)
 ///   │   └ click rings
 ///   └ key captions (not zoomed: they are a caption, not part of the picture)
 /// ```
+///
+/// A hidden stretch is a Gaussian blur on `content`, its radius animated from nothing and back.
+/// Measured on a rendered file, not assumed: `AVVideoCompositionCoreAnimationTool` does draw a
+/// layer's Core Image filters and does animate `filters.<name>.inputRadius` — while a second
+/// video layer with a filter of its own, faded in and out, came out unblurred. The filter is put
+/// on only when the take has something hidden: it is paid for on every frame.
 ///
 /// Coordinates are Core Animation's, origin bottom left — which both the export and an
 /// unflipped layer-backed view use.
@@ -57,6 +71,45 @@ enum EffectsLayerBuilder {
         videoLayer.frame = root.bounds
         content.addSublayer(videoLayer)
 
+        if options.spotlights {
+            for span in timeline.spotlights {
+                for part in parts(from: span.start, to: span.end, in: keep) {
+                    let path = EffectsPlanner.cursorPath(
+                        from: part.low,
+                        to: part.high,
+                        timeline: timeline,
+                        step: EffectsPlanner.spotlightStep,
+                        fallback: CGPoint(x: 0.5, y: 0.5)
+                    )
+                    content.addSublayer(spotlight(along: path, startingAt: part.output, videoSize: videoSize))
+                }
+            }
+        }
+
+        if options.blurs, !timeline.blurs.isEmpty {
+            // The edge of the picture carried on outwards first: a blur that finds nothing beyond
+            // the frame darkens a rim all round it.
+            let clamp = CIFilter(name: "CIAffineClamp")
+            clamp?.setValue(NSAffineTransform(), forKey: kCIInputTransformKey)
+            let blur = CIFilter(name: "CIGaussianBlur")
+            blur?.name = "hide"
+            blur?.setValue(0, forKey: kCIInputRadiusKey)
+            content.filters = [clamp, blur].compactMap(\.self)
+
+            let radius = EffectsPlanner.blurRadius(for: videoSize)
+            let fade = EffectsPlanner.effectFade
+            for span in timeline.blurs {
+                // The way in and the way out lie outside the stretch: inside it nothing is ever
+                // half sharp.
+                for (index, part) in spans(from: span.start - fade, to: span.end + fade, in: keep).enumerated() {
+                    content.add(
+                        hide(from: part.start, to: part.end, radius: radius),
+                        forKey: "blur-\(span.start)-\(index)"
+                    )
+                }
+            }
+        }
+
         if options.clicks {
             for click in timeline.clicks {
                 guard let time = keep.outputTime(forSource: click.time) else { continue }
@@ -70,19 +123,12 @@ enum EffectsLayerBuilder {
 
         if options.zooms {
             for segment in EffectsPlanner.zoomSegments(timeline: timeline, duration: keep.duration) {
-                // Piece by piece, like `spans` — but a held zoom also needs the recording's own
-                // time of each part, to know where the cursor was during it.
-                var index = 0
-                for piece in keep.pieces {
-                    let low = max(segment.start, piece.start)
-                    let high = min(segment.end, piece.end)
-                    guard high - low > 0.05, let output = keep.outputTime(forSource: low) else { continue }
-                    let path = EffectsPlanner.zoomPath(of: segment, from: low, to: high, timeline: timeline)
+                for (index, part) in parts(from: segment.start, to: segment.end, in: keep).enumerated() {
+                    let path = EffectsPlanner.zoomPath(of: segment, from: part.low, to: part.high, timeline: timeline)
                     content.add(
-                        zoom(along: path, startingAt: output, videoSize: videoSize),
+                        zoom(along: path, startingAt: part.output, videoSize: videoSize),
                         forKey: "zoom-\(segment.start)-\(index)"
                     )
-                    index += 1
                 }
             }
         }
@@ -106,11 +152,22 @@ enum EffectsLayerBuilder {
         to end: TimeInterval,
         in keep: KeepRanges
     ) -> [(start: TimeInterval, end: TimeInterval)] {
+        parts(from: start, to: end, in: keep).map { ($0.output, $0.output + ($0.high - $0.low)) }
+    }
+
+    /// The same parts with both clocks: `low…high` in the recording's time — what an effect that
+    /// follows the cursor needs, to know where the cursor was — and where the part starts in
+    /// the file.
+    private static func parts(
+        from start: TimeInterval,
+        to end: TimeInterval,
+        in keep: KeepRanges
+    ) -> [(low: TimeInterval, high: TimeInterval, output: TimeInterval)] {
         keep.pieces.compactMap { piece in
             let low = max(start, piece.start)
             let high = min(end, piece.end)
             guard high - low > 0.05, let output = keep.outputTime(forSource: low) else { return nil }
-            return (output, output + (high - low))
+            return (low, high, output)
         }
     }
 
@@ -186,6 +243,65 @@ enum EffectsLayerBuilder {
         animation.timingFunctions = [CAMediaTimingFunction(name: .easeInEaseOut)]
             + Array(repeating: CAMediaTimingFunction(name: .linear), count: frames.count - 3)
             + [CAMediaTimingFunction(name: .easeInEaseOut)]
+        animation.beginTime = begin(start)
+        animation.duration = length
+        animation.isRemovedOnCompletion = false
+        return animation
+    }
+
+    /// A dark sheet over the picture with a round hole in it, the hole travelling with the cursor.
+    /// The sheet is twice the video each way with the hole in its middle, so wherever the cursor
+    /// is inside the video, the sheet still covers all of it.
+    private static func spotlight(
+        along path: [(time: Double, point: CGPoint)],
+        startingAt start: Double,
+        videoSize: CGSize
+    ) -> CALayer {
+        let radius = min(videoSize.width, videoSize.height) * EffectsPlanner.spotlightRadius
+        let sheet = CAShapeLayer()
+        sheet.bounds = CGRect(x: 0, y: 0, width: videoSize.width * 2, height: videoSize.height * 2)
+        let shape = CGMutablePath()
+        shape.addRect(sheet.bounds)
+        shape.addEllipse(in: CGRect(
+            x: videoSize.width - radius,
+            y: videoSize.height - radius,
+            width: radius * 2,
+            height: radius * 2
+        ))
+        sheet.path = shape
+        sheet.fillRule = .evenOdd
+        sheet.fillColor = CGColor(gray: 0, alpha: EffectsPlanner.spotlightDim)
+        sheet.position = SelectionGeometry.layerPoint(path[0].point, in: videoSize)
+        sheet.opacity = 0
+
+        let first = path[0].time
+        let length = max(0.1, path[path.count - 1].time - first)
+        let move = CAKeyframeAnimation(keyPath: "position")
+        move.values = path.map { NSValue(point: SelectionGeometry.layerPoint($0.point, in: videoSize)) }
+        move.keyTimes = path.map { NSNumber(value: min(1, max(0, ($0.time - first) / length))) }
+
+        let fade = min(EffectsPlanner.effectFade, length / 4) / length
+        let show = CAKeyframeAnimation(keyPath: "opacity")
+        show.values = [0, 1, 1, 0]
+        show.keyTimes = [0, fade, 1 - fade, 1].map { NSNumber(value: $0) }
+
+        let group = CAAnimationGroup()
+        group.animations = [move, show]
+        group.beginTime = begin(start)
+        group.duration = length
+        group.isRemovedOnCompletion = false
+        sheet.add(group, forKey: "spotlight")
+        return sheet
+    }
+
+    /// The blur of a hidden stretch coming in, staying and going: the radius of the filter named
+    /// `hide` on the content layer.
+    private static func hide(from start: Double, to end: Double, radius: CGFloat) -> CAAnimation {
+        let length = max(0.1, end - start)
+        let fade = min(EffectsPlanner.effectFade, length / 4) / length
+        let animation = CAKeyframeAnimation(keyPath: "filters.hide.inputRadius")
+        animation.values = [0, radius, radius, 0]
+        animation.keyTimes = [0, fade, 1 - fade, 1].map { NSNumber(value: $0) }
         animation.beginTime = begin(start)
         animation.duration = length
         animation.isRemovedOnCompletion = false

@@ -29,6 +29,35 @@ struct SignalWatch {
     }
 }
 
+/// Tells talking from the rest of what a microphone hears, for the one thing a take recorded
+/// with the microphone off wants to know: is somebody talking to it.
+///
+/// A score that goes up with every moment the level is a voice's and leaks away twice as slowly
+/// in the gaps: words with pauses between them add up to half a second soon enough, a key of the
+/// keyboard or a door never does. Says so once and then stays silent for good.
+///
+/// The level is the meter's, 0…1 over −50…0 dBFS. The threshold, about −27 dBFS, is reasoned, not
+/// measured on a real voice and a real keyboard.
+struct SpeechWatch {
+    static let voiceLevel: Float = 0.45
+    static let enough: TimeInterval = 0.5
+
+    private var score: TimeInterval = 0
+    private var last: TimeInterval?
+    private var said = false
+
+    /// Feeds one meter level taken at `time` (seconds). Returns `true` once, when it is talking.
+    mutating func feed(level: Float, at time: TimeInterval) -> Bool {
+        defer { last = time }
+        guard !said, let last else { return false }
+        let step = max(0, time - last)
+        score = level >= Self.voiceLevel ? score + step : max(0, score - step / 2)
+        guard score >= Self.enough else { return false }
+        said = true
+        return true
+    }
+}
+
 /// The live microphone level on the recording overlay, so a dead mic shows before the take and
 /// not after it.
 ///

@@ -32,11 +32,30 @@ menu bar shows the time instead of the paw. While a take
 runs, **⇧⌘6** tapped marks a zoom — an orange outline shows for 2.5 s exactly the part the export
 will zoom to — and **held** zooms for as long as it is held, the outline and the export following
 the cursor; **⇧⌘7** switches the pen (the mouse draws on the screen, into the video, every stroke
-fades after four seconds, Esc gives the mouse back); **⇧⌘8** marks the last 10 seconds as a bad
-take — the take goes on, and the video editor opens with them already cut, one ⌘Z away (the
-digit is the agent's pick of 2026-09-30, not the owner's); **⇧⌘5** restarts, and the shortcut that
+fades after four seconds, Esc gives the mouse back); **⌃⌘X** marks the last 10 seconds as a bad
+take — the take goes on, and the video editor opens with them already cut, one ⌘Z away;
+**⇧⌘5** restarts, and the shortcut that
 started the take (⇧⌘3 or ⇧⌘4) stops it — there is no separate stop. **⇧⌘2 during a take** copies
-the picture being recorded to the clipboard instead of opening the overlay. ⌃⌥ + letter was tried
+the picture being recorded to the clipboard instead of opening the overlay.
+
+**Three keys do something for as long as they are held**: **⌃⌘A** is a spotlight — in the video
+everything but a circle around the cursor goes dim, and the screen shows the same thing while
+the key is down; **⌃⌘B** hides the picture — that stretch is blurred in the video, edge to edge,
+while the screen only gets a paw-coloured frame and the words "Hidden in the video", since
+whoever holds the key still has to see what they type; **⌃⌘V** mutes — the microphone's track
+gets silence of the same length. Both pictures are effects added at export: the recording stays
+sharp, and the editor has a switch for each. ⌃⌘ and a letter under the left hand, with ⌃⌘X for
+the cut, are the agent's pick of 2026-09-30 at the owner's word — he found the ⇧⌘ digits past 7
+hard to press; they keep clear of the ⌃⌘ combinations known to be taken (F, Q, D, S, Space by
+macOS and Finder; E, R, J, Y by Xcode) and were not checked against every app.
+
+**A take recorded with the microphone off listens to it all the same**, keeping nothing, to say
+once in the pill "You're talking, and the microphone is off", with a button that starts the take
+over with the microphone on. The owner's call of 2026-09-30, knowing the price: macOS shows its
+orange microphone dot for such a take until the hint has been shown. Only with access already
+granted; Settings → Recording → Sound switches it off, and then the microphone isn't touched.
+
+⌃⌥ + letter was tried
 first and dropped as awkward mid-take. The
 pill writes each shortcut under its button. The recording-time ones are registered only during a
 recording — not ⌘R/⌘D, which a global hotkey would take away from the app being recorded — and
@@ -606,6 +625,9 @@ Paths are given relative to `Pawshot/Sources/`.
 | The timeline file, shortcut labels                    | `Recording/EventTimeline.swift`         |
 | Zoom segments, held zooms, shortcut captions          | `VideoEditor/EffectsPlanner.swift`      |
 | The take's size, the disk warning, the length aimed for | `Recording/RecordingBudget.swift`     |
+| What the screen shows while the spotlight or blur key is held | `Recording/HeldEffectIndicator.swift` |
+| Telling talk from typing, for the muted-microphone hint | `Recording/MicrophoneLevelMeter.swift` (`SpeechWatch`) |
+| The spotlight sheet and the blur in the effects tree  | `VideoEditor/EffectsLayerBuilder.swift` |
 | Cutting the bad takes when the editor opens           | `VideoEditor/VideoEditing.swift` (`KeepRanges.cut`), `VideoEditorWindowController.load` |
 | The effects' layer tree (export and preview)          | `VideoEditor/EffectsLayerBuilder.swift` |
 | Which window the cursor is over                       | `Overlay/WindowPicker.swift`            |
@@ -920,6 +942,23 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
   down after 0.35 s (`EffectsPlanner.zoomHoldAfter`), the release turns that mark into a span in
   `zoomHolds`. Whether Carbon repeats the press of a held hotkey was not measured; a second
   press while one is down is ignored either way. Not tried on a live take by the agent.
+- **A hidden stretch is a Core Image blur on the content layer, and the video must say its
+  colours.** `AVVideoCompositionCoreAnimationTool` does draw a layer's `filters` and does animate
+  `filters.hide.inputRadius`; a `CIAffineClamp` before the blur carries the edge outwards, or the
+  blur darkens a rim round the frame (measured: 0.61 against 0.79 in the middle). A second video
+  layer with its own filter, faded in, did not work. What cost two hours: **a video with no colour
+  tags comes out of the tool as a white frame** — effects drawn, picture gone — and the tests'
+  synthetic video had none, so every effects test had been passing over a blank picture without
+  one of them looking at it. `SyntheticVideo` sets `AVVideoColorPropertiesKey` now, and
+  `HeldEffectsRenderTests` look at the picture itself. Real takes are tagged by ScreenCaptureKit's
+  buffers — read off the fact that the owner's exports have a picture, not checked in the file.
+  In the editor's preview the same filter needs `layerUsesCoreImageFilters` on the view; that it
+  shows there was not seen by the agent.
+- **The way in and out of a hidden stretch lie outside it.** The blur is at full strength from
+  the first moment of the stretch to the last: a fade inside it would show a password half sharp.
+- **Silence, not a gap.** A muted microphone buffer is zeroed in place (`RecordingEngine.silence`)
+  and written, so the track keeps its length; one whose bytes can't be written is left out and
+  counted. Whether ScreenCaptureKit's buffers are writable was not tried on a live take.
 - **The timeline file has no version, so nothing in it may be required.** `EventTimeline` decodes
   every array with `decodeIfPresent` (`init(from:)` in an extension, which keeps the memberwise
   initialiser). With the synthesized decoder, one key a newer build added would have made every

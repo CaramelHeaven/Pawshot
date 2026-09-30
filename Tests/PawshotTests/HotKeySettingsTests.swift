@@ -220,7 +220,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(announced, 1, "cleared means re-registered without it")
         XCTAssertNil(Settings(defaults: defaults).fullScreenHotKey, "a new instance reads it back as none")
         XCTAssertEqual(Settings(defaults: defaults).regionHotKey, .regionDefault)
-        XCTAssertEqual(settings.allHotKeys.count, 7, "nothing to register, nothing to collide with")
+        XCTAssertEqual(settings.allHotKeys.count, 10, "nothing to register, nothing to collide with")
 
         settings.resetHotKeysToDefaults()
 
@@ -263,8 +263,11 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings.restartHotKey?.displayString, "⇧⌘5")
         XCTAssertEqual(settings.zoomMarkHotKey?.displayString, "⇧⌘6")
         XCTAssertEqual(settings.penHotKey?.displayString, "⇧⌘7")
-        XCTAssertEqual(settings.badTakeHotKey?.displayString, "⇧⌘8")
-        XCTAssertEqual(settings.allHotKeys.count, 8, "no separate stop: the start shortcut stops")
+        XCTAssertEqual(settings.badTakeHotKey?.displayString, "⌃⌘X")
+        XCTAssertEqual(settings.spotlightHotKey, .spotlightDefault)
+        XCTAssertEqual(settings.blurHotKey, .blurDefault)
+        XCTAssertEqual(settings.muteHotKey, .muteDefault)
+        XCTAssertEqual(settings.allHotKeys.count, 11, "no separate stop: the start shortcut stops")
         let all = settings.allHotKeys
         for (index, binding) in all.enumerated() {
             XCTAssertFalse(all[(index + 1)...].contains(binding), "\(binding.displayString) is used twice")
@@ -316,13 +319,25 @@ final class SettingsTests: XCTestCase {
         settings.penHotKey = HotKeyBinding(keyCode: UInt32(kVK_ANSI_P), modifiers: [.control, .option], label: "P")
         settings.restartHotKey = HotKeyBinding(keyCode: UInt32(kVK_ANSI_Q), modifiers: [.control, .option], label: "Q")
         settings.badTakeHotKey = nil
+        settings.muteHotKey = HotKeyBinding(keyCode: UInt32(kVK_ANSI_M), modifiers: [.control, .option], label: "M")
 
         settings.resetHotKeysToDefaults()
+
+        XCTAssertEqual(settings.muteHotKey, .muteDefault)
 
         XCTAssertEqual(settings.recordRegionHotKey, .recordRegionDefault)
         XCTAssertEqual(settings.penHotKey, .penDefault)
         XCTAssertEqual(settings.restartHotKey, .restartDefault)
         XCTAssertEqual(settings.badTakeHotKey, .badTakeDefault)
+    }
+
+    /// A take without the microphone listens for talk unless told not to — the owner's call.
+    func testListeningForTalkIsOnUntilSwitchedOff() {
+        let settings = Settings(defaults: defaults)
+        XCTAssertTrue(settings.noticesTalkingWhileMuted)
+
+        settings.noticesTalkingWhileMuted = false
+        XCTAssertFalse(Settings(defaults: defaults).noticesTalkingWhileMuted)
     }
 
     /// No length is aimed for until one is picked, and the pick is kept.

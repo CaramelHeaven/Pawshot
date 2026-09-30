@@ -58,6 +58,8 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private let microphoneInput: AVAssetWriterInput?
 
     private var clock = RecordingClock()
+    private var microphoneIsMuted = false
+    private var mutedBuffersDropped = 0
     private var lastFrame: CMSampleBuffer?
     private var lastFrameTime: CMTime = .zero
     private var isFinishing = false
@@ -163,6 +165,25 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         queue.async { self.clock.pause(at: Self.now) }
     }
 
+    /// The microphone's track goes silent — a cough, a word to someone in the room — and comes
+    /// back. The track keeps its length: silence is written, not a gap.
+    func setMicrophoneMuted(_ muted: Bool) {
+        queue.async { self.microphoneIsMuted = muted }
+    }
+
+    var recordsMicrophone: Bool {
+        microphoneInput != nil
+    }
+
+    /// Turns a buffer of PCM into silence in place. `false` when its bytes can't be written —
+    /// then the buffer is left out rather than let through.
+    static func silence(_ sampleBuffer: CMSampleBuffer) -> Bool {
+        guard let data = CMSampleBufferGetDataBuffer(sampleBuffer) else { return false }
+        let length = CMBlockBufferGetDataLength(data)
+        return CMBlockBufferFillDataBytes(with: 0, blockBuffer: data, offsetIntoDestination: 0, dataLength: length)
+            == kCMBlockBufferNoErr
+    }
+
     func resume() {
         queue.async { self.clock.resume(at: Self.now) }
     }
@@ -204,7 +225,7 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 self.videoInput.markAsFinished()
                 self.systemAudioInput?.markAsFinished()
                 self.microphoneInput?.markAsFinished()
-                let counts = "\(self.framesWritten) frames written, \(self.framesDropped) dropped (writer busy), \(self.audioDropped) audio dropped, append failures \(self.appendFailures)"
+                let counts = "\(self.framesWritten) frames written, \(self.framesDropped) dropped (writer busy), \(self.audioDropped) audio dropped, \(self.mutedBuffersDropped) muted buffers left out, append failures \(self.appendFailures)"
                 continuation.resume(returning: (self.clock.origin != nil, counts))
             }
         }
@@ -294,6 +315,11 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             append(sampleBuffer, to: systemAudioInput)
 
         case .microphone:
+            if microphoneIsMuted, !Self.silence(sampleBuffer) {
+                // Bytes that can't be zeroed are not written at all: a gap, but never the cough.
+                mutedBuffersDropped += 1
+                return
+            }
             append(sampleBuffer, to: microphoneInput)
 
         @unknown default:

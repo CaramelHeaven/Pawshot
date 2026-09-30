@@ -359,6 +359,14 @@ private struct RecordingSettings: View {
             under the area shows its level before you start, and if it stays silent for a second \
             and a half it turns red and says "no signal". Both end up mixed into one track.
             """))
+            Toggle(isOn: $settings.noticesTalkingWhileMuted) {
+                title(
+                    "Tell me when I talk with the microphone off",
+                    subtitle: "Pawshot listens during such a take and keeps nothing. macOS shows its orange microphone dot meanwhile.",
+                    icon: "mic.slash",
+                    hint: nil
+                )
+            }
             if settings.recordsMicrophone {
                 accessRow(
                     "Microphone access",
@@ -597,6 +605,9 @@ private struct ShortcutSettings: View {
         ("Pen on / off", "switch the pen", \.penHotKey),
         ("Restart", "restart the take", \.restartHotKey),
         ("Cut the last 10 seconds", "mark a bad take", \.badTakeHotKey),
+        ("Hold: spotlight", "hold the spotlight", \.spotlightHotKey),
+        ("Hold: hide the picture", "hold the blur", \.blurHotKey),
+        ("Hold: mute the microphone", "hold the mute", \.muteHotKey),
     ]
 
     private static var rows: [Row] {
@@ -626,7 +637,8 @@ private struct ShortcutSettings: View {
             }
             .padding(20)
         }
-        .frame(height: 460)
+        // Three rows of cards under "While recording" now, where there were two.
+        .frame(height: 460 + HotKeyRecorderView.cardHeight + 8)
         .confirmationDialog("Restore the default shortcuts?", isPresented: $isConfirmingReset) {
             Button("Restore Defaults", role: .destructive) {
                 settings.resetHotKeysToDefaults()

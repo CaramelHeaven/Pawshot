@@ -59,7 +59,7 @@ final class EventRecorder {
             let recorded = timeline
             let reenabled = tapReenabled
             Self.logger.notice(
-                "events: \(recorded.cursor.count, privacy: .public) cursor, \(recorded.clicks.count, privacy: .public) clicks, \(recorded.keys.count, privacy: .public) keys, \(recorded.zoomMarks.count, privacy: .public) zoom marks, \(recorded.zoomHolds.count, privacy: .public) zooms held, \(recorded.badTakes.count, privacy: .public) bad takes, tap re-enabled \(reenabled, privacy: .public)×"
+                "events: \(recorded.cursor.count, privacy: .public) cursor, \(recorded.clicks.count, privacy: .public) clicks, \(recorded.keys.count, privacy: .public) keys, \(recorded.zoomMarks.count, privacy: .public) zoom marks, \(recorded.zoomHolds.count, privacy: .public) zooms held, \(recorded.badTakes.count, privacy: .public) bad takes, \(recorded.spotlights.count, privacy: .public) spotlights, \(recorded.blurs.count, privacy: .public) hidden stretches, tap re-enabled \(reenabled, privacy: .public)×"
             )
         }
         cursorTimer?.invalidate()
@@ -94,6 +94,30 @@ final class EventRecorder {
             timeline.zoomMarks.remove(at: index)
         }
         timeline.zoomHolds.append(.init(start: start, end: max(start, end)))
+    }
+
+    /// What a key held during a take does to the video.
+    enum HeldEffect: String {
+        case spotlight
+        case blur
+    }
+
+    /// The file's time now, or `nil` while paused.
+    var now: TimeInterval? {
+        clock()
+    }
+
+    /// A key was held from `start` to `end` of the file. Anything shorter than a tenth of a second
+    /// is a slip of the finger and leaves nothing.
+    @discardableResult
+    func hold(_ effect: HeldEffect, from start: TimeInterval, to end: TimeInterval) -> EventTimeline.Span? {
+        guard end - start >= 0.1 else { return nil }
+        let span = EventTimeline.Span(start: start, end: end)
+        switch effect {
+        case .spotlight: timeline.spotlights.append(span)
+        case .blur: timeline.blurs.append(span)
+        }
+        return span
     }
 
     /// Marks the last seconds as a bad take. `nil` while paused, or with nothing left to cut.
