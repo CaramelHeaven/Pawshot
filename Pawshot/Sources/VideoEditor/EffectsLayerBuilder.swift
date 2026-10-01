@@ -8,7 +8,6 @@ import QuartzCore
 struct EffectsOptions: Equatable {
     var clicks = true
     var keys = true
-    var zooms = true
     var spotlights = true
     /// The stretches hidden with the blur key. Off, they go out plain: the recording itself was
     /// never blurred, which is what lets a stretch hidden by mistake be shown after all.
@@ -20,7 +19,6 @@ struct EffectsOptions: Equatable {
     func isEmpty(for timeline: EventTimeline) -> Bool {
         (!clicks || timeline.clicks.isEmpty)
             && (!keys || timeline.keys.isEmpty)
-            && (!zooms || !timeline.hasZooms)
             && (!spotlights || timeline.spotlights.isEmpty)
             && (!blurs || timeline.blurs.isEmpty)
             && (!masks || timeline.masks.isEmpty)
@@ -33,11 +31,11 @@ struct EffectsOptions: Equatable {
 ///
 /// ```
 /// root (the video's size, clipping)
-///   ├ content (zoomed; blurred over the hidden stretches)
+///   ├ content (blurred over the hidden stretches)
 ///   │   ├ video
 ///   │   ├ spotlights (a dark sheet with a hole that follows the cursor)
 ///   │   └ click rings
-///   └ key captions (not zoomed: they are a caption, not part of the picture)
+///   └ key captions (not blurred: they are a caption, not part of the picture)
 /// ```
 ///
 /// A hidden stretch is a Gaussian blur on `content`, its radius animated from nothing and back.
@@ -53,7 +51,7 @@ enum EffectsLayerBuilder {
     ///   - videoLayer: an empty layer for the export, the `AVPlayerLayer` for the preview.
     ///   - keep: the pieces that go into the file. The timeline is in the recording's time; every
     ///     event is moved to where its piece lands in the file, and one that was cut is dropped. A
-    ///     zoom or a caption crossing a seam is cut at the edge of its piece, so it never carries
+    ///     caption crossing a seam is cut at the edge of its piece, so it never carries
     ///     on over the next piece's picture. The preview plays the recording itself and passes the
     ///     whole of it, which leaves every time as it is.
     static func build(
@@ -161,18 +159,6 @@ enum EffectsLayerBuilder {
             }
         }
 
-        if options.zooms {
-            for segment in EffectsPlanner.zoomSegments(timeline: timeline, duration: keep.duration) {
-                for (index, part) in parts(from: segment.start, to: segment.end, in: keep).enumerated() {
-                    let path = EffectsPlanner.zoomPath(of: segment, from: part.low, to: part.high, timeline: timeline)
-                    content.add(
-                        zoom(along: path, startingAt: part.output, videoSize: videoSize),
-                        forKey: "zoom-\(segment.start)-\(index)"
-                    )
-                }
-            }
-        }
-
         if options.keys {
             for caption in EffectsPlanner.keyCaptions(timeline: timeline) {
                 for span in spans(from: caption.start, to: caption.end, in: keep) {
@@ -244,49 +230,6 @@ enum EffectsLayerBuilder {
         group.isRemovedOnCompletion = false
         layer.add(group, forKey: "click")
         return layer
-    }
-
-    /// The way in, the zoom held on each centre of `path` in turn, the way out. A marked zoom's
-    /// path is one place; a held zoom's is where the cursor went, a step every tenth of a second,
-    /// and the picture glides from one to the next.
-    private static func zoom(
-        along path: [(time: Double, center: CGPoint)],
-        startingAt start: Double,
-        videoSize: CGSize
-    ) -> CAAnimation {
-        let scale = EffectsPlanner.zoomScale
-        func zoomed(on normalized: CGPoint) -> CATransform3D {
-            let center = SelectionGeometry.layerPoint(normalized, in: videoSize)
-            let offset = SelectionGeometry.zoomOffset(center: center, scale: scale, size: videoSize)
-            return CATransform3DScale(CATransform3DMakeTranslation(offset.x, offset.y, 0), scale, scale, 1)
-        }
-        let first = path[0].time
-        let length = max(0.01, path[path.count - 1].time - first)
-        let ramp = min(EffectsPlanner.zoomRamp, length / 2)
-        func center(at time: Double) -> CGPoint {
-            path.last { $0.time <= time }?.center ?? path[0].center
-        }
-
-        var frames: [(time: Double, transform: CATransform3D)] = [
-            (0, CATransform3DIdentity),
-            (ramp, zoomed(on: center(at: first + ramp))),
-        ]
-        for step in path where step.time > first + ramp && step.time < first + length - ramp {
-            frames.append((step.time - first, zoomed(on: step.center)))
-        }
-        frames.append((length - ramp, zoomed(on: center(at: first + length - ramp))))
-        frames.append((length, CATransform3DIdentity))
-
-        let animation = CAKeyframeAnimation(keyPath: "transform")
-        animation.values = frames.map { NSValue(caTransform3D: $0.transform) }
-        animation.keyTimes = frames.map { NSNumber(value: $0.time / length) }
-        animation.timingFunctions = [CAMediaTimingFunction(name: .easeInEaseOut)]
-            + Array(repeating: CAMediaTimingFunction(name: .linear), count: frames.count - 3)
-            + [CAMediaTimingFunction(name: .easeInEaseOut)]
-        animation.beginTime = begin(start)
-        animation.duration = length
-        animation.isRemovedOnCompletion = false
-        return animation
     }
 
     /// A dark sheet over the picture with a round hole in it, the hole travelling with the cursor.

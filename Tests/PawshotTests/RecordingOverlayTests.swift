@@ -212,13 +212,17 @@ final class RecordingSelectionViewTests: XCTestCase {
         var selected: [(CGRect, CGWindowID?)] = []
         var toggled: [RecordingOverlayKey] = []
         var cancelled = 0
+        /// The region the view still had when it said it was cancelled — what the controller
+        /// remembers for the next ⇧⌘3.
+        var regionAtCancel: CGRect?
 
         func selectionView(_: SelectionView, didSelect rect: CGRect, windowID: CGWindowID?) {
             selected.append((rect, windowID))
         }
 
-        func selectionViewDidCancel(_: SelectionView) {
+        func selectionViewDidCancel(_ view: SelectionView) {
             cancelled += 1
+            regionAtCancel = view.recordingRegion
         }
 
         func selectionView(_: SelectionView, didToggle option: RecordingOverlayKey) {
@@ -333,6 +337,24 @@ final class RecordingSelectionViewTests: XCTestCase {
         XCTAssertEqual(try recorded(view, spy), CGRect(x: 50, y: 50, width: 300, height: 200))
     }
 
+    /// A region moved and then cancelled is the one the next ⇧⌘3 starts with. The view used to
+    /// wipe it before saying it was cancelled, and the last take's region came back instead.
+    func testACancelledRegionIsStillThereWhenTheCancelIsSaid() throws {
+        for cancel in ["Esc", "right click"] {
+            let (view, spy) = makeView()
+            view.restore(lastRegion: CGRect(x: 10, y: 20, width: 300, height: 200))
+            try drag(view, from: CGPoint(x: 160, y: 120), to: CGPoint(x: 200, y: 150))
+            if cancel == "Esc" {
+                view.cancelOperation(nil)
+            } else {
+                try view.rightMouseDown(with: mouse(.rightMouseDown, at: CGPoint(x: 600, y: 500), in: view))
+            }
+            XCTAssertEqual(spy.cancelled, 1, cancel)
+            XCTAssertEqual(spy.regionAtCancel, CGRect(x: 50, y: 50, width: 300, height: 200), cancel)
+            XCTAssertNil(view.recordingRegion, "\(cancel): wiped after the delegate heard")
+        }
+    }
+
     /// A click beside the region used to wipe it on the press itself.
     func testAClickBesideTheRegionLeavesIt() throws {
         let (view, spy) = makeView()
@@ -402,6 +424,18 @@ final class RecordingSelectionViewTests: XCTestCase {
         try drag(view, from: CGPoint(x: 100, y: 90), to: CGPoint(x: 470, y: 350))
 
         XCTAssertEqual(try recorded(view, spy), CGRect(x: 420, y: 310, width: 100, height: 80))
+    }
+
+    /// The region's middle on the window's middle is not enough: the cursor has to be on the
+    /// target. Grabbed 25 pt left and 15 pt above its middle, the region lands centred on the
+    /// window with the cursor 29 pt off the target, and stays its size.
+    func testTheRegionsMiddleOnTheWindowsMiddleDoesNotFitIt() throws {
+        let (view, spy) = makeView()
+        view.windows = [otherWindow]
+        try drag(view, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 150, y: 130))
+        try drag(view, from: CGPoint(x: 75, y: 75), to: CGPoint(x: 525, y: 335))
+
+        XCTAssertEqual(try recorded(view, spy), CGRect(x: 500, y: 310, width: 100, height: 80))
     }
 
     func testCommandSwitchesTheFitAndTheMagnetOff() throws {

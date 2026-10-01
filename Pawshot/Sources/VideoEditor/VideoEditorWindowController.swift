@@ -49,12 +49,12 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         case let .read(timeline):
             model.timeline = timeline
         case .missing, .unreadable:
-            // Every take writes one; without it the clicks, zooms and — what matters — the hidden
+            // Every take writes one; without it the clicks and — what matters — the hidden
             // parts are gone, and the window says so rather than export them plain.
             model.timelineIsLost = true
         }
         let settings = Settings.shared
-        model.effects = EffectsOptions(clicks: settings.showsClicks, keys: true, zooms: settings.showsZooms)
+        model.effects = EffectsOptions(clicks: settings.showsClicks, keys: true)
         model.showsHints = settings.videoEditorOpenCount < 5
         player = AVPlayer(url: movieURL)
 
@@ -98,7 +98,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         let timeline = model.timeline
         let lost = model.timelineIsLost
         Self.logger.notice(
-            "timeline loaded: \(timeline.cursor.count, privacy: .public) cursor, \(timeline.clicks.count, privacy: .public) clicks, \(timeline.keys.count, privacy: .public) keys, \(timeline.zoomMarks.count, privacy: .public) zoom marks, \(timeline.zoomHolds.count, privacy: .public) zooms held, \(timeline.spotlights.count, privacy: .public) spotlights, \(timeline.blurs.count, privacy: .public) hidden stretches, \(timeline.masks.count, privacy: .public) hidden zones, \(timeline.badTakes.count, privacy: .public) bad takes, lost \(lost, privacy: .public)"
+            "timeline loaded: \(timeline.cursor.count, privacy: .public) cursor, \(timeline.clicks.count, privacy: .public) clicks, \(timeline.keys.count, privacy: .public) keys, \(timeline.spotlights.count, privacy: .public) spotlights, \(timeline.blurs.count, privacy: .public) hidden stretches, \(timeline.masks.count, privacy: .public) hidden zones, \(timeline.badTakes.count, privacy: .public) bad takes, lost \(lost, privacy: .public)"
         )
         Settings.shared.recordVideoEditorOpen()
         guard let window else { return }
@@ -387,7 +387,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
     private func setEffects(_ effects: EffectsOptions) {
         model.effects = effects
         Self.logger.notice(
-            "effects → clicks \(effects.clicks, privacy: .public), keys \(effects.keys, privacy: .public), zooms \(effects.zooms, privacy: .public)"
+            "effects → clicks \(effects.clicks, privacy: .public), keys \(effects.keys, privacy: .public)"
         )
     }
 
@@ -480,7 +480,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         let started = Date()
         let target = String(describing: destination)
         Self.logger.notice(
-            "export \(preset.rawValue, privacy: .public) to \(target, privacy: .public): \(keep.pieces.count, privacy: .public) pieces, \(String(format: "%.1f", keep.totalLength), privacy: .public) of \(String(format: "%.1f", keep.duration), privacy: .public) s, effects clicks \(effects.clicks, privacy: .public) keys \(effects.keys, privacy: .public) zooms \(effects.zooms, privacy: .public) spotlights \(effects.spotlights, privacy: .public) hidden \(effects.blurs, privacy: .public) zones \(effects.masks, privacy: .public), events \(timeline.clicks.count, privacy: .public) clicks \(timeline.keys.count, privacy: .public) keys \(timeline.zoomMarks.count + timeline.zoomHolds.count, privacy: .public) zooms \(timeline.spotlights.count, privacy: .public) spotlights \(timeline.blurs.count, privacy: .public) hidden stretches \(timeline.masks.count, privacy: .public) hidden zones"
+            "export \(preset.rawValue, privacy: .public) to \(target, privacy: .public): \(keep.pieces.count, privacy: .public) pieces, \(String(format: "%.1f", keep.totalLength), privacy: .public) of \(String(format: "%.1f", keep.duration), privacy: .public) s, effects clicks \(effects.clicks, privacy: .public) keys \(effects.keys, privacy: .public) spotlights \(effects.spotlights, privacy: .public) hidden \(effects.blurs, privacy: .public) zones \(effects.masks, privacy: .public), events \(timeline.clicks.count, privacy: .public) clicks \(timeline.keys.count, privacy: .public) keys \(timeline.spotlights.count, privacy: .public) spotlights \(timeline.blurs.count, privacy: .public) hidden stretches \(timeline.masks.count, privacy: .public) hidden zones"
         )
         exportTask = Task { [weak self] in
             do {

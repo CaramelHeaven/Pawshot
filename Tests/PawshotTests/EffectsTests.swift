@@ -23,7 +23,6 @@ final class EventTimelineTests: XCTestCase {
         var timeline = EventTimeline()
         timeline.clicks = [.init(time: 1.5, x: 0.25, y: 0.75)]
         timeline.keys = [.init(time: 2, label: "⌘Z")]
-        timeline.zoomMarks = [3]
 
         try timeline.save(nextTo: movie)
         defer { try? FileManager.default.removeItem(at: EventTimeline.url(forMovie: movie)) }
@@ -74,32 +73,9 @@ final class EffectsGeometryTests: XCTestCase {
     func testLayerPointsHaveTheirOriginAtTheBottom() {
         XCTAssertEqual(SelectionGeometry.layerPoint(CGPoint(x: 0.25, y: 0), in: CGSize(width: 400, height: 200)), CGPoint(x: 100, y: 200))
     }
-
-    /// A zoom on a corner must not slide an empty edge into the frame: the centre is pulled in.
-    func testZoomNeverShowsBeyondTheEdge() {
-        let size = CGSize(width: 400, height: 200)
-        XCTAssertEqual(SelectionGeometry.zoomOffset(center: CGPoint(x: 200, y: 100), scale: 2, size: size), .zero)
-        let corner = SelectionGeometry.zoomOffset(center: CGPoint(x: 0, y: 0), scale: 2, size: size)
-        XCTAssertEqual(corner, CGPoint(x: 200, y: 100), "clamped to the quarter point")
-    }
 }
 
 final class EffectsPlannerTests: XCTestCase {
-    func testZoomMarksBecomeSegmentsThatMergeWhenClose() {
-        var timeline = EventTimeline()
-        timeline.cursor = [.init(time: 0, x: 0.2, y: 0.3), .init(time: 5, x: 0.8, y: 0.7)]
-        timeline.zoomMarks = [1, 3.5, 9, 9.2]
-
-        let segments = EffectsPlanner.zoomSegments(timeline: timeline, duration: 10)
-
-        XCTAssertEqual(segments.count, 2)
-        XCTAssertEqual(segments[0].start, 1)
-        XCTAssertEqual(segments[0].end, 6, "3.5 lands inside 1…3.5+gap: one segment to 3.5+2.5")
-        XCTAssertEqual(segments[0].center, CGPoint(x: 0.2, y: 0.3), "centred where the cursor was at the first mark")
-        XCTAssertEqual(segments[1].end, 10, "cut at the end of the video")
-        XCTAssertEqual(segments[1].center, CGPoint(x: 0.8, y: 0.7))
-    }
-
     func testRepeatedShortcutCountsUp() {
         var timeline = EventTimeline()
         timeline.keys = [
@@ -123,10 +99,9 @@ final class EffectsPlannerTests: XCTestCase {
         XCTAssertTrue(EffectsOptions(clicks: false).isEmpty(for: timeline))
     }
 
-    func testBuilderPutsOneRingPerVisibleClickAndAZoomOnTheContent() {
+    func testBuilderPutsOneRingPerVisibleClick() {
         var timeline = EventTimeline()
         timeline.clicks = [.init(time: 0.5, x: 0.5, y: 0.5), .init(time: 1.5, x: 0.2, y: 0.2), .init(time: 9, x: 0.1, y: 0.1)]
-        timeline.zoomMarks = [1]
         let video = CALayer()
 
         let root = EffectsLayerBuilder.build(
@@ -139,7 +114,6 @@ final class EffectsPlannerTests: XCTestCase {
         let content = try? XCTUnwrap(video.superlayer)
         let rings = content?.sublayers?.filter { $0.animation(forKey: "click") != nil }
         XCTAssertEqual(rings?.count, 2, "the click at 9 s is past the end")
-        XCTAssertEqual(content?.animationKeys()?.count, 1, "one zoom segment")
     }
 
     /// With pieces cut out, a click in the cut is gone and a click after a seam moves up by the
@@ -162,9 +136,9 @@ final class EffectsPlannerTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(rings.first).beginTime, 1.1, accuracy: 0.001, "1.6 s lands at 1.0 + 0.1")
     }
 
-    /// A zoom crossing a seam is cut at the edge of each piece instead of running on over the
+    /// A caption crossing a seam is cut at the edge of each piece instead of running on over the
     /// next piece's picture.
-    func testAZoomAcrossASeamSplitsAtTheEdge() {
+    func testASpanAcrossASeamSplitsAtTheEdge() {
         var keep = KeepRanges(duration: 2)
         keep.moveEnd(of: 0, to: 1)
         keep.add(from: 1.5, to: 2)

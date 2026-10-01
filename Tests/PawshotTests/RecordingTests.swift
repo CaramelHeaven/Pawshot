@@ -138,19 +138,20 @@ final class SystemScreenshotShortcutsTests: XCTestCase {
     }
 
     /// ⇧⌘6 is the Touch Bar's picture only on a Mac with a Touch Bar, which can't be told: a Mac
-    /// with no entry must not be warned about a zoom key that works; an explicit entry is heeded.
+    /// with no entry must not be warned about a key that works; an explicit entry is heeded.
     func testTouchBarShortcutWarnsOnlyWhenThePreferencesHaveIt() {
-        XCTAssertNil(SystemScreenshotShortcuts(symbolicHotKeys: nil).conflict(with: .zoomMarkDefault))
+        let shiftCommandSix = HotKeyBinding(keyCode: UInt32(kVK_ANSI_6), modifiers: [.shift, .command], label: "6")
+        XCTAssertNil(SystemScreenshotShortcuts(symbolicHotKeys: nil).conflict(with: shiftCommandSix))
 
         let on = SystemScreenshotShortcuts(symbolicHotKeys: [
             "181": Self.entry(enabled: true, keyCode: kVK_ANSI_6, flags: Self.shiftCommand),
         ])
-        XCTAssertEqual(on.conflict(with: .zoomMarkDefault)?.id, 181)
+        XCTAssertEqual(on.conflict(with: shiftCommandSix)?.id, 181)
 
         let off = SystemScreenshotShortcuts(symbolicHotKeys: [
             "181": Self.entry(enabled: false, keyCode: kVK_ANSI_6, flags: Self.shiftCommand),
         ])
-        XCTAssertNil(off.conflict(with: .zoomMarkDefault))
+        XCTAssertNil(off.conflict(with: shiftCommandSix))
     }
 
     /// A tester moved "Move focus to next window" to ⌘1, and macOS took ⇧⌘1 with it — the other
@@ -168,7 +169,7 @@ final class SystemScreenshotShortcutsTests: XCTestCase {
 
         let factory = SystemScreenshotShortcuts(symbolicHotKeys: nil)
         let all: [HotKeyBinding] = [.regionDefault, .fullScreenDefault, .recordRegionDefault, .recordFullScreenDefault,
-                                    .zoomMarkDefault, .penDefault, .restartDefault]
+                                    .penDefault, .restartDefault]
         XCTAssertFalse(all.contains { factory.conflict(with: $0)?.id == 27 }, "left at ⌘`, it takes none of ours")
     }
 

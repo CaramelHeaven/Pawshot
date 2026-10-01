@@ -24,15 +24,12 @@ final class Settings {
         case fullScreenHotKey = "hotkey.fullScreen"
         case recordRegionHotKey = "hotkey.recordRegion"
         case recordFullScreenHotKey = "hotkey.recordFullScreen"
-        case zoomMarkHotKey = "hotkey.zoomMark"
         case penHotKey = "hotkey.pen"
         case restartHotKey = "hotkey.restart"
         case badTakeHotKey = "hotkey.badTake"
         case spotlightHotKey = "hotkey.spotlight"
         case blurHotKey = "hotkey.blur"
         case muteHotKey = "hotkey.mute"
-        // Named for the halo it first went with in 0.6.6; kept so a value picked then stays.
-        case zoomClicks = "recording.cursorHaloClicks"
         case recordingGoal = "recording.goal"
         case recordsMicrophone = "recording.microphone"
         case microphoneDevice = "recording.microphoneDevice"
@@ -42,7 +39,6 @@ final class Settings {
         case videoPreset = "video.preset"
         case showsKeystrokes = "recording.keystrokes"
         case showsClicks = "video.clicks"
-        case showsZooms = "video.zooms"
         case videoEditorOpenCount = "stats.videoEditorOpenCount"
         case captureCount = "stats.captureCount"
         case language = "app.language"
@@ -110,12 +106,6 @@ final class Settings {
         set { store(newValue, for: .recordFullScreenHotKey, default: .recordFullScreenDefault) }
     }
 
-    /// Marks a zoom while recording. Only registered during a take.
-    var zoomMarkHotKey: HotKeyBinding? {
-        get { binding(for: .zoomMarkHotKey, default: .zoomMarkDefault) }
-        set { store(newValue, for: .zoomMarkHotKey, default: .zoomMarkDefault) }
-    }
-
     /// Switches the pen while recording. Only registered during a take.
     var penHotKey: HotKeyBinding? {
         get { binding(for: .penHotKey, default: .penDefault) }
@@ -152,24 +142,6 @@ final class Settings {
         set { store(newValue, for: .muteHotKey, default: .muteDefault) }
     }
 
-    /// How many clicks the zoom takes after ⇧⌘6 — the owner's 1 or 2 of 2026-10-01. One: a zoom
-    /// where the click is. Two: a zoom at the first click, which moves to the second.
-    static let zoomClickChoices = [1, 2]
-
-    /// One by default. 3, 4, 5 and "never" of 0.6.6–0.6.7 read as two — the nearest to "several".
-    var zoomClicks: Int {
-        get {
-            _ = revision
-            guard defaults.object(forKey: Key.zoomClicks.rawValue) != nil else { return 1 }
-            return defaults.integer(forKey: Key.zoomClicks.rawValue) == 1 ? 1 : 2
-        }
-        set {
-            Self.logger.notice("zoom takes \(newValue, privacy: .public) click(s)")
-            defaults.set(newValue, forKey: Key.zoomClicks.rawValue)
-            revision += 1
-        }
-    }
-
     /// How long a take is meant to be, in seconds; 0 aims for nothing. The pill shows the time
     /// against it and a bar that fills up — the take is never stopped by it.
     var recordingGoal: TimeInterval {
@@ -190,7 +162,7 @@ final class Settings {
     var allHotKeys: [HotKeyBinding] {
         [
             regionHotKey, fullScreenHotKey, recordRegionHotKey, recordFullScreenHotKey,
-            zoomMarkHotKey, penHotKey, restartHotKey, badTakeHotKey,
+            penHotKey, restartHotKey, badTakeHotKey,
             spotlightHotKey, blurHotKey, muteHotKey,
         ].compactMap(\.self)
     }
@@ -312,12 +284,6 @@ final class Settings {
     var showsClicks: Bool {
         get { flag(.showsClicks, default: true) }
         set { setFlag(newValue, for: .showsClicks) }
-    }
-
-    /// The zooms marked with ⇧⌘6 while recording, in the exported video. Same terms as the clicks.
-    var showsZooms: Bool {
-        get { flag(.showsZooms, default: true) }
-        set { setFlag(newValue, for: .showsZooms) }
     }
 
     /// How many times the video editor has opened: its key hints show for the first few.
@@ -509,7 +475,6 @@ final class Settings {
         defaults.removeObject(forKey: Key.fullScreenHotKey.rawValue)
         defaults.removeObject(forKey: Key.recordRegionHotKey.rawValue)
         defaults.removeObject(forKey: Key.recordFullScreenHotKey.rawValue)
-        defaults.removeObject(forKey: Key.zoomMarkHotKey.rawValue)
         defaults.removeObject(forKey: Key.penHotKey.rawValue)
         defaults.removeObject(forKey: Key.restartHotKey.rawValue)
         defaults.removeObject(forKey: Key.badTakeHotKey.rawValue)

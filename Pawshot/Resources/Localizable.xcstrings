@@ -441,16 +441,6 @@
         }
       }
     },
-    "After the zoom shortcut a halo follows the cursor, and a click zooms there with rings spreading. Only you see the halo." : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "После клавиши зума у курсора появляется кружок, и клик зумит туда, от него расходятся круги. Кружок видите только вы."
-          }
-        }
-      }
-    },
     "Aim for" : {
       "localizations" : {
         "ru" : {
@@ -907,16 +897,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Клики"
-          }
-        }
-      }
-    },
-    "Clicks that zoom" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Клики, которые зумят"
           }
         }
       }
@@ -1387,12 +1367,12 @@
         }
       }
     },
-    "Drawn in when the video is saved, never while you record. Clicks become orange rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain typing and passwords never appear. %@ Each can still be switched off for one video in the editor." : {
+    "Drawn in when the video is saved, never while you record. Clicks become orange rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain typing and passwords never appear. Each can still be switched off for one video in the editor." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Рисуется при сохранении видео, а не во время записи. Клики становятся оранжевыми кольцами. Сочетания показываются подписью — только с ⌘, ⌥ или ⌃, так что обычный набор текста и пароли не попадают в кадр. %@ Для отдельного видео любое из этого можно выключить в редакторе."
+            "value" : "Рисуется при сохранении видео, а не во время записи. Клики становятся оранжевыми кольцами. Сочетания показываются подписью — только с ⌘, ⌥ или ⌃, так что обычный набор текста и пароли не попадают в кадр. Для отдельного видео любое из этого можно выключить в редакторе."
           }
         }
       }
@@ -1676,12 +1656,12 @@
     "H" : {
       "shouldTranslate" : false
     },
-    "HEVC 2x · voice · zooms" : {
+    "HEVC 2x · voice" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "HEVC 2x · голос · зумы"
+            "value" : "HEVC 2x · голос"
           }
         }
       }
@@ -2159,16 +2139,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ничего не записано — поток остановился до первого кадра."
-          }
-        }
-      }
-    },
-    "One: zoom where you click" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Один: зум туда, куда кликнули"
           }
         }
       }
@@ -3304,12 +3274,12 @@
         }
       }
     },
-    "Sets the sound, clicks, zooms, resolution and format below in one go" : {
+    "Sets the sound, clicks, resolution and format below in one go" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Одним выбором задаёт звук, клики, зумы, разрешение и формат ниже"
+            "value" : "Одним выбором задаёт звук, клики, разрешение и формат ниже"
           }
         }
       }
@@ -3668,12 +3638,12 @@
         }
       }
     },
-    "The clicks, zooms and hidden parts of this recording couldn't be read — they won't be in the video." : {
+    "The clicks and hidden parts of this recording couldn't be read — they won't be in the video." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Клики, зумы и скрытые части этой записи не удалось прочитать — в видео их не будет."
+            "value" : "Клики и скрытые части этой записи не удалось прочитать — в видео их не будет."
           }
         }
       }
@@ -3918,16 +3888,6 @@
         }
       }
     },
-    "Two: zoom, then move to the second click" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Два: зум, потом переезд ко второму клику"
-          }
-        }
-      }
-    },
     "Under the shot" : {
       "localizations" : {
         "ru" : {
@@ -4064,6 +4024,16 @@
         }
       }
     },
+    "When you record a region, it now comes back where you left it, even if you closed without recording.\n\nZoom is gone from recordings: ⇧⌘6, the magnifier on the pill and Settings → Recording → Zoom. Older recordings still open; their zooms are just left out.\n\nA region dragged across windows no longer snaps to them by itself. While you drag it, a target shows in the middle of each window: let go with the cursor on one, and the region takes that window's size." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Область записи теперь возвращается туда, где вы её оставили, даже если закрыли без записи.\n\nЗум из записи убран: ⇧⌘6, лупа на пилюле и Настройки → Запись → Зум. Старые записи открываются, просто без зумов.\n\nОбласть, которую тащите через окна, больше сама к ним не прилипает. Пока тащите, в центре каждого окна видна мишень: отпустите курсор на ней — и область примет размер этого окна."
+          }
+        }
+      }
+    },
     "While recording" : {
       "localizations" : {
         "ru" : {
@@ -4177,62 +4147,12 @@
         }
       }
     },
-    "Zoom" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Зум"
-          }
-        }
-      }
-    },
     "Zoom works by a click now. Press ⇧⌘6, or the magnifier on the pill: a halo follows the cursor, and every click zooms the video there, with rings spreading so you see it took. The halo goes after five clicks — Settings → Recording → Zoom changes that. The orange outline and holding the key to zoom are gone, and so is ⇧⌘K.\n\nIn the screenshot editor, the window's edge is easy to grab again for growing or cropping the shot." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Зум теперь ставится кликом. Нажмите ⇧⌘6 или лупу на пилюле: у курсора появится кружок, и каждый клик зумит видео в это место, а от клика расходятся круги — видно, что зум встал. Кружок пропадает после пяти кликов — это меняется в «Настройки → Запись → Зум». Рыжей рамки и зума удержанием клавиши больше нет, как и ⇧⌘K.\n\nВ редакторе скриншота край окна снова легко поймать, чтобы растянуть или обрезать снимок."
-          }
-        }
-      }
-    },
-    "Zoom — then click where" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Зум — потом клик, куда"
-          }
-        }
-      }
-    },
-    "Zooms" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Зум"
-          }
-        }
-      }
-    },
-    "Zooms go wherever you clicked after %@ while recording." : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Зум ставится там, куда вы кликнули после %@ во время записи."
-          }
-        }
-      }
-    },
-    "Zooms go wherever you clicked after the pill's magnifier while recording." : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Зум ставится там, куда вы кликнули после лупы на пилюле во время записи."
           }
         }
       }
@@ -4429,16 +4349,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Занято macOS"
-          }
-        }
-      }
-    },
-    "marks" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "отметка"
           }
         }
       }
@@ -4690,16 +4600,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "окно"
-          }
-        }
-      }
-    },
-    "zoom mark" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "метка зума"
           }
         }
       }

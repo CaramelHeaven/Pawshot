@@ -532,7 +532,6 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             (String(localized: "stop recording"), settings.recordRegionHotKey),
             (String(localized: "stop a full-screen recording"), settings.recordFullScreenHotKey),
             (String(localized: "restart"), settings.restartHotKey),
-            (String(localized: "zoom mark"), settings.zoomMarkHotKey),
             (String(localized: "pen"), settings.penHotKey),
             (String(localized: "bad take"), settings.badTakeHotKey),
             (String(localized: "spotlight"), settings.spotlightHotKey),
@@ -757,8 +756,29 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
 
     private func finish(with selection: Selection?) {
         let completion = completion
+        if purpose == .recording {
+            rememberRegions()
+        }
         dismiss()
         completion?(selection)
+    }
+
+    /// The region on each display is what the next ⇧⌘3 starts with — however the overlay closed.
+    /// It used to be stored only when a take started, so a region moved and then cancelled with
+    /// Esc came back where the last take had it.
+    private func rememberRegions() {
+        let settings = Settings.shared
+        for view in selectionViews {
+            guard let region = view.recordingRegion else { continue }
+            guard let screen = view.window?.screen, let displayID = Self.displayID(of: screen) else {
+                Self.logger.error("region not remembered: its overlay has no screen")
+                continue
+            }
+            settings.setLastRecordingArea(region, on: displayID)
+            Self.logger.notice(
+                "region remembered on display \(displayID, privacy: .public): \(Int(region.width), privacy: .public)×\(Int(region.height), privacy: .public) pt at \(Int(region.minX), privacy: .public),\(Int(region.minY), privacy: .public)"
+            )
+        }
     }
 
     // MARK: - Screens

@@ -190,16 +190,6 @@ extension HotKeyBinding {
         label: "4"
     )
 
-    /// ⇧⌘6 marks a zoom in a recording. Registered only while a take runs.
-    ///
-    /// The recording-time shortcuts continue the ⇧⌘ + digit row the takes start on — the owner
-    /// found ⌃⌥ + letter too awkward to press mid-take.
-    static let zoomMarkDefault = HotKeyBinding(
-        keyCode: UInt32(kVK_ANSI_6),
-        carbonModifiers: UInt32(cmdKey | shiftKey),
-        label: "6"
-    )
-
     /// ⇧⌘5 throws the take away and starts over. Registered only while a take runs; the owner
     /// unticked the system's ⇧⌘5. There is no separate stop: the shortcut that started the take
     /// stops it.

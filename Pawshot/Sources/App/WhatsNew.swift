@@ -14,6 +14,17 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.9", text: String(localized: """
+            When you record a region, it now comes back where you left it, even if you closed \
+            without recording.
+
+            Zoom is gone from recordings: ⇧⌘6, the magnifier on the pill and Settings → Recording → \
+            Zoom. Older recordings still open; their zooms are just left out.
+
+            A region dragged across windows no longer snaps to them by itself. While you drag it, a \
+            target shows in the middle of each window: let go with the cursor on one, and the region \
+            takes that window's size.
+            """)),
             Entry(version: "0.6.8", text: String(localized: """
             Your headphones keep playing while you record. With the microphone off, Pawshot used \
             to listen to it anyway, to tell you when you talked — and Bluetooth headphones switched \

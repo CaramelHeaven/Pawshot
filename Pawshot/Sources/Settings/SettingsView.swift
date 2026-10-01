@@ -333,7 +333,6 @@ private struct RecordingSettings: View {
                 profiles
                 sound
                 shownInTheVideo
-                shownOnTheScreen
                 quality
             }
             .formStyle(.grouped)
@@ -352,7 +351,7 @@ private struct RecordingSettings: View {
             } label: {
                 title(
                     "Profile",
-                    subtitle: "Sets the sound, clicks, zooms, resolution and format below in one go",
+                    subtitle: "Sets the sound, clicks, resolution and format below in one go",
                     icon: "slider.horizontal.3",
                     hint: KeyHint(key: "P", place: "overlay")
                 )
@@ -409,14 +408,10 @@ private struct RecordingSettings: View {
     }
 
     private var shownInTheVideo: some View {
-        // Only the zoom sentence depends on the shortcut; the rest is written once.
-        let zooms = settings.zoomMarkHotKey.map {
-            String(localized: "Zooms go wherever you clicked after \($0.displayString) while recording.")
-        } ?? String(localized: "Zooms go wherever you clicked after the pill's magnifier while recording.")
         let help = Text("""
         Drawn in when the video is saved, never while you record. Clicks become orange \
         rings. Shortcuts show as a caption — only combinations with ⌘, ⌥ or ⌃, so plain \
-        typing and passwords never appear. \(zooms) Each can still be switched off for one \
+        typing and passwords never appear. Each can still be switched off for one \
         video in the editor.
         """)
         return Section {
@@ -441,41 +436,8 @@ private struct RecordingSettings: View {
                     action: InputMonitoringPermission.request
                 )
             }
-            Toggle(isOn: $settings.showsZooms) {
-                title(
-                    "Zooms",
-                    icon: "plus.magnifyingglass",
-                    hint: settings.zoomMarkHotKey.map { KeyHint(key: $0.displayString, place: "marks") }
-                )
-            }
-            .help(help)
         } header: {
             Text("Shown in the video")
-        }
-    }
-
-    /// How the zoom is aimed: ⇧⌘6 puts a halo round the cursor that only the person recording
-    /// sees, and each click is a zoom there — for this many clicks.
-    private var shownOnTheScreen: some View {
-        Section {
-            Picker(selection: $settings.zoomClicks) {
-                ForEach(Settings.zoomClickChoices, id: \.self) { clicks in
-                    if clicks == 1 {
-                        Text("One: zoom where you click").tag(1)
-                    } else {
-                        Text("Two: zoom, then move to the second click").tag(2)
-                    }
-                }
-            } label: {
-                title(
-                    "Clicks that zoom",
-                    subtitle: "After the zoom shortcut a halo follows the cursor, and a click zooms there with rings spreading. Only you see the halo.",
-                    icon: "plus.magnifyingglass",
-                    hint: settings.zoomMarkHotKey.map { KeyHint(key: $0.displayString, place: "while recording") }
-                )
-            }
-        } header: {
-            Text("Zoom")
         }
     }
 
@@ -651,7 +613,6 @@ private struct ShortcutSettings: View {
 
     /// Live only during a take, so they can be anything that doesn't clash with the rest.
     private static let duringRecordingRows: [Row] = [
-        ("Zoom — then click where", "zoom by a click", \.zoomMarkHotKey),
         ("Pen on / off", "switch the pen", \.penHotKey),
         ("Restart", "restart the take", \.restartHotKey),
         ("Cut the last 10 seconds", "mark a bad take", \.badTakeHotKey),

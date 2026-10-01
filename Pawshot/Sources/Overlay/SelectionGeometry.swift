@@ -880,23 +880,30 @@ enum SelectionGeometry {
         return (CGPoint(x: x?.line ?? point.x, y: y?.line ?? point.y), SnapGuides(x: x?.line, y: y?.line))
     }
 
-    /// The window a dragged region offers to fit: the one on top under the region's middle, and
-    /// only while that middle is close to the window's own — within `tolerance` of its shorter
-    /// side, both ways. Anywhere else over the window the region is simply laid on top of it.
-    /// `windows` are in view coordinates, front to back; the answer is an index into them.
-    static func fitCandidate(
-        center: CGPoint,
-        windows: [CGRect],
-        tolerance: CGFloat = 0.15,
-        minimumSide: CGFloat = 60
-    ) -> Int? {
-        guard let index = windows.firstIndex(where: { $0.contains(center) }) else { return nil }
-        let window = windows[index]
-        let shorter = min(window.width, window.height)
-        let reach = shorter * tolerance
-        guard shorter >= minimumSide, abs(center.x - window.midX) <= reach, abs(center.y - window.midY) <= reach
-        else { return nil }
-        return index
+    /// How near the cursor has to come to a window's middle for the drop onto it, and how big the
+    /// target drawn there is — the owner's ПО-B of 2026-10-01. Until then the region's own middle
+    /// within 15% of the window's shorter side was enough, and a region dragged past a window
+    /// lit it up.
+    static let fitTargetRadius: CGFloat = 22
+    static let fitTargetSize: CGFloat = 40
+
+    /// The middles of the windows a dragged region can be dropped onto: windows big enough to
+    /// record whose middle is not covered by another window. `windows` are in view coordinates,
+    /// front to back; each answer carries its index into them.
+    static func fitTargets(windows: [CGRect], minimumSide: CGFloat = 60) -> [(index: Int, center: CGPoint)] {
+        windows.indices.compactMap { index in
+            let window = windows[index]
+            let center = CGPoint(x: window.midX, y: window.midY)
+            guard min(window.width, window.height) >= minimumSide,
+                  windows.firstIndex(where: { $0.contains(center) }) == index
+            else { return nil }
+            return (index, center)
+        }
+    }
+
+    /// The window whose target the cursor is on, if any — an index into `windows`.
+    static func fitTarget(at point: CGPoint, windows: [CGRect], radius: CGFloat = fitTargetRadius) -> Int? {
+        fitTargets(windows: windows).first { hypot(point.x - $0.center.x, point.y - $0.center.y) <= radius }?.index
     }
 
     /// A region fitted to a window, grabbed again: back at `size`, with the grabbed spot the same
@@ -1206,31 +1213,6 @@ enum SelectionGeometry {
     /// bottom left, the same in the export and in the preview.
     static func layerPoint(_ normalized: CGPoint, in size: CGSize) -> CGPoint {
         CGPoint(x: normalized.x * size.width, y: (1 - normalized.y) * size.height)
-    }
-
-    /// The part of the recorded `area` a zoom mark will show, in AppKit screen coordinates: the
-    /// area shrunk `scale` times, centred on the cursor and pulled back inside the area — the same
-    /// rule `zoomOffset` applies at export, so the outline shown while recording is what the video
-    /// will zoom to.
-    static func zoomPreviewRect(cursor: CGPoint, area: CGRect, scale: CGFloat) -> CGRect {
-        let size = CGSize(width: area.width / scale, height: area.height / scale)
-        let x = min(max(cursor.x - size.width / 2, area.minX), area.maxX - size.width)
-        let y = min(max(cursor.y - size.height / 2, area.minY), area.maxY - size.height)
-        return CGRect(origin: CGPoint(x: x, y: y), size: size)
-    }
-
-    /// The shift that, applied after scaling by `scale` around the middle of a layer of `size`,
-    /// brings `center` (layer coordinates) to the middle. The centre is first pulled in far enough
-    /// that the zoomed picture still covers the whole frame — no empty edge ever slides in.
-    static func zoomOffset(center: CGPoint, scale: CGFloat, size: CGSize) -> CGPoint {
-        let middle = CGPoint(x: size.width / 2, y: size.height / 2)
-        let reachX = size.width / 2 * (1 - 1 / scale)
-        let reachY = size.height / 2 * (1 - 1 / scale)
-        let clamped = CGPoint(
-            x: min(max(center.x, middle.x - reachX), middle.x + reachX),
-            y: min(max(center.y, middle.y - reachY), middle.y + reachY)
-        )
-        return CGPoint(x: -scale * (clamped.x - middle.x), y: -scale * (clamped.y - middle.y))
     }
 
     // MARK: - The notch

@@ -2,39 +2,28 @@ import AppKit
 @testable import Pawshot
 import XCTest
 
-/// What can be marked while a take runs — a bad stretch to cut, a zoom held for as long as it
-/// should last — and what the pill tells about the take: its size, the disk, the time aimed for.
+/// What can be marked while a take runs — a bad stretch to cut — and what the pill tells about the
+/// take: its size, the disk, the time aimed for.
 final class TakeMarksTests: XCTestCase {
     // MARK: - The timeline file
 
-    /// A recording made before these marks existed has a timeline without them. It must still be
-    /// read, clicks and all: a missing key used to be enough to lose the whole file.
+    /// A recording made before these marks existed has a timeline without them, and one from
+    /// 0.6.1–0.6.8 has zooms the app no longer knows. It must still be read, clicks and all: a
+    /// missing key used to be enough to lose the whole file.
     func testATimelineWrittenByAnOlderBuildIsStillRead() throws {
-        let old = Data(#"{"cursor":[],"clicks":[{"time":1.5,"x":0.2,"y":0.3}],"keys":[],"zoomMarks":[2]}"#.utf8)
+        let old = Data(#"{"cursor":[],"clicks":[{"time":1.5,"x":0.2,"y":0.3}],"keys":[],"zoomMarks":[2],"zoomHolds":[{"start":1,"end":2}]}"#.utf8)
         let timeline = try JSONDecoder().decode(EventTimeline.self, from: old)
 
         XCTAssertEqual(timeline.clicks, [EventTimeline.Point(time: 1.5, x: 0.2, y: 0.3)])
-        XCTAssertEqual(timeline.zoomMarks, [2])
-        XCTAssertTrue(timeline.zoomHolds.isEmpty)
         XCTAssertTrue(timeline.badTakes.isEmpty)
     }
 
     func testMarksSurviveTheFile() throws {
         var timeline = EventTimeline()
-        timeline.zoomHolds = [EventTimeline.Span(start: 3, end: 6.5)]
         timeline.badTakes = [EventTimeline.Span(start: 10, end: 20)]
 
         let decoded = try JSONDecoder().decode(EventTimeline.self, from: JSONEncoder().encode(timeline))
         XCTAssertEqual(decoded, timeline)
-    }
-
-    func testAHeldZoomCountsAsAZoom() {
-        var timeline = EventTimeline()
-        XCTAssertFalse(timeline.hasZooms)
-        timeline.zoomHolds = [EventTimeline.Span(start: 3, end: 6)]
-        XCTAssertTrue(timeline.hasZooms)
-        XCTAssertFalse(timeline.isEmpty)
-        XCTAssertFalse(EffectsOptions().isEmpty(for: timeline))
     }
 
     // MARK: - A bad take
@@ -82,94 +71,6 @@ final class TakeMarksTests: XCTestCase {
         XCTAssertFalse(keep.cut(from: 0, to: 8), "a recording with nothing kept is not a recording")
         XCTAssertEqual(keep.pieces, [.init(start: 0, end: 8)])
         XCTAssertFalse(keep.cut(from: 5, to: 5))
-    }
-
-    // MARK: - A zoom held
-
-    func testAHeldZoomLastsFromThePressToTheReleaseAndFollowsTheCursor() {
-        var timeline = EventTimeline()
-        timeline.cursor = [.init(time: 0, x: 0.2, y: 0.2), .init(time: 5, x: 0.8, y: 0.6)]
-        timeline.zoomHolds = [EventTimeline.Span(start: 4, end: 7)]
-
-        let segments = EffectsPlanner.zoomSegments(timeline: timeline, duration: 30)
-        XCTAssertEqual(segments.count, 1)
-        XCTAssertEqual(segments[0].start, 4)
-        XCTAssertEqual(segments[0].end, 7 + EffectsPlanner.zoomRamp, accuracy: 0.001, "the way out comes after the release")
-        XCTAssertTrue(segments[0].follows)
-
-        let path = EffectsPlanner.zoomPath(of: segments[0], from: 4, to: 7.4, timeline: timeline)
-        XCTAssertEqual(path.first?.center, CGPoint(x: 0.2, y: 0.2))
-        XCTAssertEqual(path.last?.center, CGPoint(x: 0.8, y: 0.6), "the zoom went where the cursor went")
-        XCTAssertGreaterThan(path.count, 10)
-    }
-
-    func testAMarkedZoomStaysWhereItWasMarked() {
-        var timeline = EventTimeline()
-        timeline.cursor = [.init(time: 0, x: 0.2, y: 0.2), .init(time: 5, x: 0.8, y: 0.6)]
-        timeline.zoomMarks = [4]
-
-        let segment = EffectsPlanner.zoomSegments(timeline: timeline, duration: 30)[0]
-        XCTAssertFalse(segment.follows)
-        let path = EffectsPlanner.zoomPath(of: segment, from: segment.start, to: segment.end, timeline: timeline)
-        XCTAssertEqual(Set(path.map(\.center.x)), [0.2])
-    }
-
-    /// A mark close behind a held zoom extends it, the way marks always merged.
-    func testMarksAndHoldsMerge() {
-        var timeline = EventTimeline()
-        timeline.zoomHolds = [EventTimeline.Span(start: 4, end: 7)]
-        timeline.zoomMarks = [7.6, 20]
-
-        let segments = EffectsPlanner.zoomSegments(timeline: timeline, duration: 30)
-        XCTAssertEqual(segments.map(\.start), [4, 20])
-        XCTAssertEqual(segments[0].end, 7.6 + EffectsPlanner.zoomLength, accuracy: 0.001)
-    }
-
-    /// In the file a held zoom is one animation that glides: more steps than the four of a marked
-    /// zoom, and its first zoomed frame is not its last.
-    func testTheExportGlidesAHeldZoomAlongTheCursor() throws {
-        var timeline = EventTimeline()
-        timeline.cursor = [.init(time: 0, x: 0.2, y: 0.2), .init(time: 5, x: 0.8, y: 0.6)]
-        timeline.zoomHolds = [EventTimeline.Span(start: 4, end: 7)]
-        let video = CALayer()
-
-        _ = EffectsLayerBuilder.build(
-            timeline: timeline, options: EffectsOptions(),
-            videoSize: CGSize(width: 800, height: 600), keep: KeepRanges(duration: 30),
-            videoLayer: video
-        )
-
-        let content = try XCTUnwrap(video.superlayer)
-        let key = try XCTUnwrap(content.animationKeys()?.first)
-        let zoom = try XCTUnwrap(content.animation(forKey: key) as? CAKeyframeAnimation)
-        XCTAssertEqual(zoom.beginTime, 4)
-        XCTAssertEqual(zoom.duration, 3 + EffectsPlanner.zoomRamp, accuracy: 0.001)
-
-        let frames = try XCTUnwrap(zoom.values as? [NSValue]).map(\.caTransform3DValue)
-        XCTAssertGreaterThan(frames.count, 10)
-        XCTAssertEqual(zoom.keyTimes?.count, frames.count)
-        XCTAssertEqual(zoom.timingFunctions?.count, frames.count - 1)
-        XCTAssertTrue(CATransform3DIsIdentity(frames[0]))
-        XCTAssertTrue(CATransform3DIsIdentity(frames[frames.count - 1]))
-        XCTAssertNotEqual(frames[1].m41, frames[frames.count - 2].m41, "the picture moved with the cursor")
-    }
-
-    /// A marked zoom is what it always was: in, hold, out.
-    func testAMarkedZoomIsStillFourSteps() throws {
-        var timeline = EventTimeline()
-        timeline.zoomMarks = [4]
-        let video = CALayer()
-        _ = EffectsLayerBuilder.build(
-            timeline: timeline, options: EffectsOptions(),
-            videoSize: CGSize(width: 800, height: 600), keep: KeepRanges(duration: 30),
-            videoLayer: video
-        )
-
-        let content = try XCTUnwrap(video.superlayer)
-        let key = try XCTUnwrap(content.animationKeys()?.first)
-        let zoom = try XCTUnwrap(content.animation(forKey: key) as? CAKeyframeAnimation)
-        XCTAssertEqual(zoom.values?.count, 4)
-        XCTAssertEqual(zoom.duration, EffectsPlanner.zoomLength, accuracy: 0.001)
     }
 
     // MARK: - What the pill tells

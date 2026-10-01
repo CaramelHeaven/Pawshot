@@ -106,6 +106,11 @@ final class SelectionView: NSView {
     private var snapGuides = SelectionGeometry.SnapGuides()
     /// The window the dragged region would take the size of if dropped now, in view coordinates.
     private var fitOffer: (frame: CGRect, windowID: CGWindowID)?
+    /// The targets in the middles of the windows, drawn while the region is dragged by its middle:
+    /// the cursor dropped on one fits the region to that window.
+    private var fitTargets: [CGPoint] = []
+    /// The targets were logged for the current drag.
+    private var fitTargetsLogged = false
     /// The size the region had before it was dropped onto a window. Moving it again brings that
     /// size back; resizing it, or drawing another, forgets it.
     private var unfittedSize: CGSize?
@@ -151,6 +156,7 @@ final class SelectionView: NSView {
         showsGrips = false
         snapGuides = SelectionGeometry.SnapGuides()
         fitOffer = nil
+        fitTargets = []
         unfittedSize = nil
         selection = nil
         cursorPoint = nil
@@ -270,6 +276,8 @@ final class SelectionView: NSView {
         zoneStart = nil
         zoneDraft = nil
         fitOffer = nil
+        fitTargets = []
+        fitTargetsLogged = false
         stuckDuringDrag = false
         snapGuides = SelectionGeometry.SnapGuides()
     }
@@ -624,8 +632,9 @@ final class SelectionView: NSView {
     }
 
     /// The region dragged by its middle. It sticks to the visible edges of windows, to the edges
-    /// of the screen and to its middle; and when its middle comes to the middle of a window, that
-    /// window is offered: dropped there, the region takes the window's frame. ⌘ switches both off.
+    /// of the screen and to its middle; and a target shows in the middle of each window — with the
+    /// cursor on one, that window is offered: dropped there, the region takes the window's frame.
+    /// ⌘ switches all of it off.
     ///
     /// A region that was fitted to a window goes back to the size it had as soon as it is really
     /// moved — past the drag threshold, so a click on it changes nothing.
@@ -646,11 +655,18 @@ final class SelectionView: NSView {
         )
         let offered = fitOffer?.windowID
         fitOffer = nil
+        fitTargets = []
         snapGuides = SelectionGeometry.SnapGuides()
         if magnet {
             let frames = windowFrames
             let rects = frames.map(\.frame)
-            if let index = SelectionGeometry.fitCandidate(center: CGPoint(x: moved.midX, y: moved.midY), windows: rects) {
+            fitTargets = SelectionGeometry.fitTargets(windows: rects).map(\.center)
+            if !fitTargetsLogged {
+                fitTargetsLogged = true
+                let count = fitTargets.count
+                Self.logger.notice("fit targets: \(count, privacy: .public) window(s)")
+            }
+            if let index = SelectionGeometry.fitTarget(at: point, windows: rects) {
                 fitOffer = frames[index]
             } else {
                 let lines = SelectionGeometry.snapLines(windows: rects, bounds: bounds, around: moved)
@@ -876,6 +892,8 @@ final class SelectionView: NSView {
         grabbedSelection = nil
         grabPoint = nil
         fitOffer = nil
+        fitTargets = []
+        fitTargetsLogged = false
         stuckDuringDrag = false
         snapGuides = SelectionGeometry.SnapGuides()
         if let cursorPoint {
@@ -890,8 +908,9 @@ final class SelectionView: NSView {
     override func rightMouseDown(with _: NSEvent) {
         OverlayDiagnostics.received("rightMouseDown")
         Self.logger.notice("cancel: right click")
-        reset()
+        // The delegate first: it remembers the region, which `reset` throws away.
         delegate?.selectionViewDidCancel(self)
+        reset()
     }
 
     // MARK: - Keyboard
@@ -1058,8 +1077,9 @@ final class SelectionView: NSView {
             return
         }
         Self.logger.notice("cancel: Esc")
-        reset()
+        // The delegate first: it remembers the region, which `reset` throws away.
         delegate?.selectionViewDidCancel(self)
+        reset()
     }
 
     // MARK: - Drawing
@@ -1085,6 +1105,7 @@ final class SelectionView: NSView {
             if let fitOffer {
                 drawWindowOutline(fitOffer.frame)
             }
+            drawFitTargets()
             let live = purpose == .recording
             let hot = live ? (grabbedHandle ?? hoveredHandle) : nil
             if hot == .inside, grabbedHandle == nil {
@@ -1142,6 +1163,42 @@ final class SelectionView: NSView {
         )
         outline.lineWidth = 2
         outline.stroke()
+    }
+
+    /// The targets in the middles of the windows: a dashed ring with the icon's corners in it, and
+    /// the one under the cursor filled in the paw colour and a fifth bigger.
+    private func drawFitTargets() {
+        let hotCenter = fitOffer.map { CGPoint(x: $0.frame.midX, y: $0.frame.midY) }
+        for center in fitTargets {
+            let hot = center == hotCenter
+            let side = SelectionGeometry.fitTargetSize * (hot ? 1.2 : 1)
+            let circle = CGRect(x: center.x - side / 2, y: center.y - side / 2, width: side, height: side)
+            let ring = NSBezierPath(ovalIn: circle.insetBy(dx: 1, dy: 1))
+            (hot ? Tokens.pawNSColor : NSColor.black.withAlphaComponent(0.35)).setFill()
+            ring.fill()
+            ring.lineWidth = 2
+            if !hot {
+                ring.setLineDash([4, 3], count: 2, phase: 0)
+            }
+            (hot ? Tokens.pawNSColor : NSColor.white.withAlphaComponent(0.9)).setStroke()
+            ring.stroke()
+
+            // The icon's frame corners, a third of the circle across.
+            let arm = side / 10
+            let box = circle.insetBy(dx: side / 3, dy: side / 3)
+            let corners = NSBezierPath()
+            for (x, y, dx, dy) in [
+                (box.minX, box.minY, arm, arm), (box.maxX, box.minY, -arm, arm),
+                (box.minX, box.maxY, arm, -arm), (box.maxX, box.maxY, -arm, -arm),
+            ] {
+                corners.move(to: CGPoint(x: x, y: y + dy))
+                corners.line(to: CGPoint(x: x, y: y))
+                corners.line(to: CGPoint(x: x + dx, y: y))
+            }
+            corners.lineWidth = 2
+            NSColor.white.setStroke()
+            corners.stroke()
+        }
     }
 
     /// The pills on the middles of the edges, shown while the cursor is near or something is

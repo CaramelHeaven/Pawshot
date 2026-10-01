@@ -23,7 +23,6 @@ enum RecordingProfile: String, CaseIterable, Identifiable {
         var systemAudio: Bool?
         var nativeResolution: Bool?
         var clicks: Bool?
-        var zooms: Bool?
         var preset: VideoPreset?
     }
 
@@ -32,7 +31,7 @@ enum RecordingProfile: String, CaseIterable, Identifiable {
         case .bugReport:
             Values(microphone: false, systemAudio: false, clicks: true, preset: .gif)
         case .demo:
-            Values(microphone: true, nativeResolution: true, zooms: true, preset: .original)
+            Values(microphone: true, nativeResolution: true, preset: .original)
         }
     }
 
@@ -47,7 +46,7 @@ enum RecordingProfile: String, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .bugReport: String(localized: "GIF 720p · clicks · no sound")
-        case .demo: String(localized: "HEVC 2x · voice · zooms")
+        case .demo: String(localized: "HEVC 2x · voice")
         }
     }
 
@@ -66,9 +65,6 @@ enum RecordingProfile: String, CaseIterable, Identifiable {
         if let clicks = values.clicks {
             settings.showsClicks = clicks
         }
-        if let zooms = values.zooms {
-            settings.showsZooms = zooms
-        }
         if let preset = values.preset {
             settings.videoPreset = preset
         }
@@ -84,7 +80,6 @@ enum RecordingProfile: String, CaseIterable, Identifiable {
                 && values.systemAudio.map { $0 == settings.recordsSystemAudio } ?? true
                 && values.nativeResolution.map { $0 == settings.recordsAtNativeResolution } ?? true
                 && values.clicks.map { $0 == settings.showsClicks } ?? true
-                && values.zooms.map { $0 == settings.showsZooms } ?? true
                 && values.preset.map { $0 == settings.videoPreset } ?? true
         }
     }

@@ -102,23 +102,25 @@ final class RegionMagnetTests: XCTestCase {
 
     // MARK: - The drop onto a window
 
-    func testFitIsOfferedMiddleToMiddleOnly() {
-        // The window is 300 × 400: the middle has to come within 45 pt of (670, 280) both ways.
-        XCTAssertEqual(SelectionGeometry.fitCandidate(center: CGPoint(x: 700, y: 300), windows: [window]), 0)
-        XCTAssertNil(SelectionGeometry.fitCandidate(center: CGPoint(x: 720, y: 300), windows: [window]), "inside the window, off its middle")
-        XCTAssertNil(SelectionGeometry.fitCandidate(center: CGPoint(x: 100, y: 700), windows: [window]), "over no window")
+    /// The owner's ПО-B: the cursor on the target in the window's middle, within 22 pt. The
+    /// window's middle is (670, 280).
+    func testFitIsOfferedOnlyWithTheCursorOnTheTarget() {
+        XCTAssertEqual(SelectionGeometry.fitTarget(at: CGPoint(x: 692, y: 280), windows: [window]), 0)
+        XCTAssertNil(SelectionGeometry.fitTarget(at: CGPoint(x: 693, y: 280), windows: [window]), "a point past the target")
+        XCTAssertNil(SelectionGeometry.fitTarget(at: CGPoint(x: 100, y: 700), windows: [window]), "over no window")
     }
 
-    func testFitGoesToTheWindowOnTopUnderTheMiddle() {
+    func testATargetSitsOnlyWhereTheWindowsMiddleShows() {
         let front = CGRect(x: 600, y: 200, width: 200, height: 200)
-        XCTAssertEqual(SelectionGeometry.fitCandidate(center: CGPoint(x: 700, y: 300), windows: [front, window]), 0)
-        // Near the middle of the one behind, but a different window is on top there.
-        XCTAssertNil(SelectionGeometry.fitCandidate(center: CGPoint(x: 640, y: 260), windows: [front, window]))
+        let targets = SelectionGeometry.fitTargets(windows: [front, window])
+        XCTAssertEqual(targets.map(\.index), [0], "the one behind has its middle covered")
+        XCTAssertEqual(targets.first?.center, CGPoint(x: 700, y: 300))
+        XCTAssertEqual(SelectionGeometry.fitTarget(at: CGPoint(x: 670, y: 280), windows: [front, window]), nil)
     }
 
-    func testAWindowTooSmallToRecordIsNotOffered() {
+    func testAWindowTooSmallToRecordHasNoTarget() {
         let palette = CGRect(x: 600, y: 200, width: 40, height: 200)
-        XCTAssertNil(SelectionGeometry.fitCandidate(center: CGPoint(x: 620, y: 300), windows: [palette]))
+        XCTAssertTrue(SelectionGeometry.fitTargets(windows: [palette]).isEmpty)
     }
 
     /// Grabbed again, a fitted region goes back to the size it had, and the spot under the cursor

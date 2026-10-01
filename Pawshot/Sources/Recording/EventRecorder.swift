@@ -6,8 +6,7 @@ import os
 /// - the cursor, sixty times a second, only when it moved;
 /// - clicks through a global monitor — mouse events need no permission;
 /// - shortcuts through a listen-only `CGEventTap`, and only when "Show keystrokes" is on and Input
-///   Monitoring is granted: nothing is ever read from the keyboard otherwise;
-/// - zoom marks, from ⇧⌘6 or the pill.
+///   Monitoring is granted: nothing is ever read from the keyboard otherwise.
 ///
 /// Everything is stamped with the file's own time (`clock`), which is `nil` during a pause: what
 /// happens then isn't in the video, so it isn't in the timeline either.
@@ -86,7 +85,7 @@ final class EventRecorder {
             let recorded = timeline
             let reenabled = tapReenabled
             Self.logger.notice(
-                "events: \(recorded.cursor.count, privacy: .public) cursor, \(recorded.clicks.count, privacy: .public) clicks, \(recorded.keys.count, privacy: .public) keys, \(recorded.zoomMarks.count, privacy: .public) zoom marks, \(recorded.zoomHolds.count, privacy: .public) zooms held, \(recorded.badTakes.count, privacy: .public) bad takes, \(recorded.spotlights.count, privacy: .public) spotlights, \(recorded.blurs.count, privacy: .public) hidden stretches, \(recorded.masks.count, privacy: .public) hidden zones, tap re-enabled \(reenabled, privacy: .public)×"
+                "events: \(recorded.cursor.count, privacy: .public) cursor, \(recorded.clicks.count, privacy: .public) clicks, \(recorded.keys.count, privacy: .public) keys, \(recorded.badTakes.count, privacy: .public) bad takes, \(recorded.spotlights.count, privacy: .public) spotlights, \(recorded.blurs.count, privacy: .public) hidden stretches, \(recorded.masks.count, privacy: .public) hidden zones, tap re-enabled \(reenabled, privacy: .public)×"
             )
         }
         cursorTimer?.invalidate()
@@ -104,26 +103,6 @@ final class EventRecorder {
         keyTap = nil
         keySource = nil
         return timeline
-    }
-
-    /// The mark's time, or `nil` while paused, when nothing is recorded.
-    @discardableResult
-    func markZoom() -> TimeInterval? {
-        guard let time = clock() else { return nil }
-        timeline.zoomMarks.append(time)
-        return time
-    }
-
-    /// The second click of a two-click zoom: the mark the first click left at `start` becomes a
-    /// zoom that moves to where the cursor is now. `nil` while paused — the mark then stays a
-    /// plain one.
-    func moveZoom(from start: TimeInterval) -> TimeInterval? {
-        guard let time = clock() else { return nil }
-        if let index = timeline.zoomMarks.lastIndex(of: start) {
-            timeline.zoomMarks.remove(at: index)
-        }
-        timeline.zoomMoves.append(.init(start: start, end: time))
-        return time
     }
 
     /// What a key held during a take does to the video.

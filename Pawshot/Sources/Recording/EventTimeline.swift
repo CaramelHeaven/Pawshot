@@ -3,8 +3,9 @@ import Carbon.HIToolbox
 import os
 
 /// What happened during a recording, for the effects added at export and for the editor: where
-/// the cursor was, the clicks, the shortcuts pressed, the zooms — marked with a tap or held — and
-/// the stretches marked as a bad take.
+/// the cursor was, the clicks, the shortcuts pressed, the held effects and the stretches marked as
+/// a bad take. Zooms (0.6.1–0.6.8) were removed on 2026-10-01; the keys an older file has for them
+/// are ignored.
 ///
 /// Times are seconds of the file — pauses already taken out. Positions are fractions of the
 /// recorded area, 0…1, origin top left, so they survive any output size.
@@ -47,14 +48,6 @@ struct EventTimeline: Codable, Equatable {
     var cursor: [Point] = []
     var clicks: [Point] = []
     var keys: [Keystroke] = []
-    /// A tap of the zoom key: the export zooms in there for `EffectsPlanner.zoomLength`.
-    var zoomMarks: [Double] = []
-    /// The zoom key held: zoomed in from the press to the release, following the cursor.
-    var zoomHolds: [Span] = []
-    /// Two clicks of the zoom (0.6.8, "two clicks" in Settings → Recording → Zoom): zoomed in at
-    /// the first click's place from `start`, moved to the second click's place at `end`, and out
-    /// `EffectsPlanner.zoomLength` after it.
-    var zoomMoves: [Span] = []
     /// Stretches marked as a bad take while recording: the editor opens with them cut out.
     var badTakes: [Span] = []
     /// The spotlight key held: everything but a circle around the cursor is dimmed.
@@ -69,11 +62,7 @@ struct EventTimeline: Codable, Equatable {
     }
 
     var isEmpty: Bool {
-        clicks.isEmpty && keys.isEmpty && !hasZooms && spotlights.isEmpty && blurs.isEmpty && masks.isEmpty
-    }
-
-    var hasZooms: Bool {
-        !zoomMarks.isEmpty || !zoomHolds.isEmpty || !zoomMoves.isEmpty
+        clicks.isEmpty && keys.isEmpty && spotlights.isEmpty && blurs.isEmpty && masks.isEmpty
     }
 
     /// What a "bad take" mark at `time` cuts: the `length` seconds before it — not before the
@@ -143,9 +132,6 @@ extension EventTimeline {
         cursor = try container.decodeIfPresent([Point].self, forKey: .cursor) ?? []
         clicks = try container.decodeIfPresent([Point].self, forKey: .clicks) ?? []
         keys = try container.decodeIfPresent([Keystroke].self, forKey: .keys) ?? []
-        zoomMarks = try container.decodeIfPresent([Double].self, forKey: .zoomMarks) ?? []
-        zoomHolds = try container.decodeIfPresent([Span].self, forKey: .zoomHolds) ?? []
-        zoomMoves = try container.decodeIfPresent([Span].self, forKey: .zoomMoves) ?? []
         badTakes = try container.decodeIfPresent([Span].self, forKey: .badTakes) ?? []
         spotlights = try container.decodeIfPresent([Span].self, forKey: .spotlights) ?? []
         blurs = try container.decodeIfPresent([Span].self, forKey: .blurs) ?? []

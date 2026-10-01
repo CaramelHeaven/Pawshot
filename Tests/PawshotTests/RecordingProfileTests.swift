@@ -31,17 +31,15 @@ final class RecordingProfileTests: XCTestCase {
         XCTAssertEqual(settings.videoPreset, .gif)
     }
 
-    func testDemoIsFullResolutionWithVoiceAndZooms() {
+    func testDemoIsFullResolutionWithVoice() {
         settings.recordsMicrophone = false
         settings.recordsAtNativeResolution = false
-        settings.showsZooms = false
         settings.videoPreset = .gif
 
         RecordingProfile.demo.apply(to: settings)
 
         XCTAssertTrue(settings.recordsMicrophone)
         XCTAssertTrue(settings.recordsAtNativeResolution)
-        XCTAssertTrue(settings.showsZooms)
         XCTAssertEqual(settings.videoPreset, .original)
     }
 

@@ -112,7 +112,6 @@ enum LogExport {
             ("Capture the full screen", settings.fullScreenHotKey),
             ("Record a region", settings.recordRegionHotKey),
             ("Record the full screen", settings.recordFullScreenHotKey),
-            ("Zoom by a click (while recording)", settings.zoomMarkHotKey),
             ("Pen (while recording)", settings.penHotKey),
             ("Restart (while recording)", settings.restartHotKey),
             ("Bad take (while recording)", settings.badTakeHotKey),

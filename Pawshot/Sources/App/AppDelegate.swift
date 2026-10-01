@@ -471,20 +471,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 ),
                 returningTo: previous
             )
-            if selection.windowID == nil, !selection.isWholeDisplay {
-                self?.rememberRecordingArea(of: selection)
-            }
         }
-    }
-
-    /// The region the next ⇧⌘3 starts with: this one, in the display's own points.
-    private func rememberRecordingArea(of selection: SelectionOverlayController.Selection) {
-        let primaryMaxY = NSScreen.screens.first.map(\.frame.maxY) ?? 0
-        let origin = SelectionOverlayController.coreGraphicsOrigin(of: selection.screen, primaryMaxY: primaryMaxY)
-        settings.setLastRecordingArea(
-            selection.rect.offsetBy(dx: -origin.x, dy: -origin.y),
-            on: selection.displayID
-        )
     }
 
     /// ⇧⌘4: the display under the cursor, at once — no overlay, the way ⇧⌘1 takes a shot.

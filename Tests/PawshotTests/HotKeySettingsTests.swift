@@ -220,7 +220,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(announced, 1, "cleared means re-registered without it")
         XCTAssertNil(Settings(defaults: defaults).fullScreenHotKey, "a new instance reads it back as none")
         XCTAssertEqual(Settings(defaults: defaults).regionHotKey, .regionDefault)
-        XCTAssertEqual(settings.allHotKeys.count, 10, "nothing to register, nothing to collide with")
+        XCTAssertEqual(settings.allHotKeys.count, 9, "nothing to register, nothing to collide with")
 
         settings.resetHotKeysToDefaults()
 
@@ -258,16 +258,14 @@ final class SettingsTests: XCTestCase {
 
         XCTAssertEqual(settings.recordRegionHotKey?.displayString, "⇧⌘3")
         XCTAssertEqual(settings.recordFullScreenHotKey?.displayString, "⇧⌘4")
-        XCTAssertEqual(settings.zoomMarkHotKey, .zoomMarkDefault)
         XCTAssertEqual(settings.penHotKey, .penDefault)
         XCTAssertEqual(settings.restartHotKey?.displayString, "⇧⌘5")
-        XCTAssertEqual(settings.zoomMarkHotKey?.displayString, "⇧⌘6")
         XCTAssertEqual(settings.penHotKey?.displayString, "⇧⌘7")
         XCTAssertEqual(settings.badTakeHotKey?.displayString, "⌃⌘X")
         XCTAssertEqual(settings.spotlightHotKey, .spotlightDefault)
         XCTAssertEqual(settings.blurHotKey, .blurDefault)
         XCTAssertEqual(settings.muteHotKey, .muteDefault)
-        XCTAssertEqual(settings.allHotKeys.count, 11, "no separate stop, no separate halo: the start shortcut stops, ⇧⌘6 zooms by a click")
+        XCTAssertEqual(settings.allHotKeys.count, 10, "no separate stop: the start shortcut stops; the zoom is gone")
         let all = settings.allHotKeys
         for (index, binding) in all.enumerated() {
             XCTAssertFalse(all[(index + 1)...].contains(binding), "\(binding.displayString) is used twice")
@@ -296,12 +294,11 @@ final class SettingsTests: XCTestCase {
         XCTAssertNil(reread.lastRecordingArea(on: 3))
     }
 
-    /// Clicks and zooms go into the video unless switched off; the editor's key hints count the
+    /// Clicks go into the video unless switched off; the editor's key hints count the
     /// openings.
     func testVideoSettingsDefaults() {
         let settings = Settings(defaults: defaults)
         XCTAssertTrue(settings.showsClicks)
-        XCTAssertTrue(settings.showsZooms)
         XCTAssertFalse(settings.showsKeystrokes, "reading the keyboard is never on by default")
         XCTAssertEqual(settings.videoEditorOpenCount, 0)
 

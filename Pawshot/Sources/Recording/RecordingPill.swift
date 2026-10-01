@@ -7,13 +7,12 @@ struct RecordingPillActions {
     var togglePause: @MainActor () -> Void
     var restart: @MainActor () -> Void
     var stop: @MainActor () -> Void
-    var zoom: @MainActor () -> Void
     var togglePen: @MainActor () -> Void
     var badTake: @MainActor () -> Void
 }
 
 /// The whole interface of a recording in progress: the dot, the time — against the length aimed
-/// for, when there is one — how much the take weighs, pause, zoom, pen, "cut the last seconds",
+/// for, when there is one — how much the take weighs, pause, pen, "cut the last seconds",
 /// restart and stop.
 ///
 /// It lives in a borderless panel that never becomes active, so clicking it leaves the app being
@@ -75,7 +74,6 @@ final class RecordingPillController {
         model.penAvailable = penAvailable
         model.stopShortcut = stopShortcut
         model.penIsOn = false
-        model.isZooming = false
         model.isCompact = false
         model.isExpanded = false
         lastNearDate = Date()
@@ -123,11 +121,6 @@ final class RecordingPillController {
 
     func setPen(isOn: Bool) {
         model.penIsOn = isOn
-    }
-
-    /// The magnifier lit while the zoom's halo is up: the next clicks zoom.
-    func setZooming(_ isOn: Bool) {
-        model.isZooming = isOn
     }
 
     /// How long the take is meant to be; 0 for no goal.
@@ -264,7 +257,6 @@ final class PillModel {
     var notchHeight: CGFloat = 32
     var penAvailable = false
     var penIsOn = false
-    var isZooming = false
     var cutFlash = false
     /// Seconds the take is meant to last; 0 for none.
     var goal: TimeInterval = 0
@@ -404,14 +396,6 @@ struct RecordingPillView: View {
     private func buttons(_ status: AppState.RecordingStatus) -> some View {
         pillButton(status.isPaused ? "play.fill" : "pause.fill", help: status.isPaused ? "Resume" : "Pause") {
             actions.togglePause()
-        }
-        pillButton(
-            "plus.magnifyingglass",
-            help: "Zoom — then click where",
-            shortcut: settings.zoomMarkHotKey,
-            isOn: model.isZooming
-        ) {
-            actions.zoom()
         }
         if model.penAvailable {
             pillButton(

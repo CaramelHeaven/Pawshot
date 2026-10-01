@@ -42,10 +42,8 @@ final class RecordingController {
     private var target: RecordingTarget?
     private var recordedSize = CGSize.zero
     private var events: EventRecorder?
-    /// Marks a zoom (⇧⌘6 by default) — registered only while a take runs, so the combination
+    /// Switches the pen (⇧⌘7 by default) — registered only while a take runs, so the combination
     /// stays free the rest of the time. Set in Settings → Shortcuts.
-    private var zoomHotKey: GlobalHotKey?
-    /// Switches the pen (⇧⌘7 by default), on the same terms.
     private var penHotKey: GlobalHotKey?
     /// Restart (⇧⌘5), on the same terms. Stopping is the shortcut that started the take.
     private var restartHotKey: GlobalHotKey?
@@ -56,11 +54,6 @@ final class RecordingController {
     private var spotlightHotKey: GlobalHotKey?
     private var blurHotKey: GlobalHotKey?
     private var muteHotKey: GlobalHotKey?
-    /// The zoom's halo round the cursor: ⇧⌘6 or the pill's magnifier put it up, and every click
-    /// while it is up is a zoom there.
-    private let cursorHalo = CursorHaloController()
-    /// Two-click zoom, after its first click: when it was in the file and on the clock, and where.
-    private var firstZoomClick: (fileTime: TimeInterval, uptime: TimeInterval, point: CGPoint)?
     /// When each held effect's key went down, in the file's time.
     private var heldSince: [EventRecorder.HeldEffect: TimeInterval] = [:]
     private let heldIndicator = HeldEffectIndicator()
@@ -83,7 +76,6 @@ final class RecordingController {
         togglePause: { [weak self] in self?.togglePause() },
         restart: { [weak self] in self?.restart() },
         stop: { [weak self] in self?.stop() },
-        zoom: { [weak self] in self?.toggleZoom(source: "the pill") },
         togglePen: { [weak self] in self?.togglePen() },
         badTake: { [weak self] in self?.markBadTake() }
     ))
@@ -219,86 +211,6 @@ final class RecordingController {
         if stopWhenStarted {
             stop()
         }
-    }
-
-    /// ⇧⌘6 or the pill's magnifier: the halo goes up round the cursor, and every click while it
-    /// is up is a zoom there — rings spread from the click so the person sees it took. The halo goes
-    /// after the clicks set in Settings → Recording, or when this is pressed again. The owner's
-    /// rework of 2026-09-30: the tap that marked a zoom at once with an orange outline, and the
-    /// held key that zoomed after the cursor, are gone.
-    func toggleZoom(source: String) {
-        guard engine != nil else {
-            Self.logger.notice("zoom asked with no take running")
-            return
-        }
-        if cursorHalo.isShown {
-            hideZoomHalo(because: "\(source) pressed again")
-            return
-        }
-        let clicks = settings.zoomClicks
-        firstZoomClick = nil
-        cursorHalo.onClick = { [weak self] in self?.zoomAtClick(of: clicks) ?? false }
-        cursorHalo.onGone = { [weak self] made in
-            Self.logger.notice("zoom halo gone after \(made, privacy: .public) click(s)")
-            self?.firstZoomClick = nil
-            self?.pill.setZooming(false)
-        }
-        cursorHalo.show(clicksBeforeItGoes: clicks)
-        Self.logger.notice("zoom halo on by \(source, privacy: .public): \(clicks, privacy: .public) click(s)")
-        pill.setZooming(true)
-    }
-
-    /// A click with the halo up. The first is a zoom at this moment, centred where the click is —
-    /// the cursor's place now, which is what the export centres a mark on. With two clicks set, the
-    /// second moves that zoom to where it is. `false` when the click is not the zoom's: during a
-    /// pause (nothing is recorded), or the app's own double click right after the first (then the
-    /// halo waits on for the real second click). Such a click neither ripples nor counts.
-    private func zoomAtClick(of clicks: Int) -> Bool {
-        guard let events else {
-            Self.logger.error("zoom click with no take running")
-            return false
-        }
-        let uptime = ProcessInfo.processInfo.systemUptime
-        let point = NSEvent.mouseLocation
-        if let first = firstZoomClick {
-            if ZoomClicks.isDoubleClick(first: (first.uptime, first.point), then: uptime, at: point) {
-                Self.logger.notice("zoom: a double click in the app, not the second click — waiting on")
-                return false
-            }
-            guard let time = events.moveZoom(from: first.fileTime) else {
-                Self.logger.notice("zoom second click ignored: paused")
-                return false
-            }
-            firstZoomClick = nil
-            Self.logger.notice(
-                "zoom moves at \(String(format: "%.1f", time), privacy: .public) s (zoomed in at \(String(format: "%.1f", first.fileTime), privacy: .public) s)"
-            )
-            return true
-        }
-        guard let time = events.markZoom() else {
-            Self.logger.notice("zoom click ignored: paused")
-            return false
-        }
-        if clicks == 2 {
-            firstZoomClick = (time, uptime, point)
-        }
-        let marks = events.timeline.zoomMarks.count
-        Self.logger.notice(
-            "zoom at \(String(format: "%.1f", time), privacy: .public) s by a click, 1 of \(clicks, privacy: .public) (\(marks, privacy: .public) so far)"
-        )
-        return true
-    }
-
-    /// The halo goes before its clicks are used: a first click's zoom stays a plain one.
-    private func hideZoomHalo(because reason: String) {
-        guard cursorHalo.isShown else { return }
-        let made = cursorHalo.hide()
-        let waiting = firstZoomClick != nil
-        firstZoomClick = nil
-        Self.logger.notice(
-            "zoom halo off: \(reason, privacy: .public), after \(made, privacy: .public) click(s)\(waiting ? ", the first zoom stays a plain one" : "", privacy: .public)"
-        )
-        pill.setZooming(false)
     }
 
     // MARK: - Keys that are held
@@ -561,7 +473,6 @@ final class RecordingController {
         events = nil
         // The frame stays: the region is the same, and closing it would flash the bare screen.
         grabFrame.close()
-        hideZoomHalo(because: "the take restarts")
         closeInk()
         unregisterRecordingHotKeys()
         stopTicker()
@@ -620,7 +531,7 @@ final class RecordingController {
                 }
                 let bytes = (try? movie.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
                 Self.logger.notice(
-                    "recording finished: \(movie.lastPathComponent, privacy: .public), \(String(format: "%.1f", seconds), privacy: .public) s, \(Int(size.width), privacy: .public)×\(Int(size.height), privacy: .public), \(bytes, privacy: .public) B, \(timeline.clicks.count, privacy: .public) clicks, \(timeline.keys.count, privacy: .public) keys, \(timeline.zoomMarks.count, privacy: .public) zoom marks, \(penStrokes, privacy: .public) pen strokes"
+                    "recording finished: \(movie.lastPathComponent, privacy: .public), \(String(format: "%.1f", seconds), privacy: .public) s, \(Int(size.width), privacy: .public)×\(Int(size.height), privacy: .public), \(bytes, privacy: .public) B, \(timeline.clicks.count, privacy: .public) clicks, \(timeline.keys.count, privacy: .public) keys, \(penStrokes, privacy: .public) pen strokes"
                 )
                 onRecorded?(movie, size, screen)
                 Stats.shared.noteRecording(seconds: seconds)
@@ -647,9 +558,6 @@ final class RecordingController {
         // restart the new ones would fail while the old ones were still alive.
         unregisterRecordingHotKeys()
         guard engine != nil else { return }
-        zoomHotKey = GlobalHotKey.register(settings.zoomMarkHotKey, for: "zoom by a click") { [weak self] in
-            self?.toggleZoom(source: "the shortcut")
-        }
         badTakeHotKey = GlobalHotKey.register(settings.badTakeHotKey, for: "mark a bad take") { [weak self] in
             self?.markBadTake()
         }
@@ -683,7 +591,6 @@ final class RecordingController {
 
     /// Also while a shortcut field records, so the old combination can be pressed to replace it.
     func unregisterRecordingHotKeys() {
-        zoomHotKey = nil
         penHotKey = nil
         restartHotKey = nil
         badTakeHotKey = nil
@@ -698,7 +605,6 @@ final class RecordingController {
         unregisterRecordingHotKeys()
         closeInk()
         grabFrame.close()
-        hideZoomHalo(because: "the take ended")
         frame.close()
         heldIndicator.hide()
         _ = events?.stop()

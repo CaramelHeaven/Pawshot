@@ -214,7 +214,7 @@ enum VideoExporter {
 
         var configuration = AVVideoComposition.Configuration()
         // The recording's frame rate is variable — a still screen sends nothing — so the effects
-        // are rendered at a steady 60, or a zoom would stutter over a static page.
+        // are rendered at a steady 60, or a spotlight would stutter over a static page.
         configuration.frameDuration = CMTime(value: 1, timescale: 60)
         configuration.renderSize = spliced.videoSize
         configuration.instructions = [instruction]

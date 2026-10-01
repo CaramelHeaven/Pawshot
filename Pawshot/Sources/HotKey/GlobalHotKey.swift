@@ -45,7 +45,7 @@ final class GlobalHotKey {
     private let id: UInt32
     private var hotKeyRef: EventHotKeyRef?
     private let action: () -> Void
-    /// Told when the keys are let go — for the one shortcut that means something held: the zoom.
+    /// Told when the keys are let go — for the shortcuts that mean something held: the spotlight, the blur, the mute.
     private let onRelease: (() -> Void)?
 
     /// Registers a global hotkey, or explains why it couldn't.

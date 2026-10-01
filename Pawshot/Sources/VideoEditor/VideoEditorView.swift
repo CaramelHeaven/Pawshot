@@ -97,7 +97,7 @@ struct VideoEditorView: View {
 
             if model.timelineIsLost {
                 Label(
-                    "The clicks, zooms and hidden parts of this recording couldn't be read — they won't be in the video.",
+                    "The clicks and hidden parts of this recording couldn't be read — they won't be in the video.",
                     systemImage: "exclamationmark.triangle.fill"
                 )
                 .font(.callout)
@@ -170,9 +170,6 @@ struct VideoEditorView: View {
             }
             if !timeline.keys.isEmpty {
                 effectToggle("command", "Shortcuts", isOn: model.effects.keys) { $0.keys.toggle() }
-            }
-            if timeline.hasZooms {
-                effectToggle("plus.magnifyingglass", "Zooms", isOn: model.effects.zooms) { $0.zooms.toggle() }
             }
             if !timeline.spotlights.isEmpty {
                 effectToggle("flashlight.on.fill", "Spotlight", isOn: model.effects.spotlights) { $0.spotlights.toggle() }

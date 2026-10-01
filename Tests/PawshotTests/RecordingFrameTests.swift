@@ -5,22 +5,6 @@ import XCTest
 final class RecordingFrameGeometryTests: XCTestCase {
     /// A second display to the right of the first, a bit lower: the area comes in global AppKit
     /// coordinates, the frame window draws in its own.
-    /// The outline shown for a zoom mark is exactly what the export zooms to: half the area,
-    /// on the cursor, never past the area's edge.
-    func testZoomOutlineIsHalfTheAreaOnTheCursorAndStaysInside() {
-        let area = CGRect(x: 100, y: 100, width: 800, height: 600)
-
-        XCTAssertEqual(
-            SelectionGeometry.zoomPreviewRect(cursor: CGPoint(x: 500, y: 400), area: area, scale: 2),
-            CGRect(x: 300, y: 250, width: 400, height: 300)
-        )
-        XCTAssertEqual(
-            SelectionGeometry.zoomPreviewRect(cursor: CGPoint(x: 110, y: 690), area: area, scale: 2),
-            CGRect(x: 100, y: 400, width: 400, height: 300),
-            "a mark in the corner is pulled in, the way zoomOffset pulls the export"
-        )
-    }
-
     func testAreaIsMovedIntoTheScreensOwnCoordinates() {
         let screen = CGRect(x: 1512, y: -200, width: 2560, height: 1440)
         let area = CGRect(x: 1612, y: 100, width: 800, height: 600)
