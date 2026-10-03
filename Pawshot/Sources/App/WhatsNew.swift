@@ -15,6 +15,18 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.10", text: String(localized: """
+            Picking a region to record no longer freezes the screen: a video under it keeps \
+            playing while you choose.
+
+            Copy Text says "Reading…" when the text takes a while — the first time after an \
+            install it can take up to half a minute.
+
+            If one of the recording shortcuts didn't work during a take, Settings → Shortcuts \
+            says which. And the paw's menu tells you when macOS still takes one of your shortcuts.
+
+            Recording is lighter on your Mac.
+            """)),
             Entry(version: "0.6.9", text: String(localized: """
             When you record a region, it now comes back where you left it, even if you closed \
             without recording.

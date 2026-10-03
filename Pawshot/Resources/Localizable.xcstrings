@@ -2449,6 +2449,16 @@
         }
       }
     },
+    "Picking a region to record no longer freezes the screen: a video under it keeps playing while you choose.\n\nCopy Text says \"Reading…\" when the text takes a while — the first time after an install it can take up to half a minute.\n\nIf one of the recording shortcuts didn't work during a take, Settings → Shortcuts says which. And the paw's menu tells you when macOS still takes one of your shortcuts.\n\nRecording is lighter on your Mac." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пока вы выбираете область для записи, экран больше не замирает: видео под ней продолжает играть.\n\n«Копировать текст» пишет «Читаю…», когда текст читается долго — в первый раз после установки это может занять до полуминуты.\n\nЕсли какое-то сочетание клавиш для записи не сработало во время дубля, Настройки → Сочетания клавиш скажут какое. А меню лапы подскажет, если macOS всё ещё забирает одно из ваших сочетаний.\n\nЗапись теперь меньше нагружает Mac."
+          }
+        }
+      }
+    },
     "Pigeon: shots at the height of the day." : {
       "localizations" : {
         "ru" : {
