@@ -1251,9 +1251,12 @@ Style in this repository is not up for discussion — it is dictated by SwiftFor
 rule set (config `.swiftformat`, version pinned in `mise.toml`). There are three safety nets, and
 they duplicate each other on purpose:
 
-1. **The `PostToolUse` hook** in `.claude/settings.json` — formats every `.swift` right after
-   Edit/Write. It doesn't always work: if `.claude/` didn't exist when the session started, the
-   settings watcher won't pick it up. Then it's `/hooks` once, or a restart.
+1. **A `PostToolUse` hook** in a local `.claude/settings.json` — formats every `.swift` right
+   after Edit/Write. `.claude/` is git-ignored since 0.6.10, so the hook lives on the owner's Mac
+   only; anyone who wants it adds a `PostToolUse` hook matching `Write|Edit` that runs
+   `swiftformat --quiet` on the file (`mise which swiftformat` finds the pinned one). It doesn't
+   always work: if `.claude/` didn't exist when the session started, the settings watcher won't
+   pick it up. Then it's `/hooks` once, or a restart.
 2. **The `SwiftFormat` pre-phase** in the `Pawshot` target — fixes the sources on every build.
    Verified: broken indentation is fixed in that same build, not the next one.
 3. **The rule in `AGENTS.md`** — by hand, if the first two stay silent.

@@ -12,16 +12,65 @@ want a subscription for drawing an arrow. Five, ten, twenty bucks — for *this*
 
 So I built my own. Native, free, a few megabytes, no account, no nagging. Grab it. Let's go.
 
-- **⇧⌘2** a region, **⇧⌘1** the whole screen, **Space** a single window.
-- Annotate with one key per tool — line or (double) arrow, box, pen, text, blur, step counter — all
-  undoable objects, on any keyboard layout. Four colours plus one of your own with an eyedropper,
-  fills of any opacity, labels in any installed font with every weight it has, and **⌘L / ⌘R** to turn the
-  selection — or the whole shot with everything on it.
-- **⌘C** copies the image, **⌘S** saves a PNG, **⌘D** copies the *text* read off the shot.
-- Missed by a few pixels? Drag the editor window's edge — the shot grows into the screen around it.
-- **⇧⌘3** records a region, **⇧⌘4** the whole screen — with mic, system sound, click rings, shortcut
-  captions, zooms and a pen that draws into the video.
-- Stop, keep the pieces you want, get HEVC, 1080p or a GIF straight onto the clipboard.
+Everything below is what 0.6.10 does. Every shortcut can be changed in Settings → Shortcuts.
+
+## Screenshots
+
+- **⇧⌘2** a region, **⇧⌘1** the whole screen at once, **Space** on the overlay picks a single
+  window. **M** on the overlay is an 8× loupe with the pixel's HEX.
+- The shot opens in the editor, one key per tool: **V** select, **A** line (again: arrow → double
+  arrow → plain), **R** shape (again: circle → triangle → diamond → rectangle), **D** pen, **T**
+  text, **B** blur, **N** step counter. Everything drawn stays an object: move it, restyle it,
+  delete it, **⌘Z** it — on any keyboard layout, Cyrillic included.
+- Lines bend into arcs and get heads at either end; shapes resize and turn by their handles; **⇧**
+  snaps to 15° or keeps proportions. Four colours plus one of your own with an eyedropper, fills of
+  any opacity, labels in any installed font with every weight it has.
+- **⌘L / ⌘R** turn the selection — or, with nothing selected, the whole shot with everything on it.
+- Missed by a few pixels? Drag the editor window's edge — the shot grows into the screen around it,
+  from the same moment it was taken.
+- **⌘C** copies the image, **⌘S** saves it to your folder (PNG, JPG or HEIC — Settings →
+  Screenshots), **⇧⌘S** asks where, **⌘D** copies the *text* read off the shot, QR codes first.
+  The window fades out the moment the result is out.
+- **Esc** never closes a shot. **⌘Q** tapped closes the window (asking if you drew on it), held
+  quits Pawshot.
+
+## Recording
+
+- **⇧⌘3** records a region, **⇧⌘4** the whole screen; the same shortcut stops. macOS uses both for
+  its own screenshots until you untick them in Keyboard Shortcuts — the welcome window, Settings
+  and the paw's menu all tell you while it still does.
+- Picking the region doesn't freeze the screen. The last region comes back, moves, resizes and
+  sticks to window edges; drop it on the target in a window's middle to take that window's frame.
+  **A** cycles proportions, digits type an exact size (`1920x1080`), **H** draws zones that stay
+  blurred for the whole video, **P** switches profiles (*Bug report*: GIF, clicks, no sound;
+  *Demo*: HEVC 2x, voice). Options pick the microphone (with a live level and a three-second
+  check), system sound, clicks, pressed shortcuts and the scale. A line above the toolbar warns
+  about what would go wrong: a silent microphone, a shortcut macOS still holds, a nearly full disk.
+- While it records, a pill by the area shows the time, what the take weighs so far and, if you set
+  a target length, how far you are. On a MacBook with a notch it wraps around the notch.
+  - **⇧⌘7** the pen: draw on the screen, into the video; every stroke fades after four seconds.
+  - Hold **⌃⌘A** for a spotlight around the cursor, **⌃⌘B** to hide the picture (blurred in the
+    video), **⌃⌘V** to mute the microphone.
+  - **⌃⌘X** cuts the last 10 seconds — the take goes on, the editor opens with them already cut.
+  - **⇧⌘5** restarts, **⇧⌘2** copies the frame being recorded. Paused, the region can be moved.
+- Pawshot's own windows never end up in the video.
+
+## Video editor
+
+Stop, and the take opens in the editor: keep as many pieces as you want — each one sits in orange
+brackets, the grey in between is cut — undo every change with **⌘Z**, switch the click rings,
+shortcut captions, spotlight and hidden parts on or off. **P** picks the format (original HEVC,
+1080p H.264 or a 720p GIF), **⌘C** puts the file on the clipboard, **⇧⌘C** a GIF whatever the
+format, **⌘S** saves it. An export keeps running if you close the window.
+
+## Everything else
+
+- English and Russian, picked in Settings → General.
+- After an update, a What's New window tells you what changed since the version you had — once.
+- Settings → Statistics counts your shots, drawings and recordings, on this Mac only.
+- **Collect Logs** (on by default, off in Settings → General → Diagnostics) keeps a log you can
+  save or send by email when something goes wrong. It never holds what you typed or copied.
+- Launch at login, once Pawshot is in Applications.
 
 ## Install
 
@@ -35,7 +84,8 @@ Pawshot needs macOS 26 (Tahoe). There is one way in:
    never ask again.
 4. The welcome window lists everything Pawshot can use, each with its own button: **Screen
    Recording** is the one it needs; the microphone, Input Monitoring (shortcut captions in videos),
-   freeing ⇧⌘3 / ⇧⌘4 from macOS and launch at login can wait. Press **Get Started**.
+   freeing ⇧⌘3 / ⇧⌘4 from macOS's own screenshots and launch at login can wait. Press **Get
+   Started**.
 
 The paw in the menu bar means it is running. **⌘S** asks for the Desktop the first time it saves.
 

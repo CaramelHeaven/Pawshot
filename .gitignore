@@ -18,6 +18,5 @@ build/
 # Personal signing (Team ID) — see Config/Signing.local.xcconfig.example
 Config/Signing.local.xcconfig
 
-# Claude Code: the shared SwiftFormat hook stays, anything personal stays local
-.claude/*
-!.claude/settings.json
+# Claude Code: local only, settings and hooks included
+.claude/
