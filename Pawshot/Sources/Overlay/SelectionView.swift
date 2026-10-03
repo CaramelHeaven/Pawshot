@@ -33,6 +33,9 @@ final class SelectionView: NSView {
 
     /// Windows as they were when the screen was frozen, front to back, in global coordinates.
     var windows: [CapturedWindow] = []
+    /// Set on the recording overlay only, whose screen is live: asked on every press, so the
+    /// magnet and the targets go by where the windows are now, not where they were at the hotkey.
+    var refreshWindows: (() -> Void)?
 
     /// The screen origin in global CoreGraphics coordinates — so the user sees the familiar screen
     /// coordinates rather than the ones local to the view.
@@ -543,6 +546,7 @@ final class SelectionView: NSView {
         }
         cursorPoint = point
         pressMode = mode
+        refreshWindows?()
         // The keys go where the hand is: ↩, H, the arrows and A act on the screen last pressed,
         // not on the one the cursor was on when the overlay came up. A non-activating panel takes
         // the keyboard without Pawshot becoming active.

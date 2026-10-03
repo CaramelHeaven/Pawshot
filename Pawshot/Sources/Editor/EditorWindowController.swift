@@ -17,7 +17,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// Where the window opens; `window.screen` can be `nil` until it is on screen.
     private let openingScreen: NSScreen
     private let editorUndoManager = UndoManager()
-    private let chrome = EditorChromeModel()
+    let chrome = EditorChromeModel()
 
     /// Set by ⌘C, ⌘S or ⌘D once the shot is handed off: the window is dissolving, and a second
     /// press in those 150 ms must not hand it off again.
@@ -127,8 +127,14 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         }
     }
 
+    /// How many editors are open, for the memory lines: each holds its whole captured display.
+    static var openCount: Int {
+        openControllers.count
+    }
+
     func show() {
         Self.openControllers.insert(self)
+        Self.logMemory("opened")
         previousApp = FocusHandBack.remember()
         NSApp.activate()
         showWindow(nil)
@@ -453,8 +459,19 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
 
         canvas.finishTextEditing()
 
+        // A warm reading takes 70–250 ms and needs no spinner; a cold one, half a minute of
+        // silence, does.
+        let spinner = Task { [weak self] in
+            try await Task.sleep(for: .milliseconds(300))
+            self?.chrome.isReadingText = true
+            Self.logger.notice("⌘D: still reading after 300 ms, spinner shown")
+        }
         textReadingTask = Task {
-            defer { textReadingTask = nil }
+            defer {
+                spinner.cancel()
+                chrome.isReadingText = false
+                textReadingTask = nil
+            }
 
             let started = Date()
             do {
@@ -739,7 +756,16 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
 
         NotificationCenter.default.removeObserver(self, name: NSView.frameDidChangeNotification, object: scrollView)
         Self.openControllers.remove(self)
+        Self.logMemory("closed")
         FocusHandBack.handBack(to: previousApp, closing: window)
+    }
+
+    /// Every editor keeps its whole display alive (~60 MB on 5K) so its edge can grow the shot.
+    /// Nothing frees it under pressure yet; these lines say whether that is ever needed.
+    private static func logMemory(_ what: String) {
+        let open = openControllers.count
+        let footprint = SystemState.footprintMB.map { "\($0) MB" } ?? "?"
+        editorLogger.notice("editor \(what, privacy: .public): \(open, privacy: .public) open, footprint \(footprint, privacy: .public)")
     }
 
     // MARK: - Resizing the shot

@@ -112,11 +112,16 @@ enum OverlayDiagnostics {
         let now = Set(ScreenCaptureService.onScreenWindows().filter { $0.ownerPID == pid }.map(\.windowID))
         let gone = frontWindowsAtPress.filter { !now.contains($0.key) }
         let before = frontWindowsAtPress.count
+        // Whether the app in front lost activation tells "closed because it resigned key" from
+        // "closed by itself": an app's popovers and viewers close when it stops being active.
+        let stillActive = NSRunningApplication(processIdentifier: pid)?.isActive ?? false
+        let activeNow = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
+        let activity = "front app active \(stillActive), frontmost \(activeNow)"
         if gone.isEmpty {
-            logger.notice("front app windows: before \(before, privacy: .public), \(moment, privacy: .public) \(now.count, privacy: .public)")
+            logger.notice("front app windows: before \(before, privacy: .public), \(moment, privacy: .public) \(now.count, privacy: .public); \(activity, privacy: .public)")
         } else {
             let list = gone.map { "\($0.key) \(Int($0.value.width))×\(Int($0.value.height))" }.sorted().joined(separator: ", ")
-            logger.error("front app windows: before \(before, privacy: .public), \(moment, privacy: .public) \(now.count, privacy: .public), gone: \(list, privacy: .public)")
+            logger.error("front app windows: before \(before, privacy: .public), \(moment, privacy: .public) \(now.count, privacy: .public), gone: \(list, privacy: .public); \(activity, privacy: .public)")
         }
     }
 

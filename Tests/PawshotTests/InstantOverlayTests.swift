@@ -64,6 +64,28 @@ final class InstantOverlayTests: XCTestCase {
         XCTAssertFalse(overlay.isActive)
     }
 
+    /// A recording picks its region on the live screen: there is no frame to wait for, so the
+    /// selection comes out at once and nothing is laid under the dimming.
+    func testARecordingSelectionNeedsNoFrame() throws {
+        let key = "recording.lastAreas"
+        let stored = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(stored, forKey: key) }
+        let overlay = SelectionOverlayController()
+        overlay.prepareWindows()
+        var result: SelectionOverlayController.Selection??
+        overlay.begin(purpose: .recording) { result = .some($0) }
+        defer { overlay.dismiss() }
+        let window = try XCTUnwrap(visibleOverlays().first)
+        let view = try XCTUnwrap(window.selectionView)
+
+        XCTAssertTrue(overlay.hasFrames, "a recording waits for no frame")
+        XCTAssertNil(window.frameView.image, "the live screen shows through")
+        overlay.selectionView(view, didSelect: CGRect(x: 10, y: 10, width: 100, height: 80), windowID: nil)
+        let selection = try XCTUnwrap(result ?? nil)
+        XCTAssertEqual(selection.rect.size, CGSize(width: 100, height: 80))
+        XCTAssertNil(selection.frame)
+    }
+
     /// Esc before the frames closes the overlay; frames arriving afterwards are dropped.
     func testCancellingBeforeTheFramesDropsThem() throws {
         let overlay = SelectionOverlayController()

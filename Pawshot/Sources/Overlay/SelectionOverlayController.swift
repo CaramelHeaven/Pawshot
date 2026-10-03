@@ -15,8 +15,8 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         let rect: CGRect
         let screen: NSScreen
         /// This display's frame, captured before the overlay was shown — the region is cut out of
-        /// it.
-        let frame: CapturedFrame
+        /// it. A recording has none: its region is picked on the live screen.
+        let frame: CapturedFrame?
         /// Set when a whole window was picked: a recording follows the window, not the region.
         var windowID: CGWindowID?
         /// The whole display was picked — the toolbar's "screen" — rather than a part of it.
@@ -136,7 +136,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         self.completion = completion
         self.purpose = purpose
         frames = [:]
-        hasFrames = false
+        // A recording is picked on the live screen and records what is there afterwards: no frame
+        // is captured for it, so there is none to wait for.
+        hasFrames = purpose == .recording
         pendingSelection = nil
         previousApp = NSWorkspace.shared.frontmostApplication
         // From the list taken before the overlay, so no window-server call is added on the way
@@ -165,6 +167,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             view.delegate = self
             view.screenOrigin = Self.coreGraphicsOrigin(of: screen, primaryMaxY: primaryMaxY)
             view.windows = capturedWindows
+            if purpose == .recording {
+                view.refreshWindows = { [weak self] in self?.refreshWindows(reason: "press") }
+            }
             view.scale = screen.backingScaleFactor
             view.showsHints = showsHints
             view.purpose = purpose
@@ -355,7 +360,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             let window = view.window,
             let screen = window.screen ?? windows.first(where: { $0 === window })?.screen,
             let displayID = Self.displayID(of: screen),
-            let frame = frames[displayID]
+            purpose == .recording || frames[displayID] != nil
         else {
             Self.logger.error("selection dropped: no screen or frame for the overlay it was made on")
             finish(with: nil)
@@ -384,7 +389,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             displayID: displayID,
             rect: globalRect,
             screen: screen,
-            frame: frame,
+            frame: frames[displayID],
             windowID: windowID,
             isWholeDisplay: isWholeDisplay,
             // Only a region has a picture to fraction the zones of.
@@ -593,6 +598,9 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
 
     /// One screen's mode for every screen, the toolbar and the hints.
     private func switchAll(to mode: SelectionView.Mode) {
+        if mode == .window {
+            refreshWindows(reason: "window mode")
+        }
         for view in selectionViews {
             view.apply(mode: mode)
         }
@@ -601,6 +609,29 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         Self.logger.notice("overlay mode → \(String(describing: mode), privacy: .public)")
         // The zones' warning comes and goes with the mode.
         relayOutToolbar()
+    }
+
+    /// The recording overlay sits over the live screen, so the list taken at the hotkey goes stale
+    /// as windows move under it. Read again — a couple of ms of `CGWindowList` — on each press
+    /// and on entering window mode. Never for a screenshot: its list matches its frozen frame, and
+    /// no window-server call belongs between its hotkey and its frame.
+    private func refreshWindows(reason: String) {
+        guard isActive, purpose == .recording else { return }
+        let old = selectionViews.first?.windows ?? []
+        let fresh = ScreenCaptureService.onScreenWindows()
+        for view in selectionViews {
+            view.windows = fresh
+        }
+        let changed = Self.changedWindows(from: old, to: fresh)
+        Self.logger.notice(
+            "window list refreshed (\(reason, privacy: .public)): \(old.count, privacy: .public) → \(fresh.count, privacy: .public) windows, \(changed, privacy: .public) moved or new"
+        )
+    }
+
+    /// How many windows of `new` were not in `old` where they are now.
+    nonisolated static func changedWindows(from old: [CapturedWindow], to new: [CapturedWindow]) -> Int {
+        let before = Dictionary(old.map { ($0.windowID, $0.frame) }, uniquingKeysWith: { first, _ in first })
+        return new.count { before[$0.windowID] != $0.frame }
     }
 
     /// A profile picked with P or in Options: written into the ordinary settings, then every

@@ -45,7 +45,11 @@ gets silence of the same length. Both pictures are effects added at export: the 
 sharp, and the editor has a switch for each. ⌃⌘ and a letter under the left hand, with ⌃⌘X for
 the cut, are the agent's pick of 2026-09-30 at the owner's word — he found the ⇧⌘ digits past 7
 hard to press; they keep clear of the ⌃⌘ combinations known to be taken (F, Q, D, S, Space by
-macOS and Finder; E, R, J, Y by Xcode) and were not checked against every app.
+macOS and Finder; E, R, J, Y by Xcode) and were not checked against every app. One that Carbon
+refuses at the start of a take is named in Settings → Shortcuts under "While recording" until a
+take registers it (`AppState.recordingHotKeysNotRegistered`; before 0.6.10 only the log knew); a
+press another app swallows never reaches Carbon, so the log closes each take with how many times
+each take shortcut fired (`take shortcuts pressed: …`).
 
 **A take recorded with the microphone off never opens it** (0.6.8). From 0.6.2 to 0.6.7 such a take
 listened to it all the same, to say once "You're talking, and the microphone is off". With Bluetooth
@@ -146,7 +150,13 @@ format. The gradient backdrop that used to be here was removed at the owner's re
 
 **The recording overlay is the screenshot overlay with `purpose = .recording`.** The brackets are
 red, and mouse up does not end it: the region stays, to be moved by its middle and resized by its
-edges and corners, and ↩ (or R, or the Record button) starts. It behaves the way the system's
+edges and corners, and ↩ (or R, or the Record button) starts. **The screen under it is live**
+(0.6.10): no frame is captured for a recording, so a video playing under the overlay goes on
+playing — only ⇧⌘2 freezes the screen, since a screenshot is cut out of that frame
+(`startOverlayCapture` returns before the capture, `Selection.frame` is `nil`). With the screen
+live, the window list taken at the hotkey would go stale, so the recording overlay reads it again
+on every press and on entering window mode (`SelectionOverlayController.refreshWindows`,
+`window list refreshed …` in the log) — never for a screenshot. It behaves the way the system's
 ⇧⌘5 does — the owner's picks of 2026-09-30 from a page of live mockups (О-C, О-D, П-B, И-A):
 
 - **The last region on each display comes back alive**, with its corners, not as a dashed ghost:
@@ -216,7 +226,9 @@ edges and corners, and ↩ (or R, or the Record button) starts. It behaves the w
   and a window or the whole screen picked: a line above the toolbar says they won't be hidden
   (`RecordingPreflight.Problem.zonesIgnored`), the `H` row is off. `HeldEffectsRenderTests` looks
   at the pixels. The editor has a "Hidden zones" switch; that the editor's live preview shows the
-  blur was not seen by the agent. Nothing is drawn on the screen during the take — anything inside
+  blur was not seen by the agent — **open, logged**: `EffectsPreviewTests` pins that the preview's
+  tree carries the zone and the view draws Core Image filters, and each preview logs `preview
+  built: N zone layer(s), M blurred layer(s) …`; whether pixels show it needs the owner's eyes. Nothing is drawn on the screen during the take — anything inside
   the region would cover what the person is recording.
 - **No badge by the cursor** (0.6.5, the owner's call): the glass badge with the size and the
   position that ⇧⌘2 shows is not on the recording overlay — the size is written on a dragged edge
@@ -280,7 +292,9 @@ focus to next window", with ⇧ for its other direction — before Carbon ever h
 settings window reads the real state of the system shortcuts (`SystemScreenshotShortcuts`) and
 warns on the card of one of ours still taken — a red outline, "macOS takes it · Fix…", the item
 named as System Settings does in its tooltip ("Keyboard → Move focus to next window") — instead
-of silently doing nothing. The × in the card's corner takes the shortcut away: the action then has none — the field reads "Record Shortcut",
+of silently doing nothing. The paw's menu says it too, at the top while any of ours is taken
+("⇧⌘3 taken by macOS — Fix…", opening Keyboard Shortcuts) — the owner keeps ⇧⌘3/⇧⌘4 as the
+defaults, and Settings and the welcome window are rarely opened after the first day. The × in the card's corner takes the shortcut away: the action then has none — the field reads "Record Shortcut",
 the menu item shows no keys, and the action is reached from the paw's menu or the pill. A cleared
 one is stored as `none`, apart from a missing key (the default), so Restore Defaults brings every
 one back.
@@ -899,7 +913,9 @@ Two traps follow:
 - **The one time it is paid is the first ⌘D of a freshly installed build**, and it is silent. That
   is what the warm-up in `EditorWindowController` is for — it starts the compilation while the
   window opens rather than when the key is pressed. It does not cover pressing ⌘D in the first
-  seconds after an install, which is exactly how this was found.
+  seconds after an install, which is exactly how this was found — so since 0.6.10 a reading still
+  running after 300 ms turns Copy Text into a spinner, "Reading…" (`EditorChromeModel.isReadingText`,
+  `testASlowReadingShowsASpinnerUntilItEnds`), and the service logs `recognised N lines in X ms`.
 
 Rejected on measurements, so nobody tries them again: `.fast` has no compilation at all (43 ms) but
 reads `Файлы` as `a)aMllbl` and `{` as `I`; `setComputeDevice(.gpu)` and `(.cpu)` change nothing,
@@ -1042,7 +1058,7 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
   `HeldEffectsRenderTests` look at the picture itself. Real takes are tagged by ScreenCaptureKit's
   buffers — read off the fact that the owner's exports have a picture, not checked in the file.
   In the editor's preview the same filter needs `layerUsesCoreImageFilters` on the view; that it
-  shows there was not seen by the agent.
+  shows there was not seen by the agent (see "Zones to hide" for the log and the test).
 - **The way in and out of a hidden stretch lie outside it.** The blur is at full strength from
   the first moment of the stretch to the last: a fade inside it would show a password half sharp.
   Where a piece of the video begins or ends inside the stretch — a cut, a bad take, the start or
@@ -1326,7 +1342,11 @@ the call, not the deferred key, is the likelier cause, and the deferred key was 
 without it. **No window-server call belongs between the hotkey and the overlay** beyond the one
 list `AppDelegate` already takes. The log compares the front app's ordinary windows from that list
 with those at the frame and 500 ms in (`front app windows: … gone: …`, an `.error` when one went):
-the next fix waits for that line from a real Telegram. Meanwhile ⇧⌘1 takes the screen with no
+the next fix waits for that line from a real Telegram. **Open, logged (0.6.10):** the line now
+also says whether the front app was still active and which app was frontmost
+(`; front app active …, frontmost …`) — a viewer that closes when its app resigns tells itself apart
+from one closed on its own. The owner's log of 2026-10-02 has one such line from Chrome
+(`gone: … 217×22` at +565 ms, a strip the size of a tooltip), from before this was added. Meanwhile ⇧⌘1 takes the screen with no
 overlay at all. `NSApp.activate()` is gone from the overlay, and with it the cooperative
 activation of macOS 14+, the Space it may switch to, and the four-second stall in her log. The
 other app stays active, so its open menu is still open when the frame is taken — which is what
@@ -1407,6 +1427,11 @@ also came on the first ⇧⌘3 after 35 idle minutes); the window server slow to
 - `launch: finished N ms after the process started` — how long macOS held the launch.
 
 Disabling App Nap waits for a log that shows the low priority.
+
+**Open, logged (0.6.10), not reproduced:** the owner's log of 2026-09-26 to 10-03 has no stall and
+no `NOT DRAWN YET`. Two more lines tell the guesses apart: `launch: quarantined …, translocated …`
+(an `.error` when either is true — Gatekeeper may still be checking the build) and, on every
+hotkey, `capture: app up N s, last overlay N s` (the idle guess: how long the app had been quiet).
 
 The editor that opens after a capture usually finds another app active now (the overlay no longer
 activates Pawshot), and activation from a background app can come late or not at all — the video
@@ -1508,7 +1533,11 @@ document; that is deliberate, so shrinking and growing back doesn't lose work.
 The price of resizing is memory: `EditorDocument` holds the **whole captured display** for as long
 as its window is open — around 60 MB on a 5K screen, per window. That is what makes growing the
 shot possible at all, and it is why the frame must not be re-captured instead: by the time the
-editor is open, Pawshot is active and every other app's menu has already closed.
+editor is open, Pawshot is active and every other app's menu has already closed. **Open, logged
+(0.6.10):** nothing frees it under memory pressure; whether that is ever needed is read off
+`editor opened/closed: N open, footprint X MB` and `memory pressure warning|critical: N editor(s)
+open, footprint X MB` (an `.error`, `AppDelegate.watchMemoryPressure`). Trimming the frame would
+break growing the shot and the annotations' coordinate system, so it waits for such a line.
 
 `⌘S` writes to the save folder (`Settings.saveFolder`, the Desktop by default; one gone missing
 falls back to it), and macOS has a **separate permission** for the Desktop, Documents and
@@ -1588,7 +1617,8 @@ Switching the owner's local signing or team — only on the owner's direct reque
 
 There is no Developer ID and no notarisation. A DMG from GitHub Releases therefore opens only
 through Privacy & Security → Open Anyway and an admin password — once; the updates after it come
-through Sparkle (below).
+through Sparkle (below). A Developer ID costs money and is the owner's call; until then the launch
+log says whether the running copy is still quarantined or translocated.
 
 ### Updates: Sparkle and GitHub Releases
 

@@ -136,8 +136,19 @@ private struct EditorToolbar: ToolbarContent {
         ToolbarItemGroup {
             Button("Save", systemImage: "square.and.arrow.down") { model.save() }
                 .help("Save to “\(Settings.shared.saveFolderName)” (⌘S)")
-            Button("Copy Text", systemImage: "text.viewfinder") { model.copyText() }
-                .help("Copy the text and QR codes in the shot (⌘D)")
+            if model.isReadingText {
+                Button {} label: {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("Reading…")
+                    }
+                }
+                .disabled(true)
+                .help("Reading the text off the shot — the first time after an install takes up to half a minute")
+            } else {
+                Button("Copy Text", systemImage: "text.viewfinder") { model.copyText() }
+                    .help("Copy the text and QR codes in the shot (⌘D)")
+            }
         }
 
         ToolbarItem {

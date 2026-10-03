@@ -37,9 +37,11 @@ enum TextRecognitionService {
     /// text, so it runs in the same few milliseconds.
     static func codes(in image: CGImage) async throws -> [String] {
         let request = DetectBarcodesRequest()
+        let started = ContinuousClock.now
         do {
             let payloads = try await request.perform(on: image, orientation: .up).compactMap(\.payloadString)
-            logger.notice("\(payloads.count) codes")
+            let took = started.duration(to: .now).milliseconds
+            logger.notice("\(payloads.count) codes in \(took, privacy: .public) ms")
             return payloads
         } catch {
             throw TextRecognitionError.recognitionFailed(error)
@@ -68,9 +70,11 @@ enum TextRecognitionService {
         }
 
         let observations: [RecognizedTextObservation]
+        let started = ContinuousClock.now
         do {
             observations = try await request.perform(on: image, orientation: .up)
-            logger.notice("recognised \(observations.count) lines")
+            let took = started.duration(to: .now).milliseconds
+            logger.notice("recognised \(observations.count) lines in \(took, privacy: .public) ms")
         } catch {
             throw TextRecognitionError.recognitionFailed(error)
         }
@@ -104,5 +108,11 @@ enum TextRecognitionService {
 private extension CGImage {
     var pixelSize: CGSize {
         CGSize(width: width, height: height)
+    }
+}
+
+private extension Duration {
+    var milliseconds: Int {
+        Int(components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000)
     }
 }

@@ -1,4 +1,5 @@
 import AVFoundation
+import os
 import SwiftUI
 
 /// What the video editor shows. Owned by `VideoEditorWindowController`, which does the work.
@@ -555,6 +556,34 @@ final class EffectsPreviewView: NSView {
         stack.synchronized = synchronized
         stack.tree = root
         needsLayout = true
+        // Whether the preview really shows the blur has not been seen on a screen; this line at
+        // least says the tree carried it, and that the view was told to draw Core Image filters.
+        let filters = Self.filterCounts(in: root)
+        let usesFilters = layerUsesCoreImageFilters
+        Self.logger.notice(
+            "preview built: \(filters.zones, privacy: .public) zone layer(s), \(filters.hidden, privacy: .public) blurred layer(s), \(timeline.blurs.count, privacy: .public) hidden stretch(es), Core Image filters \(usesFilters, privacy: .public)"
+        )
+    }
+
+    /// Layers blurring what is under them (zones) and layers blurring themselves (hidden stretches).
+    static func filterCounts(in root: CALayer) -> (zones: Int, hidden: Int) {
+        var zones = 0
+        var hidden = 0
+        func walk(_ layer: CALayer) {
+            if !(layer.backgroundFilters ?? []).isEmpty {
+                zones += 1
+            }
+            if !(layer.filters ?? []).isEmpty {
+                hidden += 1
+            }
+            layer.sublayers?.forEach(walk)
+        }
+        walk(root)
+        return (zones, hidden)
+    }
+
+    private static var logger: Logger {
+        .pawshot("video")
     }
 
     /// The trees are built in the video's pixels; here they are scaled to whatever the view is.

@@ -470,6 +470,27 @@ final class EditorWindowControllerTests: XCTestCase {
         XCTAssertEqual(stub.callCount, 1)
     }
 
+    /// The first ⌘D of a fresh install compiles Vision's model for half a minute; Copy Text turns
+    /// into a spinner after 300 ms and back once the reading is done.
+    func testASlowReadingShowsASpinnerUntilItEnds() async throws {
+        let stub = RecognitionStub()
+        let controller = try makeReadingController(
+            stub,
+            pasteboard: NSPasteboard(name: NSPasteboard.Name("pawshot.tests.copytext.spinner"))
+        )
+
+        controller.copyText(nil)
+        let reading = try XCTUnwrap(controller.textReadingTask)
+        await waitUntilReadingStarts(stub)
+        XCTAssertFalse(controller.chrome.isReadingText, "a quick reading shows nothing")
+        try await Task.sleep(for: .milliseconds(450))
+        XCTAssertTrue(controller.chrome.isReadingText)
+
+        stub.finish(with: "hello")
+        await reading.value
+        XCTAssertFalse(controller.chrome.isReadingText)
+    }
+
     /// What the owner actually hit: a reading was running, the window was closed, and the text
     /// asked for vanished without a word. ⌘D is a request for the text, not for the window.
     func testTextStillReachesTheClipboardWhenTheWindowIsClosedFirst() async throws {

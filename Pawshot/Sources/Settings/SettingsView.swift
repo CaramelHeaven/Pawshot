@@ -644,6 +644,14 @@ private struct ShortcutSettings: View {
                 group("Screenshots", Self.screenshotRows, conflicts: conflicts)
                 group("Recording", Self.recordingRows, conflicts: conflicts, footer: "Press the same shortcut again to stop.")
                 group("While recording", Self.duringRecordingRows, conflicts: conflicts)
+                if !notRegistered.isEmpty {
+                    Label(
+                        "Didn't work during the last take: \(notRegistered). The combination is taken — record a different one.",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                }
                 Spacer(minLength: 0)
             }
             .padding(20)
@@ -691,6 +699,13 @@ private struct ShortcutSettings: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// The take-time shortcuts Carbon refused at the last take, by their card titles.
+    private var notRegistered: String {
+        AppState.shared.recordingHotKeysNotRegistered
+            .compactMap { name in Self.duringRecordingRows.first { $0.log == name }.map { String(localized: $0.title) } }
+            .formatted(.list(type: .and))
     }
 
     /// Our shortcuts that macOS still takes for itself — its screenshots, or "Move focus to next

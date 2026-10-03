@@ -418,6 +418,20 @@ enum SystemState {
         return Date(timeIntervalSince1970: TimeInterval(start.tv_sec) + TimeInterval(start.tv_usec) / 1_000_000)
     }
 
+    /// Pawshot's own memory as Activity Monitor counts it (`phys_footprint`), in MB; `nil` if the
+    /// kernel would not say.
+    static var footprintMB: Int? {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return nil }
+        return Int(info.phys_footprint / 1_048_576)
+    }
+
     /// The kernel's own verdict: 1 normal, 2 warn, 4 critical.
     static var memoryPressure: String {
         var level: Int32 = 0

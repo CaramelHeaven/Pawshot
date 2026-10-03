@@ -30,6 +30,10 @@ final class AppState {
         }
     }
 
+    /// The take-time shortcuts Carbon refused at the last take, by action name ("hold the blur").
+    /// Settings → Shortcuts names them; the next take that registers them clears the list.
+    var recordingHotKeysNotRegistered: [String] = []
+
     /// True for a moment after ⌘D put text on the clipboard: the window is already gone, and the
     /// dot on the paw is the only sign the text arrived.
     private(set) var textJustCopied = false

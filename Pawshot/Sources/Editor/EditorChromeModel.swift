@@ -19,6 +19,9 @@ final class EditorChromeModel {
     var drawingShapeKind: AnnotationStyle.ShapeKind = .rectangle
     /// The shot's size in pixels, in the middle of the toolbar.
     var pixelSize: CGSize = .zero
+    /// ⌘D has been reading for a while: Copy Text shows a spinner. The very first reading of a
+    /// freshly installed build compiles Vision's model and takes about half a minute.
+    var isReadingText = false
     /// The weights of the labels' family, one button each.
     var textWeights: [NSFont.Weight] = LabelFont.systemWeights
     var customColor: NSColor = .systemPurple

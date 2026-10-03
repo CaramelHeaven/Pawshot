@@ -659,3 +659,16 @@ final class OverlayBadgeTests: XCTestCase {
         XCTAssertTrue(SelectionView.showsBadge(purpose: .recording, typingSize: true))
     }
 }
+
+/// The recording overlay reads the window list again on a press; the log says what moved.
+final class RecordingWindowRefreshTests: XCTestCase {
+    func testAMovedOrNewWindowCountsAndAnUnchangedOneDoesNot() {
+        let stay = CapturedWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100), ownerPID: 1, windowID: 1)
+        let before = CapturedWindow(frame: CGRect(x: 0, y: 0, width: 200, height: 100), ownerPID: 1, windowID: 2)
+        let moved = CapturedWindow(frame: CGRect(x: 50, y: 0, width: 200, height: 100), ownerPID: 1, windowID: 2)
+        let new = CapturedWindow(frame: CGRect(x: 9, y: 9, width: 50, height: 50), ownerPID: 2, windowID: 3)
+
+        XCTAssertEqual(SelectionOverlayController.changedWindows(from: [stay, before], to: [stay, before]), 0)
+        XCTAssertEqual(SelectionOverlayController.changedWindows(from: [stay, before], to: [stay, moved, new]), 2)
+    }
+}

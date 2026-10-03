@@ -413,3 +413,31 @@ final class HeldEffectsRenderTests: XCTestCase {
         XCTAssertEqual(brightness(plain, 80, 120), brightness(plain, 280, 120), accuracy: 0.05, "before the key was held nothing is dimmed")
     }
 }
+
+/// The editor's live preview: whether the blur shows on a screen no test can tell, but the tree it
+/// plays carries the zone and the view is told to draw Core Image filters.
+@MainActor
+final class EffectsPreviewTests: XCTestCase {
+    func testThePreviewCarriesTheZonesAndDrawsCoreImageFilters() throws {
+        let item = AVPlayerItem(url: URL(fileURLWithPath: "/nonexistent/pawshot-preview.mov"))
+        let view = EffectsPreviewView(player: AVPlayer(playerItem: item), splicePlayer: AVPlayer())
+        var timeline = EventTimeline()
+        timeline.masks = [EventTimeline.Mask(x: 0.1, y: 0.1, width: 0.3, height: 0.2)]
+
+        view.show(
+            timeline: timeline, effects: EffectsOptions(), videoSize: CGSize(width: 800, height: 600),
+            duration: 10, spliceKeep: nil, showsSplice: false
+        )
+
+        XCTAssertTrue(view.layerUsesCoreImageFilters)
+        let synchronized = try XCTUnwrap(view.layer?.sublayers?.first { $0 is AVSynchronizedLayer })
+        XCTAssertEqual(EffectsPreviewView.filterCounts(in: synchronized).zones, 1)
+
+        view.show(
+            timeline: timeline, effects: EffectsOptions(masks: false), videoSize: CGSize(width: 800, height: 600),
+            duration: 10, spliceKeep: nil, showsSplice: false
+        )
+        let switchedOff = try XCTUnwrap(view.layer?.sublayers?.first { $0 is AVSynchronizedLayer })
+        XCTAssertEqual(EffectsPreviewView.filterCounts(in: switchedOff).zones, 0, "the editor's switch takes the zone out")
+    }
+}

@@ -58,6 +58,16 @@
         }
       }
     },
+    "%@ taken by macOS — Fix…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ занято macOS — исправить…"
+          }
+        }
+      }
+    },
     "%@ · %lld s left" : {
       "localizations" : {
         "ru" : {
@@ -1293,6 +1303,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Не дошло до Pawshot"
+          }
+        }
+      }
+    },
+    "Didn't work during the last take: %@. The combination is taken — record a different one." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не сработало в прошлой записи: %@. Сочетание занято — запишите другое."
           }
         }
       }
@@ -2545,6 +2565,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "R теперь рисует ещё круг, треугольник и ромб: выберите фигуру рядом с толщинами или нажмите R ещё раз. Нарисованная фигура переключается так же.\n\nЗаливка меняется прямо во время движения ползунка, а не только когда его отпускаешь.\n\nУ каждого сочетания в настройках справа появился крестик: сочетание можно убрать совсем, а действие останется в меню лапы.\n\nЕсли сочетание не доходит до Pawshot — его раньше забирает macOS или другое приложение, — поле так и пишет, а не молчит.\n\nПоле, которое ждёт сочетание, теперь отпускает его, если уйти в другое окно. Раньше сочетания Pawshot в это время не работали."
+          }
+        }
+      }
+    },
+    "Reading the text off the shot — the first time after an install takes up to half a minute" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Читаю текст со снимка — в первый раз после установки это занимает до полуминуты"
+          }
+        }
+      }
+    },
+    "Reading…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Читаю…"
           }
         }
       }
@@ -4575,6 +4615,7 @@
       }
     },
     "while recording" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ru" : {
           "stringUnit" : {

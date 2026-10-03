@@ -49,6 +49,10 @@ final class RecordingController {
     private var restartHotKey: GlobalHotKey?
     /// "Cut the last seconds" (⌃⌘X), on the same terms.
     private var badTakeHotKey: GlobalHotKey?
+    /// Presses of each take-time shortcut since they were registered, by action name. A press
+    /// another app swallowed never reaches Carbon, so a zero here next to "I pressed it" in a
+    /// report is the only trace it leaves.
+    private var hotKeyPresses: [String: Int] = [:]
     /// The three keys that do something for as long as they are held: a spotlight around the
     /// cursor (⌃⌘A), the picture hidden (⌃⌘B), the microphone silent (⌃⌘V).
     private var spotlightHotKey: GlobalHotKey?
@@ -559,34 +563,73 @@ final class RecordingController {
         unregisterRecordingHotKeys()
         guard engine != nil else { return }
         badTakeHotKey = GlobalHotKey.register(settings.badTakeHotKey, for: "mark a bad take") { [weak self] in
+            self?.countPress("mark a bad take")
             self?.markBadTake()
         }
         spotlightHotKey = GlobalHotKey.register(
             settings.spotlightHotKey,
             for: "hold the spotlight",
             onRelease: { [weak self] in self?.heldKeyUp(.spotlight) },
-            action: { [weak self] in self?.heldKeyDown(.spotlight) }
+            action: { [weak self] in
+                self?.countPress("hold the spotlight")
+                self?.heldKeyDown(.spotlight)
+            }
         )
         blurHotKey = GlobalHotKey.register(
             settings.blurHotKey,
             for: "hold the blur",
             onRelease: { [weak self] in self?.heldKeyUp(.blur) },
-            action: { [weak self] in self?.heldKeyDown(.blur) }
+            action: { [weak self] in
+                self?.countPress("hold the blur")
+                self?.heldKeyDown(.blur)
+            }
         )
         muteHotKey = GlobalHotKey.register(
             settings.muteHotKey,
             for: "hold the mute",
             onRelease: { [weak self] in self?.setMuteHeld(false) },
-            action: { [weak self] in self?.setMuteHeld(true) }
+            action: { [weak self] in
+                self?.countPress("hold the mute")
+                self?.setMuteHeld(true)
+            }
         )
         restartHotKey = GlobalHotKey.register(settings.restartHotKey, for: "restart the take") { [weak self] in
+            self?.countPress("restart the take")
             self?.restart()
         }
         if ink != nil {
             penHotKey = GlobalHotKey.register(settings.penHotKey, for: "switch the pen") { [weak self] in
+                self?.countPress("switch the pen")
                 self?.togglePen()
             }
         }
+        noteUnregistered()
+    }
+
+    /// A shortcut Carbon refused is dead for the whole take, and the log alone never told anyone:
+    /// Settings → Shortcuts names it under "While recording" until a take registers it.
+    private func noteUnregistered() {
+        var wanted: [(binding: HotKeyBinding?, hotKey: GlobalHotKey?, name: String)] = [
+            (settings.badTakeHotKey, badTakeHotKey, "mark a bad take"),
+            (settings.spotlightHotKey, spotlightHotKey, "hold the spotlight"),
+            (settings.blurHotKey, blurHotKey, "hold the blur"),
+            (settings.muteHotKey, muteHotKey, "hold the mute"),
+            (settings.restartHotKey, restartHotKey, "restart the take"),
+        ]
+        if ink != nil {
+            wanted.append((settings.penHotKey, penHotKey, "switch the pen"))
+        }
+        let failed = wanted.filter { $0.binding != nil && $0.hotKey == nil }.map(\.name)
+        state.recordingHotKeysNotRegistered = failed
+        if failed.isEmpty {
+            Self.logger.notice("take shortcuts: all \(wanted.count, privacy: .public) registered")
+        } else {
+            Self.logger.error("take shortcuts not registered: \(failed.joined(separator: ", "), privacy: .public) — shown in Settings → Shortcuts")
+        }
+    }
+
+    private func countPress(_ name: String) {
+        hotKeyPresses[name, default: 0] += 1
     }
 
     /// Also while a shortcut field records, so the old combination can be pressed to replace it.
@@ -598,6 +641,11 @@ final class RecordingController {
         blurHotKey = nil
         muteHotKey = nil
         releaseHeldKeys()
+        if !hotKeyPresses.isEmpty {
+            let presses = hotKeyPresses.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", ")
+            Self.logger.notice("take shortcuts pressed: \(presses, privacy: .public)")
+            hotKeyPresses = [:]
+        }
     }
 
     private func teardown() {

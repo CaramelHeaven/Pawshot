@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // bar item, the main menu and the small windows are SwiftUI scenes in `PawshotApp`.
         NSApp.setActivationPolicy(.accessory)
         logLaunch()
+        watchMemoryPressure()
         replaceOlderInstances()
         if !Self.isTestHost {
             Updater.start()
@@ -135,6 +136,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Self.logger.notice(
             "launch: keyboard layout \(facts.keyboardLayout, privacy: .public); macOS shortcuts on, with ⌘, ⌥ or ⌃: \(systemShortcuts, privacy: .public)"
         )
+        // Gatekeeper's guess for the slow first ⇧⌘2: a build still quarantined, or run from a
+        // translocated copy, is one macOS may still be checking in the first seconds.
+        let bundlePath = Bundle.main.bundlePath
+        let quarantined = getxattr(bundlePath, "com.apple.quarantine", nil, 0, 0, 0) >= 0
+        let translocated = bundlePath.contains("/AppTranslocation/")
+        if quarantined || translocated {
+            Self.logger.error("launch: quarantined \(quarantined, privacy: .public), translocated \(translocated, privacy: .public) — macOS may still be checking this build")
+        } else {
+            Self.logger.notice("launch: not quarantined, not translocated")
+        }
         for hotKey in facts.hotKeys where hotKey.takenBy != nil {
             Self.logger.error(
                 "launch: \(hotKey.name, privacy: .public) \(hotKey.shortcut, privacy: .public) is taken by macOS (\(hotKey.takenBy ?? "", privacy: .public)) — Pawshot never sees it"
@@ -322,6 +333,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the overlay left out: the dimming appears the instant the hotkey is pressed instead of after
     /// the capture — 99–140 ms on a MacBook Air's 20-megapixel screen. The overlay never activates
     /// Pawshot, so an open menu of the app in front is still open when the frame is taken.
+    private var memoryPressureSource: DispatchSourceMemoryPressure?
+
+    /// The editors hold whole displays; whether that ever meets a Mac short of memory is a log
+    /// question first. The warning and the critical level are `.error`s naming what is open.
+    private func watchMemoryPressure() {
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.normal, .warning, .critical], queue: .main)
+        source.setEventHandler { [weak source] in
+            guard let event = source?.data else { return }
+            MainActor.assumeIsolated {
+                let level = event.contains(.critical) ? "critical" : event.contains(.warning) ? "warning" : "normal"
+                let editors = EditorWindowController.openCount
+                let footprint = SystemState.footprintMB.map { "\($0) MB" } ?? "?"
+                if level == "normal" {
+                    Self.logger.notice("memory pressure back to normal: \(editors, privacy: .public) editor(s) open, footprint \(footprint, privacy: .public)")
+                } else {
+                    Self.logger.error("memory pressure \(level, privacy: .public): \(editors, privacy: .public) editor(s) open, footprint \(footprint, privacy: .public)")
+                }
+            }
+        }
+        source.activate()
+        memoryPressureSource = source
+    }
+
+    /// When the last overlay went up, for the log of the next one.
+    private var lastOverlayAt: Date?
+
     private func startOverlayCapture(
         purpose: OverlayPurpose,
         then use: @escaping (SelectionOverlayController.Selection) -> Void
@@ -346,6 +383,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let system = SystemState.now
         let mainThread = SystemState.threadState(pthread_mach_thread_np(pthread_self()))
         Self.logger.notice("capture on a Mac with \(system, privacy: .public); main thread \(mainThread, privacy: .public)")
+        // The idle guess for the slow first ⇧⌘2 (App Nap after a long quiet spell): how long the
+        // app had been up, and how long since its last overlay. Time since the last input would
+        // read zero — the hotkey itself is input.
+        let upFor = SystemState.processStart.map { "\(Int(pressed.timeIntervalSince($0))) s" } ?? "?"
+        let sinceLast = lastOverlayAt.map { "\(Int(pressed.timeIntervalSince($0))) s" } ?? "none since launch"
+        lastOverlayAt = pressed
+        Self.logger.notice("capture: app up \(upFor, privacy: .public), last overlay \(sinceLast, privacy: .public)")
 
         // The window list is taken before the overlay is up: once it is, our own full-screen
         // window is the one under the cursor. `CGWindowList` answers in a couple of ms.
@@ -366,6 +410,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let shown = OverlayDiagnostics.sincePress()
         Self.logger.notice("overlay shown live +\(shown, privacy: .public) ms, \(capturedWindows.count) windows for window mode")
 
+        // A recording region is picked on the live screen — a video playing under the overlay goes
+        // on playing. Only a screenshot is cut out of a frame frozen at the hotkey.
+        guard purpose == .screenshot else {
+            isCapturing = false
+            Self.logger.notice("recording overlay: live screen, no frame captured")
+            return
+        }
         let displayIDs = NSScreen.screens.compactMap(SelectionOverlayController.displayID(of:))
         let hiding = overlayController.windowNumbers
         Task {
@@ -415,7 +466,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The whole frame goes along, not just the cutout: the editor lets the shot be resized later,
     /// and the pixels around the selection are exactly what makes that possible.
     private func openEditor(for selection: SelectionOverlayController.Selection) {
-        let frame = selection.frame
+        guard let frame = selection.frame else {
+            Self.logger.error("editor not opened: the selection came with no frame")
+            presentCaptureFailure(ScreenCaptureError.cropFailed)
+            return
+        }
         let crop = SelectionGeometry
             .sourceRect(displayRect: selection.rect, displayFrame: frame.displayFrame)
             .intersection(CGRect(origin: .zero, size: frame.displayFrame.size))
