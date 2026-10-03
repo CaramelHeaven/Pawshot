@@ -61,7 +61,12 @@ final class EditorDocument {
     private var lastCounterNumber = 0
 
     init?(frame: CapturedFrame, cropRect: CGRect) {
-        guard let image = Self.cutout(of: frame, cropRect: cropRect) else { return nil }
+        guard let image = Self.cutout(of: frame, cropRect: cropRect) else {
+            let width = frame.image.width
+            let height = frame.image.height
+            Self.logger.error("document: crop \(Int(cropRect.width))×\(Int(cropRect.height)) at \(Int(cropRect.minX)),\(Int(cropRect.minY)) could not be cut out of the \(width)×\(height) px frame, no editor")
+            return nil
+        }
 
         self.frame = frame
         self.cropRect = cropRect
@@ -90,6 +95,8 @@ final class EditorDocument {
         blurSource.update(image: cutout, frame: rect)
 
         if undoable {
+            // The steps of a live resize stay quiet: the gesture's one line is `registerCropUndo`.
+            Self.logger.notice("crop \(Int(previous.width))×\(Int(previous.height)) → \(Int(rect.width))×\(Int(rect.height)) pt")
             registerUndo { document in
                 document.setCrop(previous)
             }
@@ -101,8 +108,13 @@ final class EditorDocument {
     /// Puts one undo step for a whole resize gesture. The step is undoable both ways: undoing it
     /// goes through `setCrop`, which registers the way back.
     func registerCropUndo(from previous: CGRect) {
-        guard previous != cropRect else { return }
+        guard previous != cropRect else {
+            Self.logger.notice("resize by the edge: the shot stayed \(Int(previous.width))×\(Int(previous.height)) pt")
+            return
+        }
         Stats.shared.add(.edgeFits)
+        let now = cropRect
+        Self.logger.notice("resize by the edge: crop \(Int(previous.width))×\(Int(previous.height)) → \(Int(now.width))×\(Int(now.height)) pt")
 
         registerUndo { document in
             document.setCrop(previous)
@@ -255,7 +267,10 @@ final class EditorDocument {
     }
 
     func removeSelection() {
-        guard let selection else { return }
+        guard let selection else {
+            Self.logger.notice("delete: nothing selected")
+            return
+        }
         Self.logger.notice("deleted \(Self.kind(selection), privacy: .public)")
         remove(selection)
     }
@@ -263,7 +278,10 @@ final class EditorDocument {
     /// Wipes everything at once. There is no confirmation by the owner's decision — `⌘Z` is the
     /// safety net, so undo restores the whole list in its previous order.
     func removeAll() {
-        guard !annotations.isEmpty else { return }
+        guard !annotations.isEmpty else {
+            Self.logger.notice("clear all: nothing to clear")
+            return
+        }
 
         let previous = annotations
         Self.logger.notice("cleared \(previous.count) objects")
@@ -297,6 +315,7 @@ final class EditorDocument {
         let previous = annotation.text
         guard previous != text else { return }
 
+        Self.logger.notice("label text \(previous.count) → \(text.count) chars")
         annotation.text = text
         registerUndo { document in
             document.setText(previous, for: annotation)
@@ -379,7 +398,11 @@ final class EditorDocument {
     private var previewBase: PreviewBase?
 
     func bringToFront(_ annotation: Annotation) {
-        guard let index = annotations.firstIndex(where: { $0 === annotation }) else { return }
+        guard let index = annotations.firstIndex(where: { $0 === annotation }) else {
+            Self.logger.error("bring to front: \(Self.kind(annotation), privacy: .public) is not on the shot")
+            return
+        }
+        Self.logger.notice("brought \(Self.kind(annotation), privacy: .public) to front")
         annotations.append(annotations.remove(at: index))
         onChange?()
     }
@@ -476,7 +499,10 @@ extension CapturedFrame {
                 space: space,
                 bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
             )
-        else { return nil }
+        else {
+            Logger.pawshot("editor").error("rotate: no \(width)×\(height) px bitmap context to turn into")
+            return nil
+        }
 
         // The context has Y going up. Clockwise on screen is a negative angle there; the
         // translation brings the turned picture back into the bitmap.
@@ -490,7 +516,10 @@ extension CapturedFrame {
         context.interpolationQuality = .none
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
 
-        guard let turned = context.makeImage() else { return nil }
+        guard let turned = context.makeImage() else {
+            Logger.pawshot("editor").error("rotate: the turned \(width)×\(height) px bitmap gave no image")
+            return nil
+        }
         return CapturedFrame(
             image: turned,
             displayFrame: CGRect(

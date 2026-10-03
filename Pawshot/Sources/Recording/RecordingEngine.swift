@@ -72,6 +72,12 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var framesDropped = 0
     private var audioDropped = 0
     private var appendFailures = 0
+    /// A sample whose timing couldn't be copied: dropped, counted for the take's summary.
+    private var retimeFailures = 0
+    /// Samples the clock had no place for — inside a pause, or before the first frame.
+    private var samplesOutsideClock = 0
+    /// What happened to the last frame at stop, for the summary.
+    private var lastFrameRepeat = "not asked"
 
     /// Told when the system ends the stream on its own: a display unplugged, access revoked.
     var onUnexpectedStop: (@MainActor @Sendable (Error) -> Void)?
@@ -245,6 +251,17 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         queue.sync { clock.isPaused }
     }
 
+    /// Seconds in the file so far, or `nil` while paused — one hop onto the sample queue where
+    /// `isPaused` and `duration` take two. The cursor and the ticker ask many times a second.
+    var durationIfRunning: TimeInterval? {
+        queue.sync { clock.isPaused ? nil : clock.duration(at: Self.now).seconds }
+    }
+
+    /// Both at once, in one hop: what the ticker shows.
+    var status: (duration: TimeInterval, isPaused: Bool) {
+        queue.sync { (clock.duration(at: Self.now).seconds, clock.isPaused) }
+    }
+
     /// Ends the recording and returns the finished file.
     func stop() async throws -> URL {
         await stopCapture()
@@ -256,7 +273,7 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 self.videoInput.markAsFinished()
                 self.systemAudioInput?.markAsFinished()
                 self.microphoneInput?.markAsFinished()
-                let counts = "\(self.framesWritten) frames written, \(self.framesDropped) dropped (writer busy), \(self.audioDropped) audio dropped, \(self.mutedBuffersDropped) muted buffers left out, append failures \(self.appendFailures)"
+                let counts = "\(self.framesWritten) frames written, \(self.framesDropped) dropped (writer busy), \(self.audioDropped) audio dropped, \(self.mutedBuffersDropped) muted buffers left out, append failures \(self.appendFailures), retime failures \(self.retimeFailures), samples outside the clock \(self.samplesOutsideClock) (\(self.clock.dropsDescription)), last frame at stop: \(self.lastFrameRepeat)"
                 continuation.resume(returning: (self.clock.origin != nil, counts))
             }
         }
@@ -328,10 +345,15 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         case .screen:
             // ScreenCaptureKit also delivers "nothing changed" and "blank" frames; only complete
             // frames carry a picture.
-            guard Self.isCompleteFrame(sampleBuffer),
-                  let time = clock.outputTime(for: sampleBuffer.presentationTimeStamp, isVideo: true),
-                  let retimed = sampleBuffer.retimed(to: time)
-            else { return }
+            guard Self.isCompleteFrame(sampleBuffer) else { return }
+            guard let time = clock.outputTime(for: sampleBuffer.presentationTimeStamp, isVideo: true) else {
+                samplesOutsideClock += 1
+                return
+            }
+            guard let retimed = sampleBuffer.retimed(to: time) else {
+                retimeFailures += 1
+                return
+            }
             if !videoInput.isReadyForMoreMediaData {
                 framesDropped += 1
             } else if videoInput.append(retimed) {
@@ -359,11 +381,15 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     }
 
     private func append(_ sampleBuffer: CMSampleBuffer, to input: AVAssetWriterInput?) {
-        guard
-            let input,
-            let time = clock.outputTime(for: sampleBuffer.presentationTimeStamp, isVideo: false),
-            let retimed = sampleBuffer.retimed(to: time)
-        else { return }
+        guard let input else { return }
+        guard let time = clock.outputTime(for: sampleBuffer.presentationTimeStamp, isVideo: false) else {
+            samplesOutsideClock += 1
+            return
+        }
+        guard let retimed = sampleBuffer.retimed(to: time) else {
+            retimeFailures += 1
+            return
+        }
         guard input.isReadyForMoreMediaData else {
             audioDropped += 1
             return
@@ -377,13 +403,23 @@ final class RecordingEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     /// on a still screen would otherwise stop at the last change and lose its tail against the
     /// sound — so the last picture is repeated at the moment the recording stops.
     private func extendLastFrame(to end: CMTime) {
-        guard
-            let lastFrame,
-            end > lastFrameTime + CMTime(value: 1, timescale: 60),
-            let repeated = lastFrame.retimed(to: end),
-            videoInput.isReadyForMoreMediaData
-        else { return }
-        videoInput.append(repeated)
+        guard let lastFrame else {
+            lastFrameRepeat = "no frame to repeat"
+            return
+        }
+        guard end > lastFrameTime + CMTime(value: 1, timescale: 60) else {
+            lastFrameRepeat = "not needed"
+            return
+        }
+        guard let repeated = lastFrame.retimed(to: end) else {
+            lastFrameRepeat = "FAILED: couldn't retime the last frame"
+            return
+        }
+        guard videoInput.isReadyForMoreMediaData else {
+            lastFrameRepeat = "FAILED: writer busy"
+            return
+        }
+        lastFrameRepeat = videoInput.append(repeated) ? "repeated" : "FAILED: append refused"
     }
 
     private static func isCompleteFrame(_ sampleBuffer: CMSampleBuffer) -> Bool {

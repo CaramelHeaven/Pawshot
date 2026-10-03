@@ -10,22 +10,36 @@ struct SettingsView: View {
         TabView {
             Tab("General", systemImage: "gearshape") {
                 GeneralSettings()
+                    .onAppear { Self.logTab("General") }
             }
             Tab("Screenshots", systemImage: "camera.viewfinder") {
                 ScreenshotSettings()
+                    .onAppear { Self.logTab("Screenshots") }
             }
             Tab("Recording", systemImage: "record.circle") {
                 RecordingSettings()
+                    .onAppear { Self.logTab("Recording") }
             }
             Tab("Shortcuts", systemImage: "keyboard") {
                 ShortcutSettings()
+                    .onAppear { Self.logTab("Shortcuts") }
             }
             Tab("Statistics", systemImage: "chart.bar") {
                 StatsView()
+                    .onAppear { Self.logTab("Statistics") }
             }
         }
         .frame(width: 520)
         .background(ComesForward("settings"))
+    }
+
+    /// A tab's content appears when the tab is picked, and the first one when the window opens.
+    private static func logTab(_ name: StaticString) {
+        logger.notice("settings tab: \(name, privacy: .public)")
+    }
+
+    private static var logger: Logger {
+        .pawshot("settings")
     }
 }
 
@@ -172,6 +186,7 @@ private struct ScreenshotSettings: View {
             Section {
                 LabeledContent {
                     Button {
+                        Self.logger.notice("label font list opened")
                         isPickingFont = true
                     } label: {
                         HStack(spacing: 4) {
@@ -209,6 +224,7 @@ private struct ScreenshotSettings: View {
     }
 
     private func chooseSaveFolder() {
+        Self.logger.notice("save folder: Choose… pressed, panel opens")
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -328,15 +344,15 @@ private struct RecordingSettings: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
-            Form {
-                profiles
-                sound
-                shownInTheVideo
-                quality
-            }
-            .formStyle(.grouped)
+        // The access rows re-read the system once a second by themselves; the rest of the form
+        // follows `Settings` and used to be rebuilt every second along with them.
+        Form {
+            profiles
+            sound
+            shownInTheVideo
+            quality
         }
+        .formStyle(.grouped)
         .frame(height: 520)
     }
 
@@ -363,7 +379,10 @@ private struct RecordingSettings: View {
         Binding(
             get: { RecordingProfile.current(in: settings) },
             set: { picked in
-                guard let picked else { return }
+                guard let picked else {
+                    Self.logger.notice("profile: Custom picked, nothing to apply")
+                    return
+                }
                 Self.logger.notice("profile \(picked.rawValue, privacy: .public) picked in Settings")
                 picked.apply(to: settings)
             }
@@ -394,7 +413,7 @@ private struct RecordingSettings: View {
             if settings.recordsMicrophone {
                 accessRow(
                     "Microphone access",
-                    granted: MicrophonePermission.isGranted,
+                    granted: { MicrophonePermission.isGranted },
                     log: "microphone",
                     action: MicrophonePermission.request
                 )
@@ -431,7 +450,7 @@ private struct RecordingSettings: View {
             if settings.showsKeystrokes {
                 accessRow(
                     "Input Monitoring access",
-                    granted: CGPreflightListenEventAccess(),
+                    granted: { CGPreflightListenEventAccess() },
                     log: "input monitoring",
                     action: InputMonitoringPermission.request
                 )
@@ -517,6 +536,18 @@ private struct RecordingSettings: View {
     /// "Microphone access — Allowed", or a button to get there.
     private func accessRow(
         _ title: LocalizedStringKey,
+        granted: @escaping () -> Bool,
+        log: StaticString,
+        action: @escaping () -> Void
+    ) -> some View {
+        // Granted in System Settings while this is open: the row turns green within a second.
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            accessRowContent(title, granted: granted(), log: log, action: action)
+        }
+    }
+
+    private func accessRowContent(
+        _ title: LocalizedStringKey,
         granted: Bool,
         log: StaticString,
         action: @escaping () -> Void
@@ -547,7 +578,8 @@ private struct RecordingSettings: View {
             settings.showsKeystrokes = isOn
             if isOn, !CGPreflightListenEventAccess() {
                 Self.logger.notice("input monitoring: asked for (shortcut captions on)")
-                _ = CGRequestListenEventAccess()
+                let granted = CGRequestListenEventAccess()
+                Self.logger.notice("input monitoring: \(granted ? "granted" : "not granted yet", privacy: .public)")
             }
         }
     }
@@ -637,6 +669,7 @@ private struct ShortcutSettings: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button("Restore Defaults…") {
+                        Self.logger.notice("shortcuts: Restore Defaults… pressed, asking")
                         isConfirmingReset = true
                     }
                     .controlSize(.small)
@@ -657,13 +690,19 @@ private struct ShortcutSettings: View {
             .padding(20)
         }
         // Three rows of cards under "While recording" now, where there were two.
-        .frame(height: 460 + HotKeyRecorderView.cardHeight + 8)
+        .frame(height: 460 + HotKeyRecorderView.cardHeight + 8 + (notRegistered.isEmpty ? 0 : 40))
         .confirmationDialog("Restore the default shortcuts?", isPresented: $isConfirmingReset) {
             Button("Restore Defaults", role: .destructive) {
                 settings.resetHotKeysToDefaults()
             }
         } message: {
             Text("Every shortcut goes back to the one Pawshot came with.")
+        }
+        .onChange(of: isConfirmingReset) { _, isAsking in
+            // Restoring logs itself in `Settings`; a close with no such line before it was Cancel.
+            if !isAsking {
+                Self.logger.notice("shortcuts: Restore Defaults question closed")
+            }
         }
     }
 
@@ -688,7 +727,10 @@ private struct ShortcutSettings: View {
                         logName: row.log,
                         systemItem: system.map { "\($0.section) → \($0.name)" },
                         onRecord: { apply($0, to: row) },
-                        onClear: { settings[keyPath: row.keyPath] = nil }
+                        onClear: {
+                            settings[keyPath: row.keyPath] = nil
+                            forgetNotRegistered(row)
+                        }
                     )
                     .frame(height: HotKeyRecorderView.cardHeight)
                 }
@@ -720,6 +762,14 @@ private struct ShortcutSettings: View {
 
     /// The same combination can't do two things — that would leave one of them dead with no way
     /// to tell why.
+    /// A shortcut changed or cleared is no longer the one that failed: its warning goes.
+    private func forgetNotRegistered(_ row: Row) {
+        let state = AppState.shared
+        guard state.recordingHotKeysNotRegistered.contains(row.log) else { return }
+        state.recordingHotKeysNotRegistered.removeAll { $0 == row.log }
+        Self.logger.notice("shortcut for \(row.log, privacy: .public) changed: its 'didn't work during the last take' warning goes")
+    }
+
     private func apply(_ binding: HotKeyBinding, to row: Row) -> Bool {
         let shortcut = binding.logString
         if let holder = Self.rows.first(where: { $0.keyPath != row.keyPath && settings[keyPath: $0.keyPath] == binding }) {
@@ -728,6 +778,7 @@ private struct ShortcutSettings: View {
         }
 
         settings[keyPath: row.keyPath] = binding
+        forgetNotRegistered(row)
         // Accepted, and still dead: macOS takes it first. The field turns red; the log says why.
         if let system = SystemScreenshotShortcuts.current().conflict(with: binding) {
             Self.logger.error("shortcut for \(row.log, privacy: .public): \(shortcut, privacy: .public) is taken by macOS (item \(system.id, privacy: .public)) — Pawshot won't see it until that is unticked")

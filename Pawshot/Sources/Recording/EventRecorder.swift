@@ -28,6 +28,12 @@ final class EventRecorder {
     private var keySource: CFRunLoopSource?
     private var tapReenabled = 0
 
+    /// The cursor's clock: how often it was asked and the longest wait, for the take's summary.
+    private var clockAsks = 0
+    private var slowestClock: Duration = .zero
+    private var cursorOutside = 0
+    private var cursorPaused = 0
+
     init(area: CGRect, clock: @escaping () -> Double?) {
         self.area = area
         self.clock = clock
@@ -84,6 +90,13 @@ final class EventRecorder {
         if cursorTimer != nil {
             let recorded = timeline
             let reenabled = tapReenabled
+            let asks = clockAsks
+            let slowest = Double(slowestClock.components.attoseconds) / 1e15 + Double(slowestClock.components.seconds) * 1000
+            let outside = cursorOutside
+            let paused = cursorPaused
+            Self.logger.notice(
+                "events: cursor asked the clock \(asks, privacy: .public)×, slowest \(String(format: "%.2f", slowest), privacy: .public) ms; \(outside, privacy: .public) samples outside the area, \(paused, privacy: .public) while paused"
+            )
             Self.logger.notice(
                 "events: \(recorded.cursor.count, privacy: .public) cursor, \(recorded.clicks.count, privacy: .public) clicks, \(recorded.keys.count, privacy: .public) keys, \(recorded.badTakes.count, privacy: .public) bad takes, \(recorded.spotlights.count, privacy: .public) spotlights, \(recorded.blurs.count, privacy: .public) hidden stretches, \(recorded.masks.count, privacy: .public) hidden zones, tap re-enabled \(reenabled, privacy: .public)×"
             )
@@ -140,13 +153,30 @@ final class EventRecorder {
 
     // MARK: - Samples
 
+    /// Where the mouse is; a test sets its own.
+    var mouseLocation: () -> CGPoint = { NSEvent.mouseLocation }
+
     private func normalizedMouse() -> CGPoint? {
-        SelectionGeometry.normalized(mouse: NSEvent.mouseLocation, in: area)
+        SelectionGeometry.normalized(mouse: mouseLocation(), in: area)
     }
 
-    private func sampleCursor() {
-        guard let time = clock(), let point = normalizedMouse() else { return }
+    /// 60 times a second. The clock is a hop onto the recording's sample queue, behind the
+    /// encoder, so it is asked only once the mouse has moved: a still mouse costs nothing.
+    func sampleCursor() {
+        guard let point = normalizedMouse() else {
+            cursorOutside += 1
+            return
+        }
         if let last = timeline.cursor.last, last.x == point.x, last.y == point.y {
+            return
+        }
+        let asked = ContinuousClock.now
+        let time = clock()
+        let waited = asked.duration(to: .now)
+        clockAsks += 1
+        slowestClock = max(slowestClock, waited)
+        guard let time else {
+            cursorPaused += 1
             return
         }
         timeline.cursor.append(.init(time: time, x: point.x, y: point.y))

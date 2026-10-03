@@ -188,8 +188,7 @@ final class RecordingController {
         )
 
         let events = EventRecorder(area: Self.appKitRect(of: target)) { [weak engine] in
-            guard let engine, !engine.isPaused else { return nil }
-            return engine.duration
+            engine?.durationIfRunning
         }
         events.setMasks(target.maskZones)
         events.start(recordingKeys: settings.showsKeystrokes)
@@ -240,7 +239,10 @@ final class RecordingController {
     /// The key came up: the stretch from its press to now goes into the timeline, and the export
     /// draws the effect over it.
     private func heldKeyUp(_ effect: EventRecorder.HeldEffect) {
-        guard let start = heldSince.removeValue(forKey: effect) else { return }
+        guard let start = heldSince.removeValue(forKey: effect) else {
+            Self.logger.notice("\(effect.rawValue, privacy: .public) key let go with no press recorded (pressed while paused or before the take)")
+            return
+        }
         // One panel for both effects: the other one may still be held.
         if let other = heldSince.keys.first, let target {
             heldIndicator.show(other, over: Self.appKitRect(of: target))
@@ -533,7 +535,13 @@ final class RecordingController {
                 } catch {
                     Self.logger.error("timeline not saved: \(String(describing: error), privacy: .public)")
                 }
-                let bytes = (try? movie.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                let bytes: String
+                do {
+                    bytes = try movie.resourceValues(forKeys: [.fileSizeKey]).fileSize.map { "\($0)" } ?? "?"
+                } catch {
+                    bytes = "?"
+                    Self.logger.error("finished recording's size can't be read: \(String(describing: error), privacy: .public)")
+                }
                 Self.logger.notice(
                     "recording finished: \(movie.lastPathComponent, privacy: .public), \(String(format: "%.1f", seconds), privacy: .public) s, \(Int(size.width), privacy: .public)×\(Int(size.height), privacy: .public), \(bytes, privacy: .public) B, \(timeline.clicks.count, privacy: .public) clicks, \(timeline.keys.count, privacy: .public) keys, \(penStrokes, privacy: .public) pen strokes"
                 )
@@ -561,7 +569,10 @@ final class RecordingController {
         // Dropped first: Carbon refuses a combination the app has already registered, so on a
         // restart the new ones would fail while the old ones were still alive.
         unregisterRecordingHotKeys()
-        guard engine != nil else { return }
+        guard engine != nil else {
+            Self.logger.notice("take shortcuts not registered: no take running")
+            return
+        }
         badTakeHotKey = GlobalHotKey.register(settings.badTakeHotKey, for: "mark a bad take") { [weak self] in
             self?.countPress("mark a bad take")
             self?.markBadTake()
@@ -619,6 +630,11 @@ final class RecordingController {
         if ink != nil {
             wanted.append((settings.penHotKey, penHotKey, "switch the pen"))
         }
+        // Every registered one starts at zero, so the take's summary names a key that never
+        // fired — the trace of a press another app swallowed.
+        for entry in wanted where entry.hotKey != nil && hotKeyPresses[entry.name] == nil {
+            hotKeyPresses[entry.name] = 0
+        }
         let failed = wanted.filter { $0.binding != nil && $0.hotKey == nil }.map(\.name)
         state.recordingHotKeysNotRegistered = failed
         if failed.isEmpty {
@@ -641,16 +657,32 @@ final class RecordingController {
         blurHotKey = nil
         muteHotKey = nil
         releaseHeldKeys()
-        if !hotKeyPresses.isEmpty {
-            let presses = hotKeyPresses.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", ")
-            Self.logger.notice("take shortcuts pressed: \(presses, privacy: .public)")
-            hotKeyPresses = [:]
+    }
+
+    /// Once per take, at its end: a restart or a shortcut field recording mid-take unregisters
+    /// too, and used to split the line into pieces.
+    private func logHotKeyPresses() {
+        guard !hotKeyPresses.isEmpty else {
+            Self.logger.notice("take shortcuts pressed: none registered")
+            return
         }
+        let presses = hotKeyPresses.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", ")
+        Self.logger.notice("take shortcuts pressed: \(presses, privacy: .public)")
+        hotKeyPresses = [:]
     }
 
     private func teardown() {
         target = nil
         unregisterRecordingHotKeys()
+        logHotKeyPresses()
+        if freeSpaceReads > 0 {
+            let reads = freeSpaceReads
+            let slowest = slowestFreeSpaceRead
+            Self.logger.notice("free space read \(reads, privacy: .public)× during the take, slowest \(slowest, privacy: .public) ms")
+        }
+        freeBytes = nil
+        freeSpaceReads = 0
+        slowestFreeSpaceRead = 0
         closeInk()
         grabFrame.close()
         frame.close()
@@ -765,14 +797,25 @@ final class RecordingController {
     }
 
     private func tick() {
-        guard let engine else { return }
-        let status = AppState.RecordingStatus(elapsed: engine.duration, isPaused: engine.isPaused)
+        guard let engine else {
+            Self.logger.error("ticker fired with no take running: stopped")
+            stopTicker()
+            return
+        }
+        let now = engine.status
+        // Whole seconds: every view of the take (the pill, the paw, its menu) redraws when this
+        // changes, and the time they show only moves once a second. The raw value changed on
+        // each of the four ticks.
+        let status = AppState.RecordingStatus(elapsed: now.duration.rounded(.down), isPaused: now.isPaused)
         if state.recording != status {
             state.recording = status
         }
         ticks += 1
         if ticks % 4 == 0 {
-            showFileSize(of: engine, elapsed: status.elapsed)
+            showFileSize(of: engine, elapsed: now.duration)
+        }
+        if ticks % 40 == 1 {
+            readFreeSpace(of: engine)
         }
     }
 
@@ -785,7 +828,7 @@ final class RecordingController {
             // A fresh read every second, not a value cached on the URL.
             var url = engine.outputURL
             url.removeAllCachedResourceValues()
-            values = try url.resourceValues(forKeys: [.fileSizeKey, .volumeAvailableCapacityForImportantUsageKey])
+            values = try url.resourceValues(forKeys: [.fileSizeKey])
         } catch {
             if !sizeFailureLogged {
                 sizeFailureLogged = true
@@ -797,7 +840,7 @@ final class RecordingController {
         // The file is written in parts; before the first one lands there is nothing to show.
         guard written > 0 else { return }
 
-        let left = values.volumeAvailableCapacityForImportantUsage.flatMap {
+        let left = freeBytes.flatMap {
             RecordingBudget.secondsLeft(freeBytes: $0, writtenBytes: written, elapsed: elapsed)
         }
         if RecordingBudget.isRunningOut(secondsLeft: left), let left {
@@ -811,6 +854,39 @@ final class RecordingController {
             }
         } else {
             pill.setDetail(RecordingBudget.sizeText(bytes: written), isWarning: false)
+        }
+    }
+
+    /// The volume's free space, read every ten seconds off the main thread: "available for
+    /// important usage" adds up purgeable space and can take tens of milliseconds, where the
+    /// file's own size is a plain stat and stays once a second.
+    private var freeBytes: Int64?
+    private var freeSpaceReads = 0
+    private var slowestFreeSpaceRead = 0
+
+    private func readFreeSpace(of engine: RecordingEngine) {
+        let url = engine.outputURL
+        Task.detached(priority: .utility) { [weak self] in
+            let started = Date()
+            var url = url
+            url.removeAllCachedResourceValues()
+            let result = Result { try url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]) }
+            let took = Int(Date().timeIntervalSince(started) * 1000)
+            await MainActor.run {
+                guard let self else { return }
+                self.freeSpaceReads += 1
+                self.slowestFreeSpaceRead = max(self.slowestFreeSpaceRead, took)
+                switch result {
+                case let .success(values):
+                    self.freeBytes = values.volumeAvailableCapacityForImportantUsage
+                    if self.freeSpaceReads == 1 {
+                        let free = values.volumeAvailableCapacityForImportantUsage.map { "\($0 / 1_000_000_000) GB" } ?? "?"
+                        Self.logger.notice("free space \(free, privacy: .public), read in \(took, privacy: .public) ms off the main thread")
+                    }
+                case let .failure(error):
+                    Self.logger.error("free space can't be read (\(took, privacy: .public) ms): \(String(describing: error), privacy: .public)")
+                }
+            }
         }
     }
 

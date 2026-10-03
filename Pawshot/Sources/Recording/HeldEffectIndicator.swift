@@ -30,8 +30,16 @@ final class HeldEffectIndicator {
         timer = nil
         guard effect == .spotlight else { return }
         // The hole goes where the cursor goes; the mouse sends this window nothing, so it looks.
+        // Redrawn only when the mouse has moved: the sheet covers the whole area, and a still
+        // mouse used to repaint it sixty times a second all the same.
+        var last = NSEvent.mouseLocation
         let follow = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak view] _ in
-            MainActor.assumeIsolated { view?.needsDisplay = true }
+            MainActor.assumeIsolated {
+                let mouse = NSEvent.mouseLocation
+                guard mouse != last else { return }
+                last = mouse
+                view?.needsDisplay = true
+            }
         }
         RunLoop.main.add(follow, forMode: .common)
         timer = follow

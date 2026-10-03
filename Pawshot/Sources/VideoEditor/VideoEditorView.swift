@@ -375,16 +375,30 @@ private struct FilmStrip: View {
         }
     }
 
+    /// One line per gesture: the scrub's every step is a seek, too many to log.
     private func dragEnded(_ value: DragGesture.Value, width _: CGFloat) {
-        if case let .newPiece(anchor, before) = drag {
+        switch drag {
+        case .scrub:
+            let at = String(format: "%.1f", model.currentTime)
+            Self.logger.notice("strip: scrubbed in a piece, at \(at, privacy: .public) s")
+        case let .newPiece(anchor, before):
             if abs(value.translation.width) <= Self.dragThreshold {
+                Self.logger.notice("strip: click in the grey at \(String(format: "%.1f", anchor), privacy: .public) s")
                 actions.selectPiece(nil)
                 actions.seek(anchor)
             } else if model.keep != before {
                 actions.commitKeep(before)
+            } else {
+                Self.logger.notice("strip: drag over the grey too short to keep, nothing added")
             }
+        case nil:
+            break
         }
         drag = nil
+    }
+
+    private static var logger: Logger {
+        .pawshot("video")
     }
 
     private func thumbnails(width: CGFloat, height: CGFloat) -> some View {
@@ -428,6 +442,8 @@ private struct FilmStrip: View {
                     .onEnded { _ in
                         if let before = edgeDragBefore, before != model.keep {
                             actions.commitKeep(before)
+                        } else {
+                            Self.logger.notice("strip: a piece's edge let go where it was")
                         }
                         edgeDragBefore = nil
                     }

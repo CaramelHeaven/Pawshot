@@ -231,6 +231,11 @@ final class SelectionView: NSView {
             Self.logger.notice("zones: marking off, the mode is no longer region")
             delegate?.selectionView(self, didToggle: .hideZone)
         }
+        // On the recording overlay the screen is live: the highlight has to come from where the
+        // windows are now, not from the list the last press read.
+        if mode == .window {
+            refreshWindows?()
+        }
         updateHighlight()
         window?.invalidateCursorRects(for: self)
         // Cursor rects only take effect on the next mouse event, and the whole point here is that
@@ -1430,6 +1435,8 @@ final class SelectionView: NSView {
     /// the cursor hosts them; the others give them up.
     private func layOutHUD() {
         guard let cursorPoint else { return }
+        let started = CACurrentMediaTime()
+        defer { OverlayDiagnostics.hudLaidOut(took: CACurrentMediaTime() - started) }
 
         let badge = OverlayHUD.badgeHost
         let showsBadge = Self.showsBadge(purpose: purpose, typingSize: !sizeInput.isEmpty)

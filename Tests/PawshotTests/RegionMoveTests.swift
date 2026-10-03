@@ -193,3 +193,27 @@ final class HiddenZoneTests: XCTestCase {
         XCTAssertEqual(recorder.timeline.masks, [EventTimeline.Mask(x: 0.1, y: 0.2, width: 0.3, height: 0.4)])
     }
 }
+
+/// The cursor is sampled 60 times a second during a take, and asking the take's clock is a hop
+/// onto its sample queue: a mouse that hasn't moved must not ask.
+@MainActor
+final class CursorSamplingTests: XCTestCase {
+    func testAStillMouseDoesNotAskTheClock() {
+        var mouse = CGPoint(x: 100, y: 100)
+        var asks = 0
+        let recorder = EventRecorder(area: CGRect(x: 0, y: 0, width: 400, height: 200)) {
+            asks += 1
+            return Double(asks)
+        }
+        recorder.mouseLocation = { mouse }
+
+        recorder.sampleCursor()
+        recorder.sampleCursor()
+        recorder.sampleCursor()
+        XCTAssertEqual(asks, 1, "asked once for the first point, never for the same point again")
+
+        mouse = CGPoint(x: 120, y: 100)
+        recorder.sampleCursor()
+        XCTAssertEqual(asks, 2, "a move asks again")
+    }
+}

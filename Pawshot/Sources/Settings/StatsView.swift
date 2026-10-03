@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// Settings → Statistics, the owner's L-B: the number of shots big on a paw-coloured card, then
@@ -29,6 +30,16 @@ struct StatsView: View {
         } message: {
             Text("Every number goes back to zero, and the count starts today.")
         }
+        .onChange(of: isConfirmingReset) { _, isAsking in
+            // Resetting logs itself in `Stats`; a close with no such line before it was Cancel.
+            if !isAsking {
+                Self.logger.notice("statistics: Reset question closed")
+            }
+        }
+    }
+
+    private static var logger: Logger {
+        .pawshot("settings")
     }
 
     // MARK: - Layout
@@ -85,6 +96,7 @@ struct StatsView: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Button("Reset Statistics…") {
+                Self.logger.notice("statistics: Reset Statistics… pressed, asking")
                 isConfirmingReset = true
             }
         }

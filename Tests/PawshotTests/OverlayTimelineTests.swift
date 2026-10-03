@@ -41,7 +41,7 @@ final class OverlayTimelineTests: XCTestCase {
         _ = timeline.drew(at: at(20))
         timeline.drawFinished(took: 0.004)
         timeline.drawFinished(took: 0.019)
-        XCTAssertEqual(timeline.summary(at: at(900)), "overlay closed +900 ms after the hotkey, 1 draw(s), slowest 19 ms")
+        XCTAssertEqual(timeline.summary(at: at(900)), "overlay closed +900 ms after the hotkey, 1 draw(s), slowest 19 ms, HUD laid out 0×, slowest 0.0 ms")
     }
 
     func testACheckWithoutADrawIsAnError() {

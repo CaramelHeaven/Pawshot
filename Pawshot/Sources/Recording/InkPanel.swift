@@ -166,10 +166,16 @@ private final class InkView: NSView {
         fadeTimer = timer
     }
 
+    /// Thirty ticks a second, but a redraw only when something changes on screen: a stroke is
+    /// fully opaque for its first 3.5 s, and repainting the panel then changed nothing.
     private func fadeTick() {
         let now = Date()
+        let before = strokes.count
         strokes.removeAll { !InkFade.isAlive(age: now.timeIntervalSince($0.started)) }
-        needsDisplay = true
+        let fading = strokes.contains { now.timeIntervalSince($0.started) >= InkFade.hold }
+        if fading || strokes.count != before {
+            needsDisplay = true
+        }
         if strokes.isEmpty {
             fadeTimer?.invalidate()
             fadeTimer = nil

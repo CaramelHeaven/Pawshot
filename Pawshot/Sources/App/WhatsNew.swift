@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// What the window after an update says (`WhatsNewView`): every version the person skipped, not
 /// just the last one — updating from 0.4.6 to 0.4.9 tells about 0.4.7, 0.4.8 and 0.4.9. A new
@@ -263,11 +264,39 @@ enum WhatsNew {
     @MainActor
     static var showsAtLaunch: Bool {
         let settings = Settings.shared
-        return shouldShow(
-            lastSeen: settings.lastSeenVersion,
-            welcomeCompleted: settings.welcomeCompleted,
-            current: AboutPanel.version,
-            history: history
-        )
+        let lastSeen = settings.lastSeenVersion
+        let welcomeCompleted = settings.welcomeCompleted
+        let current = AboutPanel.version
+        let history = Self.history
+        let shows = shouldShow(lastSeen: lastSeen, welcomeCompleted: welcomeCompleted, current: current, history: history)
+        logDecision(shows, lastSeen: lastSeen, welcomeCompleted: welcomeCompleted, current: current, history: history)
+        return shows
+    }
+
+    /// Asked more than once per launch (the scene and the delegate), so a decision is logged
+    /// only when it differs from the last one.
+    @MainActor
+    private static func logDecision(_ shows: Bool, lastSeen: String?, welcomeCompleted: Bool, current: String, history: [Entry]) {
+        let unseen = entries(in: history, since: lastSeen).count
+        let skippedEmpty = history.count(where: { $0.text.isEmpty && isNewer($0.version, than: lastSeen) })
+        let reason = if !welcomeCompleted {
+            "fresh install, Get Started not pressed"
+        } else if lastSeen == current {
+            "this version already seen"
+        } else if unseen == 0 {
+            "nothing to tell (\(skippedEmpty) newer entries with no text)"
+        } else {
+            "\(unseen) entries to tell"
+        }
+        let line = "what's new: \(shows ? "show" : "don't show") — \(reason), last seen \(lastSeen ?? "none"), now \(current)"
+        guard line != lastLoggedDecision else { return }
+        lastLoggedDecision = line
+        logger.notice("\(line, privacy: .public)")
+    }
+
+    @MainActor private static var lastLoggedDecision: String?
+
+    private static var logger: Logger {
+        .pawshot("app")
     }
 }

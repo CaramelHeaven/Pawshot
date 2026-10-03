@@ -15,6 +15,10 @@ struct OverlayTimeline {
     /// The longest one draw of the selection layer took, in ms — on a 20-megapixel screen the
     /// question is whether a mouse move still fits in a frame.
     private(set) var slowestDraw = 0.0
+    /// The badge, toolbar and hints are measured on every mouse move; whether that SwiftUI
+    /// layout is worth caching is read off these.
+    private(set) var hudLayouts = 0
+    private(set) var slowestHUDLayout = 0.0
 
     init(pressed: Date) {
         self.pressed = pressed
@@ -57,8 +61,14 @@ struct OverlayTimeline {
         slowestDraw = max(slowestDraw, seconds * 1000)
     }
 
+    mutating func hudLaidOut(took seconds: TimeInterval) {
+        hudLayouts += 1
+        slowestHUDLayout = max(slowestHUDLayout, seconds * 1000)
+    }
+
     func summary(at date: Date) -> String {
-        "overlay closed +\(milliseconds(date)) ms after the hotkey, \(draws) draw(s), slowest \(Int(slowestDraw.rounded())) ms"
+        "overlay closed +\(milliseconds(date)) ms after the hotkey, \(draws) draw(s), slowest \(Int(slowestDraw.rounded())) ms, "
+            + "HUD laid out \(hudLayouts)×, slowest \(String(format: "%.1f", slowestHUDLayout)) ms"
     }
 }
 
@@ -134,6 +144,10 @@ enum OverlayDiagnostics {
     static func drew() {
         guard let message = timeline?.drew(at: Date()) else { return }
         logger.notice("\(message, privacy: .public)")
+    }
+
+    static func hudLaidOut(took seconds: TimeInterval) {
+        timeline?.hudLaidOut(took: seconds)
     }
 
     static func drawFinished(took seconds: TimeInterval) {
@@ -343,14 +357,20 @@ enum StallSamples {
     static let kept = 5
 
     static var folder: URL? {
-        try? FileManager.default
-            .url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("com.caramelheaven.pawshot/Stalls", isDirectory: true)
+        do {
+            return try FileManager.default
+                .url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+                .appendingPathComponent("com.caramelheaven.pawshot/Stalls", isDirectory: true)
+        } catch {
+            logger.error("main thread stack: no Caches folder: \(String(describing: error), privacy: .public)")
+            return nil
+        }
     }
 
     /// Samples this process for one second, in the background; the report lands in `folder`.
     /// Nothing while "Collect Logs" is off.
     static func record() {
+        // Off, the log is silent anyway; no folder has its own line in `folder`.
         guard Logger.isCollecting, let folder else { return }
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -359,7 +379,11 @@ enum StallSamples {
             return
         }
         for old in LogExport.newestFirst(in: folder, prefix: prefix).dropFirst(kept - 1) {
-            try? FileManager.default.removeItem(at: old)
+            do {
+                try FileManager.default.removeItem(at: old)
+            } catch {
+                logger.error("main thread stack: old \(old.lastPathComponent, privacy: .public) stays: \(String(describing: error), privacy: .public)")
+            }
         }
         let path = folder.appendingPathComponent("\(prefix)\(Int(Date().timeIntervalSince1970)).txt").path
         let pid = String(ProcessInfo.processInfo.processIdentifier)

@@ -38,7 +38,7 @@ enum VideoExporter {
         effects: EffectsOptions = EffectsOptions(),
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
-        try? FileManager.default.removeItem(at: destination)
+        removeIfPresent(destination, "the old file at the destination")
         let asset = AVURLAsset(url: source)
         let withEffects = !effects.isEmpty(for: timeline)
 
@@ -51,7 +51,7 @@ enum VideoExporter {
             // into a movie first and the GIF is taken from that — each pass half of the bar.
             let rendered = FileManager.default.temporaryDirectory
                 .appendingPathComponent("pawshot-effects-\(UUID().uuidString).mov")
-            defer { try? FileManager.default.removeItem(at: rendered) }
+            defer { removeIfPresent(rendered, "the GIF's effects movie") }
             let session = try await effectsSession(
                 for: asset, keep: keep, preset: .fullHD, timeline: timeline, effects: effects
             )
@@ -70,6 +70,16 @@ enum VideoExporter {
             ? try await effectsSession(for: asset, keep: keep, preset: preset, timeline: timeline, effects: effects)
             : try await exportSession(for: asset, keep: keep, preset: preset)
         try await run(session, to: destination, as: .mp4, progress: progress)
+    }
+
+    /// A file in the way, or one left over: a failure here is not the export's, but it is written down.
+    private static func removeIfPresent(_ url: URL, _ what: String) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        do {
+            try FileManager.default.removeItem(at: url)
+        } catch {
+            logger.error("\(what, privacy: .public) not removed (\(url.lastPathComponent, privacy: .public)): \(String(describing: error), privacy: .public)")
+        }
     }
 
     private static func run(
@@ -256,7 +266,16 @@ enum VideoExporter {
         }
 
         // Passthrough sometimes won't estimate; its output is the input, cut.
-        let fileSize = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        let fileSize: Int
+        do {
+            fileSize = try source.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        } catch {
+            logger.error("size estimate: the recording's size unreadable: \(String(describing: error), privacy: .public)")
+            return 0
+        }
+        if fileSize == 0 {
+            logger.error("size estimate: passthrough gave none and the recording reads 0 B")
+        }
         return keep.duration > 0 ? Int64(Double(fileSize) * keep.totalLength / keep.duration) : 0
     }
 
@@ -377,13 +396,27 @@ enum VideoExporter {
 
         let generator = try await gifGenerator(for: asset)
         let data = NSMutableData()
-        guard let writer = GIFWriter(data: data, frameCount: sampleCount) else { return 0 }
+        guard let writer = GIFWriter(data: data, frameCount: sampleCount) else {
+            logger.error("GIF size estimate: no GIF writer for \(sampleCount, privacy: .public) frames")
+            return 0
+        }
+        var unreadable = 0
+        var lastError = ""
         for await result in generator.images(for: sample) {
-            if let image = try? result.image {
-                writer.add(image)
+            do {
+                try writer.add(result.image)
+            } catch {
+                unreadable += 1
+                lastError = String(describing: error)
             }
         }
-        guard writer.finish() else { return 0 }
+        if unreadable > 0 {
+            logger.error("GIF size estimate: \(unreadable, privacy: .public) of \(sampleCount, privacy: .public) frames unreadable, last: \(lastError, privacy: .public)")
+        }
+        guard writer.finish() else {
+            logger.error("GIF size estimate: the sample GIF didn't finish, \(sampleCount - unreadable, privacy: .public) frames in it")
+            return 0
+        }
         return Int64(Double(data.length) / Double(sampleCount) * Double(times.count))
     }
 }
@@ -485,23 +518,41 @@ enum VideoHandOff {
     }
 
     static func sweep(_ folder: URL, olderThan age: TimeInterval) {
-        let files = (try? FileManager.default.contentsOfDirectory(
-            at: folder, includingPropertiesForKeys: [.contentModificationDateKey]
-        )) ?? []
+        let files: [URL]
+        do {
+            files = try FileManager.default.contentsOfDirectory(
+                at: folder, includingPropertiesForKeys: [.contentModificationDateKey]
+            )
+        } catch {
+            logger.error("clips not swept, the folder unreadable: \(String(describing: error), privacy: .public)")
+            return
+        }
         var removed = 0
         var failed = 0
+        var undated = 0
+        var lastError = ""
         for file in files {
             let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-            if let modified, Date().timeIntervalSince(modified) > age {
-                if (try? FileManager.default.removeItem(at: file)) != nil {
+            guard let modified else {
+                undated += 1
+                continue
+            }
+            if Date().timeIntervalSince(modified) > age {
+                do {
+                    try FileManager.default.removeItem(at: file)
                     removed += 1
-                } else {
+                } catch {
                     failed += 1
+                    lastError = String(describing: error)
                 }
             }
         }
-        if removed + failed > 0 {
-            logger.notice("clips swept: \(removed, privacy: .public) removed, \(failed, privacy: .public) failed")
+        if failed + undated > 0 {
+            logger.error(
+                "clips swept: \(removed, privacy: .public) removed, \(failed, privacy: .public) failed, \(undated, privacy: .public) with no date; last error: \(lastError, privacy: .public)"
+            )
+        } else if removed > 0 {
+            logger.notice("clips swept: \(removed, privacy: .public) removed")
         }
     }
 }

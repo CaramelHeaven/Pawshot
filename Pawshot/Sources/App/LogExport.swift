@@ -174,7 +174,7 @@ enum LogExport {
         let ours = newestFirst(in: folder, prefix: "Pawshot").prefix(limit)
         guard !ours.isEmpty else { return "No crash reports." }
         return ours.map { url in
-            "=== \(url.lastPathComponent) ===\n" + ((try? String(contentsOf: url, encoding: .utf8)) ?? "(unreadable)")
+            "=== \(url.lastPathComponent) ===\n" + readReport(url)
         }.joined(separator: "\n\n")
     }
 
@@ -184,17 +184,42 @@ enum LogExport {
         let files = StallSamples.folder.map { newestFirst(in: $0, prefix: StallSamples.prefix) } ?? []
         guard !files.isEmpty else { return "No stall samples." }
         return files.prefix(limit).map { url in
-            let report = (try? String(contentsOf: url, encoding: .utf8)).map(StallSamples.mainThreadPart)
-            return "=== \(url.lastPathComponent) ===\n" + (report ?? "(unreadable)")
+            let report = readReport(url)
+            return "=== \(url.lastPathComponent) ===\n" + (report == unreadable ? report : StallSamples.mainThreadPart(of: report))
         }.joined(separator: "\n\n")
+    }
+
+    private static let unreadable = "(unreadable)"
+
+    /// A crash report or a stall sample, whole; one that can't be read says so in the file and here.
+    private static func readReport(_ url: URL) -> String {
+        do {
+            return try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            logger.error("logs: \(url.lastPathComponent, privacy: .public) unreadable: \(String(describing: error), privacy: .public)")
+            return unreadable
+        }
     }
 
     /// The files in a folder whose names start with `prefix`, the newest first.
     nonisolated static func newestFirst(in folder: URL, prefix: String) -> [URL] {
-        let files = (try? FileManager.default.contentsOfDirectory(
-            at: folder,
-            includingPropertiesForKeys: [.contentModificationDateKey]
-        )) ?? []
+        let files: [URL]
+        do {
+            files = try FileManager.default.contentsOfDirectory(
+                at: folder,
+                includingPropertiesForKeys: [.contentModificationDateKey]
+            )
+        } catch {
+            // A folder not made yet is the usual "none"; anything else would read as "none" too.
+            let missing = (error as? CocoaError)?.code == .fileReadNoSuchFile
+            let line = "logs: can't list \(folder.path) for \(prefix): \(String(describing: error))"
+            if missing {
+                Logger.pawshot("app").notice("\(line, privacy: .public)")
+            } else {
+                Logger.pawshot("app").error("\(line, privacy: .public)")
+            }
+            return []
+        }
         return files
             .filter { $0.lastPathComponent.hasPrefix(prefix) }
             .sorted { lhs, rhs in
@@ -254,6 +279,7 @@ enum LogExport {
     /// Asks where to put the file, then gathers and writes it, and shows it in the Finder so it
     /// can be dragged into a message straight away.
     static func saveWithPanel() async {
+        logger.notice("save logs: pressed")
         let panel = NSSavePanel()
         panel.nameFieldStringValue = suggestedFileName
         panel.directoryURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
@@ -278,20 +304,36 @@ enum LogExport {
     /// Where "Send by Email…" puts the file: the draft reads it after the call returns, so it
     /// can't be a temporary one. Only the latest is kept.
     static var mailFolder: URL? {
-        try? FileManager.default
-            .url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("com.caramelheaven.pawshot/Logs", isDirectory: true)
+        do {
+            return try FileManager.default
+                .url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+                .appendingPathComponent("com.caramelheaven.pawshot/Logs", isDirectory: true)
+        } catch {
+            logger.error("logs: no Caches folder for the mailed file: \(String(describing: error), privacy: .public)")
+            return nil
+        }
     }
 
     /// The same file as Save Logs, attached to a new message to the developer. Without a mail
     /// account the file is shown in the Finder and a plain `mailto:` opens, to drag it into.
     static func sendByEmail() async {
-        guard let folder = mailFolder else { return }
+        logger.notice("send logs: pressed")
+        guard let folder = mailFolder else {
+            logger.error("send logs: nothing sent, no folder for the file")
+            return
+        }
         let url = folder.appendingPathComponent(suggestedFileName)
         logger.notice("send logs: collecting into \(url.path, privacy: .public)")
         let text = await report()
         do {
-            try? FileManager.default.removeItem(at: folder)
+            if FileManager.default.fileExists(atPath: folder.path) {
+                do {
+                    try FileManager.default.removeItem(at: folder)
+                } catch {
+                    // Not fatal: the new file is written next to the old one.
+                    logger.error("send logs: the last mailed file stays: \(String(describing: error), privacy: .public)")
+                }
+            }
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try text.write(to: url, atomically: true, encoding: .utf8)
         } catch {
@@ -323,9 +365,16 @@ enum LogExport {
     /// Switched off, what Pawshot itself kept goes too: the stall stacks and the last mailed file.
     /// The lines macOS already holds stay with it until it rotates them — that takes root.
     static func forgetCollected() {
-        for folder in [StallSamples.folder, mailFolder].compactMap(\.self) {
-            try? FileManager.default.removeItem(at: folder)
+        var removed = 0
+        for folder in [StallSamples.folder, mailFolder].compactMap(\.self) where FileManager.default.fileExists(atPath: folder.path) {
+            do {
+                try FileManager.default.removeItem(at: folder)
+                removed += 1
+            } catch {
+                logger.error("logs: couldn't forget \(folder.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            }
         }
+        logger.notice("logs: forgot what was collected, \(removed) folders removed")
     }
 
     /// The "Collect Logs" switch, the same in Settings and in the welcome window.
@@ -333,10 +382,11 @@ enum LogExport {
         Binding {
             Settings.shared.collectsLogs
         } set: { isOn in
-            Settings.shared.collectsLogs = isOn
+            // Forgotten while the log is still on, so a delete that fails is written down.
             if !isOn {
                 forgetCollected()
             }
+            Settings.shared.collectsLogs = isOn
         }
     }
 

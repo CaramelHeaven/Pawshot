@@ -482,13 +482,16 @@ final class EditorWindowControllerTests: XCTestCase {
         controller.copyText(nil)
         let reading = try XCTUnwrap(controller.textReadingTask)
         await waitUntilReadingStarts(stub)
-        XCTAssertFalse(controller.chrome.isReadingText, "a quick reading shows nothing")
-        try await Task.sleep(for: .milliseconds(450))
-        XCTAssertTrue(controller.chrome.isReadingText)
+        XCTAssertFalse(controller.isReadingText, "a quick reading shows nothing")
+        let deadline = Date().addingTimeInterval(3)
+        while !controller.isReadingText, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertTrue(controller.isReadingText)
 
         stub.finish(with: "hello")
         await reading.value
-        XCTAssertFalse(controller.chrome.isReadingText)
+        XCTAssertFalse(controller.isReadingText)
     }
 
     /// What the owner actually hit: a reading was running, the window was closed, and the text

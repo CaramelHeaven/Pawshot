@@ -294,7 +294,11 @@ warns on the card of one of ours still taken — a red outline, "macOS takes it 
 named as System Settings does in its tooltip ("Keyboard → Move focus to next window") — instead
 of silently doing nothing. The paw's menu says it too, at the top while any of ours is taken
 ("⇧⌘3 taken by macOS — Fix…", opening Keyboard Shortcuts) — the owner keeps ⇧⌘3/⇧⌘4 as the
-defaults, and Settings and the welcome window are rarely opened after the first day. The × in the card's corner takes the shortcut away: the action then has none — the field reads "Record Shortcut",
+defaults, and Settings and the welcome window are rarely opened after the first day. The menu
+reads it from `AppState.shortcutsTakenByMacOS`, never in its body: the body is rebuilt every
+second during a take, and reading macOS's preferences is an XPC call. It is refreshed at launch,
+on a shortcut change and whenever a menu opens (`NSMenu.didBeginTrackingNotification` — that it
+fires for the paw's SwiftUI menu was not checked on a screen). The × in the card's corner takes the shortcut away: the action then has none — the field reads "Record Shortcut",
 the menu item shows no keys, and the action is reached from the paw's menu or the pill. A cleared
 one is stored as `none`, apart from a missing key (the default), so Restore Defaults brings every
 one back.
@@ -1083,7 +1087,19 @@ strings to `<private>`, and this log line is exactly how a hotkey is verified fr
   `TakeMarksTests.testATimelineWrittenByAnOlderBuildIsStillRead` pins it.
 - **The file's size is read once a second, and means nothing for the first five.** The movie is
   written in 5 s fragments, so the size on disk grows in steps; the pill shows nothing until the
-  first one lands, and the rate for the disk warning is bytes so far over seconds so far.
+  first one lands, and the rate for the disk warning is bytes so far over seconds so far. The
+  volume's free space is read apart, every ten seconds off the main thread
+  (`RecordingController.readFreeSpace`): "available for important usage" adds up purgeable space
+  and is the slow one; the take's end logs how many reads and the slowest.
+- **The main thread asks the take's clock as little as it can** (0.6.10). Every ask is a
+  `queue.sync` onto the sample queue, behind the encoder. The cursor, sampled 60 times a second,
+  asks only once the mouse has moved (`CursorSamplingTests`, red with the ask first), and in one
+  hop (`RecordingEngine.durationIfRunning`, `status`) where `isPaused` and `duration` took two; the
+  events line at stop gives the asks and the longest wait. `AppState.recording` holds whole
+  seconds, so the pill, the paw and its menu redraw once a second instead of on each 0.25 s tick.
+- **The take's summary counts what it dropped**: retime failures, samples outside the clock by
+  reason (`RecordingClock.dropsDescription`), what happened to the last frame at stop, and how
+  many times each take shortcut fired — zeros included, written once at the end of the take.
 - **The editor plays the export's own splice, not the recording.** Jumping over the grey from a
   periodic observer let up to ~33 ms of cut footage through at every seam, and the effects, built
   on the whole recording, ran on past seams the export cuts them at. So there are two players:
@@ -1357,6 +1373,10 @@ The frame no longer redraws on every mouse move: `FrameView` draws it once, and 
 mode with nothing drawn only moves the badge. The overlay log closes with `slowest N ms`, the
 longest single draw; a redraw measured through `cacheDisplay` is not the real cost (a bare
 full-screen fill measured 25 ms that way), so that number from a real Mac is the one to trust.
+The owner's log of 2026-09-26…10-03: 2–5 ms at most, at 144 Hz (6.9 ms a frame) — so the
+full-screen dimming is not redrawn by a dirty rect yet. The same line now also gives `HUD laid
+out N×, slowest X ms`: the badge, toolbar and hints are measured on each mouse move; a probe put
+one `fittingSize` at 0.006–0.009 ms, so it is not cached.
 
 ### The first ⇧⌘2 that shows nothing until a click — open
 

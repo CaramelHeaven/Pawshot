@@ -51,11 +51,11 @@ enum RecordingPreflight {
             case let .zonesIgnored(count):
                 "\(count) zone(s) to hide ignored outside region mode"
             case .microphoneSilent:
-                "microphone silent"
+                "microphone on and silent (the meter hears digital silence)"
             case let .shortcutsTaken(taken):
                 "shortcuts taken: " + taken.map { "\($0.shortcut) by \($0.item)" }.joined(separator: ", ")
             case let .lowDisk(freeBytes):
-                "low disk: \(freeBytes) B free"
+                "low disk: \(freeBytes) B free, under \(RecordingPreflight.lowDiskBytes) B"
             }
         }
     }

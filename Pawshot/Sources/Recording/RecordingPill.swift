@@ -117,6 +117,7 @@ final class RecordingPillController {
         model.hoverPoint = nil
         model.notice = nil
         panel.orderOut(nil)
+        Self.logger.notice("pill hidden")
     }
 
     func setPen(isOn: Bool) {
@@ -189,6 +190,7 @@ final class RecordingPillController {
             let reach = (model.isExpanded ? notchFrames.expanded : notchFrames.collapsed).insetBy(dx: -8, dy: -8)
             let expand = reach.contains(mouse)
             guard expand != model.isExpanded else { return }
+            Self.logger.notice("pill: notch \(expand ? "drops its buttons down (cursor on it)" : "folds up (cursor gone)", privacy: .public)")
             model.isExpanded = expand
             panel.setFrame(expand ? notchFrames.expanded : notchFrames.collapsed, display: true)
             return
@@ -200,6 +202,8 @@ final class RecordingPillController {
         }
         let compact = Date().timeIntervalSince(lastNearDate) > Self.compactAfter
         guard compact != model.isCompact else { return }
+        let away = Self.compactAfter
+        Self.logger.notice("pill: \(compact ? "shrinks to a dot, cursor away \(away) s" : "grows back, cursor near", privacy: .public)")
         model.isCompact = compact
         // A shrunk pill is only a dot; the rest of the panel must not swallow clicks meant for
         // the app underneath.
@@ -395,6 +399,7 @@ struct RecordingPillView: View {
     @ViewBuilder
     private func buttons(_ status: AppState.RecordingStatus) -> some View {
         pillButton(status.isPaused ? "play.fill" : "pause.fill", help: status.isPaused ? "Resume" : "Pause") {
+            Self.logger.notice("pill: \(status.isPaused ? "resume" : "pause", privacy: .public) clicked")
             actions.togglePause()
         }
         if model.penAvailable {
@@ -404,6 +409,7 @@ struct RecordingPillView: View {
                 shortcut: settings.penHotKey,
                 isOn: model.penIsOn
             ) {
+                Self.logger.notice("pill: pen clicked")
                 actions.togglePen()
             }
         }
@@ -414,14 +420,21 @@ struct RecordingPillView: View {
             shortcut: settings.badTakeHotKey,
             isOn: model.cutFlash
         ) {
+            Self.logger.notice("pill: bad take clicked")
             actions.badTake()
         }
         pillButton("arrow.counterclockwise", help: "Restart — the take is thrown away", shortcut: settings.restartHotKey) {
+            Self.logger.notice("pill: restart clicked")
             actions.restart()
         }
         pillButton("stop.fill", help: "Stop", shortcut: model.stopShortcut, tint: .red) {
+            Self.logger.notice("pill: stop clicked")
             actions.stop()
         }
+    }
+
+    private static var logger: Logger {
+        .pawshot("recording")
     }
 
     /// An icon with its shortcut written small underneath: the keys are learned by looking, not

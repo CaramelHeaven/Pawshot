@@ -168,7 +168,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
             view.screenOrigin = Self.coreGraphicsOrigin(of: screen, primaryMaxY: primaryMaxY)
             view.windows = capturedWindows
             if purpose == .recording {
-                view.refreshWindows = { [weak self] in self?.refreshWindows(reason: "press") }
+                view.refreshWindows = { [weak self] in self?.refreshWindows(reason: "press or window mode") }
             }
             view.scale = screen.backingScaleFactor
             view.showsHints = showsHints
@@ -320,7 +320,10 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
 
     /// The frames could not be captured: the overlay goes, and the caller shows why.
     func fail() {
-        guard isActive else { return }
+        guard isActive else {
+            Self.logger.notice("capture failed after the overlay had already closed")
+            return
+        }
         Self.logger.error("overlay closed: the frames never came")
         finish(with: nil)
     }
@@ -531,7 +534,11 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
     /// still holds, little room on the disk — and hands it to the toolbar, which shows a line for
     /// each. The microphone's part arrives on its own, from the level meter.
     private func runPreflight() {
-        guard isActive, purpose == .recording else { return }
+        guard isActive, purpose == .recording else {
+            let active = isActive
+            Self.logger.notice("preflight skipped: overlay active \(active, privacy: .public), not a recording or already closed")
+            return
+        }
         let settings = Settings.shared
         let bindings: [(action: String, binding: HotKeyBinding?)] = [
             (String(localized: "stop recording"), settings.recordRegionHotKey),
@@ -598,9 +605,6 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
 
     /// One screen's mode for every screen, the toolbar and the hints.
     private func switchAll(to mode: SelectionView.Mode) {
-        if mode == .window {
-            refreshWindows(reason: "window mode")
-        }
         for view in selectionViews {
             view.apply(mode: mode)
         }

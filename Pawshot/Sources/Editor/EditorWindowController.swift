@@ -17,7 +17,11 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// Where the window opens; `window.screen` can be `nil` until it is on screen.
     private let openingScreen: NSScreen
     private let editorUndoManager = UndoManager()
-    let chrome = EditorChromeModel()
+    private let chrome = EditorChromeModel()
+    /// Copy Text shows a spinner: ⌘D has been reading for over 300 ms.
+    var isReadingText: Bool {
+        chrome.isReadingText
+    }
 
     /// Set by ⌘C, ⌘S or ⌘D once the shot is handed off: the window is dissolving, and a second
     /// press in those 150 ms must not hand it off again.
@@ -191,7 +195,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         // The SwiftUI `.toolbar` becomes this window's toolbar, glass and all.
         hosting.sceneBridgingOptions = [.toolbars]
 
-        guard let window else { return }
+        guard let window else {
+            Self.editorLogger.error("editor content not built: the controller has no window")
+            return
+        }
         let size = window.contentLayoutRect.size
         hosting.view.frame = CGRect(origin: .zero, size: size)
         window.contentViewController = hosting
@@ -296,11 +303,22 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             self?.returnFocusToCanvas()
         }
         chrome.undo = { [weak self] in
-            guard let manager = self?.editorUndoManager, manager.canUndo else { return }
+            guard let manager = self?.editorUndoManager, manager.canUndo else {
+                Self.editorLogger.notice("toolbar undo: nothing to undo")
+                return
+            }
+            Self.editorLogger.notice("toolbar undo")
             Stats.shared.add(.undos)
             manager.undo()
         }
-        chrome.redo = { [weak self] in self?.editorUndoManager.redo() }
+        chrome.redo = { [weak self] in
+            guard let manager = self?.editorUndoManager, manager.canRedo else {
+                Self.editorLogger.notice("toolbar redo: nothing to redo")
+                return
+            }
+            Self.editorLogger.notice("toolbar redo")
+            manager.redo()
+        }
         chrome.clearAll = { [weak self] in self?.clearAll() }
         chrome.copy = { [weak self] in self?.copy(nil) }
         chrome.save = { [weak self] in self?.saveDocument(nil) }
@@ -413,7 +431,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// ⇧⌘S: a name, a folder and a format picked once, in the system's save sheet. The folder and
     /// format in Settings stay as they are.
     @objc func saveDocumentAs(_: Any?) {
-        guard let window else { return }
+        guard let window else {
+            Self.editorLogger.error("save as ignored: no window to hang the sheet on")
+            return
+        }
         guard !isClosing else {
             Self.editorLogger.notice("save as ignored: window closing")
             return
@@ -463,7 +484,13 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         // silence, does.
         let spinner = Task { [weak self] in
             try await Task.sleep(for: .milliseconds(300))
-            self?.chrome.isReadingText = true
+            // A sleep that already returned is not undone by `cancel()`: a reading that ended at
+            // the 300 ms mark would otherwise leave the spinner on for good.
+            guard !Task.isCancelled, let self, textReadingTask != nil else {
+                Self.logger.notice("⌘D: reading ended at the spinner's moment, no spinner")
+                return
+            }
+            chrome.isReadingText = true
             Self.logger.notice("⌘D: still reading after 300 ms, spinner shown")
         }
         textReadingTask = Task {
@@ -788,7 +815,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     func windowWillStartLiveResize(_: Notification) {
         resizeEdges = nil
 
-        guard let window else { return }
+        guard let window else {
+            Self.editorLogger.error("resize ended with no window")
+            return
+        }
 
         let follows = canFollowResize
         let mouse = NSEvent.mouseLocation
@@ -968,7 +998,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// shown and takes its height out of the content, so the shot is refitted once — unless the shot
     /// is bigger than the screen, where the window stays at its screen-sized frame and scrolls.
     private func fitWindowToShot(onlyIfItFits: Bool = false) {
-        guard let window else { return }
+        guard let window else {
+            Self.editorLogger.error("window not fitted to the shot: no window")
+            return
+        }
 
         let chrome = chromeSize(of: window)
         let content = NSSize(

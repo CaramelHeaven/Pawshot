@@ -26,6 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         logLaunch()
         watchMemoryPressure()
+        watchMenus()
+        refreshShortcutsTakenByMacOS(reason: "launch")
         replaceOlderInstances()
         if !Self.isTestHost {
             Updater.start()
@@ -118,11 +120,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// What a saved log has to open with: which build, on what, allowed to do what.
     private func logLaunch() {
-        let facts = LogExport.currentFacts()
+        // How long macOS held the launch, taken before the facts below — gathering them asks for
+        // the running apps, the permissions and the preferences, and used to be counted in.
         if let started = SystemState.processStart {
             let held = Int(Date().timeIntervalSince(started) * 1000)
             Self.logger.notice("launch: finished \(held, privacy: .public) ms after the process started")
         }
+        // On the next turn of the run loop: nothing the user waits for depends on these lines.
+        DispatchQueue.main.async { [weak self] in
+            self?.logLaunchFacts()
+        }
+    }
+
+    private func logLaunchFacts() {
+        let gathering = Date()
+        let facts = LogExport.currentFacts()
+        let took = Int(Date().timeIntervalSince(gathering) * 1000)
+        Self.logger.notice("launch: facts gathered in \(took, privacy: .public) ms, after the launch returned")
         Self.logger.notice(
             "launch: Pawshot \(facts.version, privacy: .public) (\(facts.build, privacy: .public)), macOS \(facts.macOS, privacy: .public), \(facts.model, privacy: .public), at \(facts.bundlePath, privacy: .public)"
         )
@@ -199,6 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// new object while the old is alive, and an unchanged shortcut — ⇧⌘2 when only ⇧⌘3 was edited
     /// — would fail against itself and be lost.
     private func registerHotKeys() {
+        refreshShortcutsTakenByMacOS(reason: "shortcuts registered")
         unregisterHotKeys()
         // The test host runs next to the owner's own copy: its shortcuts would put up a second
         // overlay on his ⇧⌘2 while tests run.
@@ -327,12 +342,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// A region or a window, picked on the overlay — for a shot or for a recording.
-    ///
-    /// The overlay goes up first, over the live screen, and the frames are captured behind it with
-    /// the overlay left out: the dimming appears the instant the hotkey is pressed instead of after
-    /// the capture — 99–140 ms on a MacBook Air's 20-megapixel screen. The overlay never activates
-    /// Pawshot, so an open menu of the app in front is still open when the frame is taken.
+    private var menuObserver: NSObjectProtocol?
+    private var takenReads = 0
+
+    /// What the paw's menu warns about, read off macOS's own preferences — an XPC call, so only
+    /// here: at launch, on a shortcut change, and when a menu opens (the paw's among them; a
+    /// shortcut unticked in System Settings shows the next time the menu is opened).
+    private func refreshShortcutsTakenByMacOS(reason: String) {
+        let started = Date()
+        let system = SystemScreenshotShortcuts.current()
+        let taken = settings.allHotKeys
+            .filter { system.conflict(with: $0) != nil }
+            .map(\.displayString)
+            .formatted(.list(type: .and))
+        takenReads += 1
+        let reads = takenReads
+        let took = Int(Date().timeIntervalSince(started) * 1000)
+        if taken != state.shortcutsTakenByMacOS {
+            Self.logger.notice("shortcuts taken by macOS (\(reason, privacy: .public)): \(taken.isEmpty ? "none" : taken, privacy: .public), read \(reads, privacy: .public)× so far, \(took, privacy: .public) ms")
+            state.shortcutsTakenByMacOS = taken
+        }
+    }
+
+    private func watchMenus() {
+        menuObserver = NotificationCenter.default.addObserver(
+            forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refreshShortcutsTakenByMacOS(reason: "a menu opened")
+            }
+        }
+    }
+
     private var memoryPressureSource: DispatchSourceMemoryPressure?
 
     /// The editors hold whole displays; whether that ever meets a Mac short of memory is a log
@@ -340,7 +381,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func watchMemoryPressure() {
         let source = DispatchSource.makeMemoryPressureSource(eventMask: [.normal, .warning, .critical], queue: .main)
         source.setEventHandler { [weak source] in
-            guard let event = source?.data else { return }
+            guard let event = source?.data else {
+                Self.logger.error("memory pressure event with the source already gone: level unknown")
+                return
+            }
             MainActor.assumeIsolated {
                 let level = event.contains(.critical) ? "critical" : event.contains(.warning) ? "warning" : "normal"
                 let editors = EditorWindowController.openCount
@@ -359,6 +403,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// When the last overlay went up, for the log of the next one.
     private var lastOverlayAt: Date?
 
+    /// A region or a window, picked on the overlay — for a shot or for a recording.
+    ///
+    /// The overlay goes up first, over the live screen. For a shot the frames are then captured
+    /// behind it with the overlay left out: the dimming appears the instant the hotkey is pressed
+    /// instead of after the capture — 99–140 ms on a MacBook Air's 20-megapixel screen. The overlay
+    /// never activates Pawshot, so an open menu of the app in front is still open when the frame
+    /// is taken. A recording captures no frame: its region is picked on the live screen.
     private func startOverlayCapture(
         purpose: OverlayPurpose,
         then use: @escaping (SelectionOverlayController.Selection) -> Void

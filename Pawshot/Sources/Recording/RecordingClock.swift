@@ -1,4 +1,5 @@
 import CoreMedia
+import os
 
 /// Turns the timestamps ScreenCaptureKit stamps on samples into the timestamps of the file.
 ///
@@ -21,15 +22,38 @@ struct RecordingClock {
     }
 
     mutating func pause(at time: CMTime) {
-        guard pausedSince == nil else { return }
-        pausedSince = time
+        guard let since = pausedSince else {
+            pausedSince = time
+            return
+        }
+        Self.logger.error("clock: pause at \(Self.seconds(time), privacy: .public) s while already paused since \(Self.seconds(since), privacy: .public) s, kept the first")
     }
 
     mutating func resume(at time: CMTime) {
-        guard let since = pausedSince else { return }
+        guard let since = pausedSince else {
+            Self.logger.error("clock: resume at \(Self.seconds(time), privacy: .public) s with no pause, ignored")
+            return
+        }
+        if time < since {
+            Self.logger.error("clock: resume at \(Self.seconds(time), privacy: .public) s is before the pause at \(Self.seconds(since), privacy: .public) s")
+        }
         pausedTotal = pausedTotal + (time - since)
         pausedSince = nil
         resumedAt = time
+        let total = pausedTotal
+        Self.logger.notice("clock: resumed after \(Self.seconds(time - since), privacy: .public) s paused, \(Self.seconds(total), privacy: .public) s in all")
+    }
+
+    /// Samples left out, by why — counted, never logged one by one: they arrive dozens a second.
+    /// `dropsDescription` is the line for the take's summary.
+    private(set) var droppedInvalid = 0
+    private(set) var droppedBeforeStart = 0
+    private(set) var droppedPaused = 0
+    private(set) var droppedLate = 0
+    private(set) var droppedBeforeOrigin = 0
+
+    var dropsDescription: String {
+        "\(droppedInvalid) invalid, \(droppedBeforeStart) before the first frame, \(droppedPaused) paused, \(droppedLate) captured before the resume, \(droppedBeforeOrigin) before the origin"
     }
 
     /// The time a sample gets in the file, or `nil` when it must not be written: before the first
@@ -37,19 +61,33 @@ struct RecordingClock {
     /// ended. Such a sample would be stamped inside the stretch already written, and a time going
     /// backwards can fail the writer and with it the whole take.
     mutating func outputTime(for source: CMTime, isVideo: Bool) -> CMTime? {
-        guard source.isValid else { return nil }
+        guard source.isValid else {
+            droppedInvalid += 1
+            return nil
+        }
 
         if origin == nil {
-            guard isVideo, !isPaused else { return nil }
+            guard isVideo, !isPaused else {
+                droppedBeforeStart += 1
+                return nil
+            }
             origin = source
         }
-        guard let origin, !isPaused else { return nil }
+        guard let origin, !isPaused else {
+            droppedPaused += 1
+            return nil
+        }
         if let resumedAt, source < resumedAt {
+            droppedLate += 1
             return nil
         }
 
         let output = source - origin - pausedTotal
-        return output >= .zero ? output : nil
+        guard output >= .zero else {
+            droppedBeforeOrigin += 1
+            return nil
+        }
+        return output
     }
 
     /// How long the file is at `now`: the time since the first frame, pauses excluded.
@@ -58,5 +96,13 @@ struct RecordingClock {
         let end = pausedSince ?? now
         let elapsed = end - origin - pausedTotal
         return elapsed >= .zero ? elapsed : .zero
+    }
+
+    private static func seconds(_ time: CMTime) -> String {
+        String(format: "%.3f", time.seconds)
+    }
+
+    private static var logger: Logger {
+        .pawshot("recording")
     }
 }

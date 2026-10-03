@@ -114,6 +114,11 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
             document.selection = nil
             needsDisplay = true
         }
+        if tool == self.tool {
+            // `tool`'s `didSet` stays silent on the same tool; the press itself is worth a line.
+            let name = tool.rawValue
+            Self.logger.notice("tool \(name, privacy: .public) again")
+        }
         self.tool = tool
     }
 
@@ -699,7 +704,11 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
             return
         }
 
-        guard let annotation = tool.makeAnnotation(at: point, document: document) else { return }
+        guard let annotation = tool.makeAnnotation(at: point, document: document) else {
+            let name = tool.rawValue
+            Self.logger.error("tool \(name, privacy: .public) made no object to draw")
+            return
+        }
 
         // Not selected: the tool stays, and the next press draws again.
         if tool.isSingleClick {
@@ -1087,6 +1096,10 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
             break
         }
 
+        // The key code and modifiers only: the character could be anything typed.
+        let keyCode = event.keyCode
+        let flags = modifiers.rawValue
+        Self.logger.notice("key \(keyCode) (modifiers 0x\(String(flags, radix: 16), privacy: .public)) not an editor key, passed on")
         super.keyDown(with: event)
     }
 
@@ -1121,6 +1134,7 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
                 return true
             }
             if digit - 1 == palette.customIndex {
+                Self.logger.notice("key \(digit): own colour picker asked for")
                 delegate?.canvasDidRequestCustomColor(self)
                 return true
             }
@@ -1171,7 +1185,11 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     /// first in the responder chain, so it catches the action before the window does. While text is
     /// being typed, the text field's own undo manager takes the typing back instead.
     @objc func undo(_: Any?) {
-        guard let manager = activeUndoManager, manager.canUndo else { return }
+        guard let manager = activeUndoManager, manager.canUndo else {
+            let typing = isEditingText
+            Self.logger.notice("undo: nothing to undo\(typing ? " (typing)" : "", privacy: .public)")
+            return
+        }
         Stats.shared.add(.undos)
         if isEditingText {
             Self.logger.notice("undo (typing)")
@@ -1180,7 +1198,12 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
     }
 
     @objc func redo(_: Any?) {
-        if isEditingText, textUndoManager.canRedo {
+        guard activeUndoManager?.canRedo == true else {
+            let typing = isEditingText
+            Self.logger.notice("redo: nothing to redo\(typing ? " (typing)" : "", privacy: .public)")
+            return
+        }
+        if isEditingText {
             Self.logger.notice("redo (typing)")
         }
         activeUndoManager?.redo()
@@ -1221,6 +1244,8 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         if document.selection != nil {
             document.selection = nil
             needsDisplay = true
+        } else {
+            Self.logger.notice("Esc: nothing left to let go of")
         }
     }
 }

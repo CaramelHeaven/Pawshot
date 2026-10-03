@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import os
 
 /// What the overlay is picking a region for. A screenshot ends on mouse up; a recording keeps the
 /// region alive to be moved, resized and started with ↩.
@@ -64,18 +65,30 @@ struct SizeInput: Equatable {
     mutating func type(_ character: Character) -> Bool {
         if character.isASCII, character.isNumber {
             let side = hasSeparator ? text.split(separator: "×", omittingEmptySubsequences: false).last ?? "" : Substring(text)
-            guard side.count < 5 else { return true }
+            guard side.count < 5 else {
+                Self.logger.notice("size input: a digit past five on one side refused")
+                return true
+            }
             text.append(character)
             return true
         }
 
         if ["x", "X", "×", "*", " "].contains(character) {
-            guard !text.isEmpty, !hasSeparator else { return false }
+            guard !text.isEmpty, !hasSeparator else {
+                // Not an error: with no digits typed, X is the 1x/2x key.
+                let why = text.isEmpty ? "no digits typed yet" : "a separator is already there"
+                Self.logger.notice("size input: separator not taken, \(why, privacy: .public)")
+                return false
+            }
             text.append("×")
             return true
         }
 
         return false
+    }
+
+    private static var logger: Logger {
+        .pawshot("overlay")
     }
 
     mutating func deleteBackward() {

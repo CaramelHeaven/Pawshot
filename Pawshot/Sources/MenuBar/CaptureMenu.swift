@@ -33,15 +33,6 @@ struct CaptureMenu: View {
         .pawshot("app")
     }
 
-    /// Our shortcuts macOS still holds, read from its live preferences each time the menu opens.
-    private var takenByMacOS: String {
-        let system = SystemScreenshotShortcuts.current()
-        return settings.allHotKeys
-            .filter { system.conflict(with: $0) != nil }
-            .map(\.displayString)
-            .formatted(.list(type: .and))
-    }
-
     var body: some View {
         // A menu-style menu bar item can't stop on a plain click, so while a take runs, stopping
         // is the first thing the menu offers.
@@ -71,7 +62,9 @@ struct CaptureMenu: View {
 
         // A shortcut macOS takes first never reaches Pawshot: pressing it does the system's thing,
         // or nothing. Settings and the welcome window say so, but nobody opens them after day one.
-        let taken = takenByMacOS
+        // Cached in `AppState`: the body is rebuilt every second during a take, and reading
+        // another app's preferences there was an XPC call to cfprefsd each time.
+        let taken = state.shortcutsTakenByMacOS
         if !taken.isEmpty {
             Button("\(taken) taken by macOS — Fix…", systemImage: "exclamationmark.triangle") {
                 Self.logger.notice("paw menu: fix shortcuts taken by macOS (\(taken, privacy: .public))")

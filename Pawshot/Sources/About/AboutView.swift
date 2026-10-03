@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// The About window: the icon inside the app's frame corners, the version and the count of shots.
@@ -21,7 +22,11 @@ struct AboutView: View {
                     .rotationEffect(.degrees(hops.isMultiple(of: 2) ? 0 : -8))
                     .scaleEffect(hops.isMultiple(of: 2) ? 1 : 1.06)
                     .animation(Tokens.Motion.arrival, value: hops)
-                    .onTapGesture { hops += 1 }
+                    .onTapGesture {
+                        hops += 1
+                        let count = hops
+                        Self.logger.notice("about: the paw hopped, \(count) this time")
+                    }
                     .accessibilityLabel("Pawshot icon")
             }
 
@@ -46,6 +51,10 @@ struct AboutView: View {
                 if let url = URL(string: AboutPanel.repositoryURL) {
                     Link(AboutPanel.repositoryURL, destination: url)
                         .font(.footnote)
+                        .environment(\.openURL, OpenURLAction { _ in
+                            Self.logger.notice("about: repository link opened")
+                            return .systemAction
+                        })
                 }
             }
         }
@@ -54,6 +63,10 @@ struct AboutView: View {
         .padding(.bottom, 24)
         .frame(minWidth: 320)
         .background(ComesForward("about"))
+    }
+
+    private static var logger: Logger {
+        .pawshot("app")
     }
 
     private var shotsLine: String {

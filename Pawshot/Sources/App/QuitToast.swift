@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// "Hold ⌘Q to Quit" — Chrome's toast, shown once ⌘Q has been held longer than a tap. The bar
@@ -20,6 +21,9 @@ enum QuitToast {
         if let frame = screen?.frame {
             let size = panel.frame.size
             panel.setFrameOrigin(CGPoint(x: frame.midX - size.width / 2, y: frame.minY + frame.height * 0.55 - size.height / 2))
+            logger.notice("quit toast up on a \(Int(frame.width))×\(Int(frame.height)) pt screen")
+        } else {
+            logger.error("quit toast: no screen to centre on, shown where it was")
         }
         panel.alphaValue = 0
         panel.orderFrontRegardless()
@@ -35,7 +39,11 @@ enum QuitToast {
 
     /// The keys were let go before the bar filled: the toast melts away and nothing else happens.
     static func hide() {
-        guard let panel, panel.isVisible else { return }
+        guard let panel, panel.isVisible else {
+            logger.notice("quit toast: hide asked with none on screen")
+            return
+        }
+        logger.notice("quit toast melts away")
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.3
             panel.animator().alphaValue = 0
@@ -44,6 +52,10 @@ enum QuitToast {
                 panel.orderOut(nil)
             }
         }
+    }
+
+    private static var logger: Logger {
+        .pawshot("quit")
     }
 
     private static func makePanel() -> NSPanel {

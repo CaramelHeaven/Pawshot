@@ -79,7 +79,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         ))
         host.onKey = { [weak self] event in self?.handleKey(event) ?? false }
         // Esc lets go of the selected piece and nothing more: it never throws the take away.
-        host.onCancel = { [weak self] in self?.model.selectedPiece = nil }
+        host.onCancel = { [weak self] in self?.selectPiece(nil) }
         host.contentUndoManager = piecesUndoManager
         window.contentView = host
         window.initialFirstResponder = host
@@ -124,7 +124,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
             seek: { [weak self] in self?.seek(to: $0) },
             editKeep: { [weak self] in self?.editKeep($0) },
             commitKeep: { [weak self] in self?.commitKeep(before: $0) },
-            selectPiece: { [weak self] in self?.model.selectedPiece = $0 },
+            selectPiece: { [weak self] in self?.selectPiece($0) },
             cyclePreset: { [weak self] in self?.cyclePreset() },
             copy: { [weak self] in self?.copy(nil) },
             save: { [weak self] in self?.saveDocument(nil) },
@@ -183,13 +183,16 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         }
 
         var images: [CGImage] = []
+        var lastError = ""
         for await result in generator.images(for: times) {
-            if let image = try? result.image {
-                images.append(image)
+            do {
+                try images.append(result.image)
+            } catch {
+                lastError = String(describing: error)
             }
         }
         if images.count < count {
-            Self.logger.error("thumbnails: \(images.count, privacy: .public) of \(count, privacy: .public)")
+            Self.logger.error("thumbnails: \(images.count, privacy: .public) of \(count, privacy: .public), last error: \(lastError, privacy: .public)")
         }
         model.thumbnails = images
     }
@@ -223,7 +226,13 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         if let index = keep.piece(containing: start), keep.pieces[index].end - start < 0.05 {
             start = keep.nextPlayableTime(after: keep.pieces[index].end) ?? keep.first.start
         }
-        guard let output = keep.outputTime(forSource: start) else { return }
+        guard let output = keep.outputTime(forSource: start) else {
+            let pieces = keep.pieces.count
+            Self.logger.error(
+                "play ignored: \(String(format: "%.2f", start), privacy: .public) s is in no piece of \(pieces, privacy: .public)"
+            )
+            return
+        }
 
         let source = movieURL
         playTask = Task { [weak self] in
@@ -236,13 +245,19 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
                     Self.logger.error("playback splice failed: \(String(describing: error), privacy: .public)")
                     return finishStarting()
                 }
-                guard !Task.isCancelled else { return finishStarting() }
+                guard !Task.isCancelled else {
+                    Self.logger.notice("play: the splice was ready after the start was cancelled")
+                    return finishStarting()
+                }
                 splicePlayer.replaceCurrentItem(with: item)
                 observeEnd(of: item)
                 model.spliceKeep = keep
             }
             await splicePlayer.seek(to: Self.time(output), toleranceBefore: .zero, toleranceAfter: .zero)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                Self.logger.notice("play: cancelled while seeking the splice")
+                return
+            }
             finishStarting()
             model.currentTime = start
             model.isPlaying = true
@@ -346,9 +361,22 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
         )
     }
 
+    /// A click on a piece, or Esc letting go of it.
+    private func selectPiece(_ index: Int?) {
+        let before = model.selectedPiece
+        model.selectedPiece = index
+        guard before != index else { return }
+        let from = before.map { "\($0 + 1)" } ?? "none"
+        let to = index.map { "\($0 + 1)" } ?? "none"
+        Self.logger.notice("piece selected: \(from, privacy: .public) → \(to, privacy: .public)")
+    }
+
     /// ⌫: the selected piece goes, unless it is the only one.
     private func removeSelectedPiece() -> Bool {
-        guard let selected = model.selectedPiece else { return false }
+        guard let selected = model.selectedPiece else {
+            Self.logger.notice("⌫: no piece selected, nothing removed")
+            return false
+        }
         var keep = model.keep
         guard keep.remove(at: selected) else {
             Self.logger.notice("piece not removed: it is the last one")
@@ -385,9 +413,19 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
     }
 
     private func setEffects(_ effects: EffectsOptions) {
+        let old = model.effects
         model.effects = effects
+        let switches: [(String, Bool, Bool)] = [
+            ("clicks", old.clicks, effects.clicks),
+            ("keys", old.keys, effects.keys),
+            ("spotlights", old.spotlights, effects.spotlights),
+            ("hidden stretches", old.blurs, effects.blurs),
+            ("hidden zones", old.masks, effects.masks),
+        ]
+        let changed = switches.filter { $0.1 != $0.2 }.map { "\($0.0) → \($0.2)" }
+        let changedText = changed.isEmpty ? "nothing changed" : changed.joined(separator: ", ")
         Self.logger.notice(
-            "effects → clicks \(effects.clicks, privacy: .public), keys \(effects.keys, privacy: .public)"
+            "effects: \(changedText, privacy: .public); now clicks \(effects.clicks, privacy: .public), keys \(effects.keys, privacy: .public), spotlights \(effects.spotlights, privacy: .public), hidden \(effects.blurs, privacy: .public), zones \(effects.masks, privacy: .public)"
         )
     }
 
@@ -493,7 +531,13 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
                     throw VideoExportError.clipboard
                 }
                 let elapsed = Int(Date().timeIntervalSince(started) * 1000)
-                let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                let bytes: String
+                do {
+                    bytes = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize.map { "\($0)" } ?? "?"
+                } catch {
+                    bytes = "?"
+                    Self.logger.error("exported file's size unreadable: \(String(describing: error), privacy: .public)")
+                }
                 Self.logger.notice(
                     "exported \(preset.rawValue, privacy: .public) to \(target, privacy: .public) in \(elapsed, privacy: .public) ms, \(bytes, privacy: .public) B"
                 )

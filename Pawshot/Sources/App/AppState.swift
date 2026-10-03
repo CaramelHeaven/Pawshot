@@ -34,6 +34,11 @@ final class AppState {
     /// Settings → Shortcuts names them; the next take that registers them clears the list.
     var recordingHotKeysNotRegistered: [String] = []
 
+    /// Our shortcuts macOS still takes, as the paw's menu names them ("⇧⌘3 and ⇧⌘4"); empty when
+    /// none is. Read at launch, on a shortcut change and whenever a menu opens
+    /// (`AppDelegate.refreshShortcutsTakenByMacOS`), never from a view's body.
+    var shortcutsTakenByMacOS = ""
+
     /// True for a moment after ⌘D put text on the clipboard: the window is already gone, and the
     /// dot on the paw is the only sign the text arrived.
     private(set) var textJustCopied = false
