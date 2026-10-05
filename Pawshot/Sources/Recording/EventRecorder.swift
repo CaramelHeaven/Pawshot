@@ -39,6 +39,11 @@ final class EventRecorder {
         self.clock = clock
     }
 
+    /// The take's frame rate, for the export to render the effects at.
+    func setFramesPerSecond(_ fps: Int) {
+        timeline.framesPerSecond = fps
+    }
+
     /// Zones hidden throughout, as fractions of the area (0…1, origin top left).
     func setMasks(_ zones: [CGRect]) {
         timeline.masks = zones.map {

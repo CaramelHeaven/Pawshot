@@ -54,7 +54,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, C
             model.timelineIsLost = true
         }
         let settings = Settings.shared
-        model.effects = EffectsOptions(clicks: settings.showsClicks, keys: true)
+        model.effects = EffectsOptions(clicks: settings.showsClicks, keys: settings.showsKeystrokes)
         model.showsHints = settings.videoEditorOpenCount < 5
         player = AVPlayer(url: movieURL)
 

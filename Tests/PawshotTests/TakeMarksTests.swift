@@ -16,11 +16,13 @@ final class TakeMarksTests: XCTestCase {
 
         XCTAssertEqual(timeline.clicks, [EventTimeline.Point(time: 1.5, x: 0.2, y: 0.3)])
         XCTAssertTrue(timeline.badTakes.isEmpty)
+        XCTAssertNil(timeline.framesPerSecond, "a take from before 0.6.11 says no frame rate")
     }
 
     func testMarksSurviveTheFile() throws {
         var timeline = EventTimeline()
         timeline.badTakes = [EventTimeline.Span(start: 10, end: 20)]
+        timeline.framesPerSecond = 15
 
         let decoded = try JSONDecoder().decode(EventTimeline.self, from: JSONEncoder().encode(timeline))
         XCTAssertEqual(decoded, timeline)

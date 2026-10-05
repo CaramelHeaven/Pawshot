@@ -294,19 +294,19 @@ final class SettingsTests: XCTestCase {
         XCTAssertNil(reread.lastRecordingArea(on: 3))
     }
 
-    /// Clicks go into the video unless switched off; the editor's key hints count the
-    /// openings.
+    /// Clicks stay out of the video until switched on — any effect turns a quick copy of the
+    /// file into a re-encode; the editor's key hints count the openings.
     func testVideoSettingsDefaults() {
         let settings = Settings(defaults: defaults)
-        XCTAssertTrue(settings.showsClicks)
+        XCTAssertFalse(settings.showsClicks)
         XCTAssertFalse(settings.showsKeystrokes, "reading the keyboard is never on by default")
         XCTAssertEqual(settings.videoEditorOpenCount, 0)
 
-        settings.showsClicks = false
+        settings.showsClicks = true
         settings.recordVideoEditorOpen()
 
         let reread = Settings(defaults: defaults)
-        XCTAssertFalse(reread.showsClicks)
+        XCTAssertTrue(reread.showsClicks)
         XCTAssertEqual(reread.videoEditorOpenCount, 1)
     }
 
@@ -335,6 +335,30 @@ final class SettingsTests: XCTestCase {
 
         settings.recordingGoal = 60
         XCTAssertEqual(Settings(defaults: defaults).recordingGoal, 60)
+    }
+
+    /// 60 frames a second until another is picked; a stored rate that isn't offered reads as 60.
+    func testTheFrameRateIsRememberedAndKeptToTheOfferedOnes() {
+        let settings = Settings(defaults: defaults)
+        XCTAssertEqual(settings.recordingFramesPerSecond, 60)
+
+        settings.recordingFramesPerSecond = 15
+        XCTAssertEqual(Settings(defaults: defaults).recordingFramesPerSecond, 15)
+
+        defaults.set(25, forKey: "recording.fps")
+        XCTAssertEqual(Settings(defaults: defaults).recordingFramesPerSecond, 60)
+    }
+
+    /// The toolbar's place is kept until it is cleared, which puts it back at the bottom.
+    func testTheToolbarsPlaceIsRemembered() {
+        let settings = Settings(defaults: defaults)
+        XCTAssertNil(settings.recordingToolbarAnchor)
+
+        settings.recordingToolbarAnchor = CGPoint(x: 0.25, y: 0.125)
+        XCTAssertEqual(Settings(defaults: defaults).recordingToolbarAnchor, CGPoint(x: 0.25, y: 0.125))
+
+        settings.recordingToolbarAnchor = nil
+        XCTAssertNil(Settings(defaults: defaults).recordingToolbarAnchor)
     }
 
     /// Logs are collected unless switched off: a bug met before switching them on would leave

@@ -1461,7 +1461,7 @@ final class SelectionView: NSView {
             badge.removeFromSuperview()
         }
 
-        let toolbarTop = layOutToolbar()
+        let toolbar = layOutToolbar()
 
         let hints = OverlayHUD.hintsHost
         guard showsHints else {
@@ -1474,20 +1474,25 @@ final class SelectionView: NSView {
             addSubview(hints)
         }
         let hintsSize = hints.fittingSize
-        hints.frame = CGRect(
-            x: (bounds.width - hintsSize.width) / 2,
-            // Above the recording toolbar when there is one; otherwise where they always were.
-            y: toolbarTop.map { $0 - hintsSize.height - 12 } ?? bounds.height - hintsSize.height - 48,
-            width: hintsSize.width,
-            height: hintsSize.height
-        )
+        // Above the recording toolbar when there is one — below it when it was dragged up to
+        // where there is no room above; otherwise where they always were.
+        let y: CGFloat = if let toolbar {
+            toolbar.minY - hintsSize.height - 12 >= bounds.minY ? toolbar.minY - hintsSize.height - 12 : toolbar.maxY + 12
+        } else {
+            bounds.height - hintsSize.height - 48
+        }
+        hints.frame = CGRect(x: (bounds.width - hintsSize.width) / 2, y: y, width: hintsSize.width, height: hintsSize.height)
     }
 
-    /// The recording toolbar sits at the bottom of the screen the cursor is on, whatever the
-    /// region does and in every mode — it is where the mode is picked. Returns its top edge.
+    /// The recording toolbar sits on the screen the cursor is on, whatever the region does and in
+    /// every mode — it is where the mode is picked. At the bottom in the middle until it is
+    /// dragged by an empty part of its row; then where it was left, on every screen and in every
+    /// overlay after (`Settings.recordingToolbarAnchor`). Returns its frame.
     ///
-    /// It used to be a bar under the region that hid during every drag; this one never moves.
-    func layOutToolbar() -> CGFloat? {
+    /// It used to be a bar under the region that hid during every drag; this one moves only
+    /// when it is dragged itself.
+    @discardableResult
+    func layOutToolbar() -> CGRect? {
         let toolbar = OverlayHUD.recordingBarHost
         guard purpose == .recording else {
             if toolbar.superview === self {
@@ -1503,11 +1508,63 @@ final class SelectionView: NSView {
             addSubview(toolbar)
         }
         let size = toolbar.fittingSize
-        toolbar.frame = CGRect(
-            origin: SelectionGeometry.toolbarOrigin(toolbarSize: size, bounds: bounds),
-            size: size
+        let bar = OverlayHUD.recordingBar
+        let placed = SelectionGeometry.toolbarPlacement(
+            toolbarSize: size,
+            rowHeight: bar.rowHeight,
+            anchor: toolbarDrag?.anchor ?? Settings.shared.recordingToolbarAnchor,
+            bounds: bounds
         )
-        return toolbar.frame.minY
+        if bar.opensDown != placed.opensDown {
+            bar.opensDown = placed.opensDown
+        }
+        toolbar.frame = CGRect(origin: placed.origin, size: size)
+        return toolbar.frame
+    }
+
+    /// A drag of the toolbar under way: where its row's middle was when it began, and the place
+    /// it has been dragged to so far. Stored only when it ends.
+    private var toolbarDrag: (start: CGPoint, anchor: CGPoint)?
+
+    /// The toolbar dragged by an empty part of its row, `translation` from where the drag began.
+    func dragToolbar(by translation: CGSize) {
+        let toolbar = OverlayHUD.recordingBarHost
+        guard toolbar.superview === self else {
+            Self.logger.error("toolbar drag on an overlay that doesn't hold the toolbar")
+            return
+        }
+        let bar = OverlayHUD.recordingBar
+        if toolbarDrag == nil {
+            let start = SelectionGeometry.toolbarRowCenter(frame: toolbar.frame, rowHeight: bar.rowHeight, opensDown: bar.opensDown)
+            toolbarDrag = (start, SelectionGeometry.toolbarAnchor(forRowCenter: start, bounds: bounds))
+            Self.logger.notice("toolbar drag began at \(Int(start.x), privacy: .public), \(Int(start.y), privacy: .public)")
+        }
+        guard let start = toolbarDrag?.start else { return }
+        let center = CGPoint(x: start.x + translation.width, y: start.y + translation.height)
+        toolbarDrag?.anchor = SelectionGeometry.toolbarAnchor(forRowCenter: center, bounds: bounds)
+        layOutToolbar()
+        needsDisplay = true
+    }
+
+    /// The drag let go: where the toolbar's row is now is where it stays, read back off the
+    /// toolbar so a place pushed back onto the screen is stored as it shows.
+    func endToolbarDrag() {
+        guard toolbarDrag != nil else {
+            Self.logger.error("toolbar drag ended with none under way")
+            return
+        }
+        toolbarDrag = nil
+        let toolbar = OverlayHUD.recordingBarHost
+        let bar = OverlayHUD.recordingBar
+        let center = SelectionGeometry.toolbarRowCenter(frame: toolbar.frame, rowHeight: bar.rowHeight, opensDown: bar.opensDown)
+        let anchor = SelectionGeometry.toolbarAnchor(forRowCenter: center, bounds: bounds)
+        Settings.shared.recordingToolbarAnchor = anchor
+        let opensDown = bar.opensDown
+        Self.logger.notice(
+            "toolbar moved to anchor \(String(format: "%.3f, %.3f", anchor.x, anchor.y), privacy: .public), opens down \(opensDown, privacy: .public)"
+        )
+        layOutToolbar()
+        needsDisplay = true
     }
 
     /// What the badge says: the pixels the file will have, big — the number people actually care

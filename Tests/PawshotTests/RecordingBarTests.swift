@@ -142,6 +142,42 @@ final class RecordingBarInOverlayTests: XCTestCase {
         }
     }
 
+    /// The toolbar is dragged by the empty rim of its row — in the overlay's non-activating
+    /// panel, with Pawshot possibly not active — and the place it is let go is kept. The region
+    /// stays as it was. The owner's own place is put back afterwards.
+    func testTheToolbarIsDraggedByItsRimAndKeepsItsPlace() throws {
+        let settings = Settings.shared
+        let ownersAnchor = settings.recordingToolbarAnchor
+        defer { settings.recordingToolbarAnchor = ownersAnchor }
+        settings.recordingToolbarAnchor = nil
+
+        let (overlay, window, view) = try overlayWithRegion { _ in }
+        defer { overlay.dismiss() }
+        let bar = OverlayHUD.recordingBarHost
+        let region = try XCTUnwrap(view.recordingRegion, "a region to keep")
+        let before = bar.frame
+
+        // The row's left rim: its 6 pt of padding, no button there.
+        let start = CGPoint(x: before.minX + 3, y: before.midY)
+        let end = CGPoint(x: start.x - 200, y: start.y - 300)
+        try click(window, at: view.convert(start, to: nil), type: .leftMouseDown)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        for step in 1 ... 4 {
+            let t = CGFloat(step) / 4
+            let point = CGPoint(x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t)
+            try click(window, at: view.convert(point, to: nil), type: .leftMouseDragged)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        try click(window, at: view.convert(end, to: nil), type: .leftMouseUp)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+
+        let anchor = try XCTUnwrap(settings.recordingToolbarAnchor, "the drag stored no place — the gesture never fired")
+        XCTAssertEqual(bar.frame.midX, before.midX - 200, accuracy: 2)
+        XCTAssertEqual(bar.frame.midY, before.midY - 300, accuracy: 2)
+        XCTAssertEqual(anchor.x, bar.frame.midX / view.bounds.width, accuracy: 0.01)
+        XCTAssertEqual(view.recordingRegion, region, "dragging the toolbar moved or wiped the region")
+    }
+
     /// Pawshot may not be the active app when the overlay is up — macOS can refuse the
     /// activation — and then the first click on a view that doesn't accept it only activates.
     func testTheBarTakesTheFirstClick() {

@@ -232,6 +232,15 @@ enum VideoPreset: String, CaseIterable {
         let scale = min(1, gifShortSide / shortSide)
         return CGSize(width: (source.width * scale).rounded(), height: (source.height * scale).rounded())
     }
+
+    /// A GIF with effects is rendered into a movie first. That movie can be 720p — a quarter of
+    /// the pixels of 1080p to encode — when a 1280×720 box still leaves its short side at 720,
+    /// the GIF's own: a landscape video no wider than 16:9. Anything else stays at 1080p, so the
+    /// GIF never comes out smaller than it would have. How the presets treat a portrait video
+    /// was not tried.
+    static func gifEffectsPassIs720p(for source: CGSize) -> Bool {
+        source.width >= source.height && source.width * 9 <= source.height * 16
+    }
 }
 
 enum VideoEditing {

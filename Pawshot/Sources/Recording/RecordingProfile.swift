@@ -23,15 +23,16 @@ enum RecordingProfile: String, CaseIterable, Identifiable {
         var systemAudio: Bool?
         var nativeResolution: Bool?
         var clicks: Bool?
+        var framesPerSecond: Int?
         var preset: VideoPreset?
     }
 
     var values: Values {
         switch self {
         case .bugReport:
-            Values(microphone: false, systemAudio: false, clicks: true, preset: .gif)
+            Values(microphone: false, systemAudio: false, clicks: true, framesPerSecond: 30, preset: .gif)
         case .demo:
-            Values(microphone: true, nativeResolution: true, preset: .original)
+            Values(microphone: true, nativeResolution: true, framesPerSecond: 60, preset: .original)
         }
     }
 
@@ -45,8 +46,8 @@ enum RecordingProfile: String, CaseIterable, Identifiable {
     /// What it sets, in a few words.
     var summary: String {
         switch self {
-        case .bugReport: String(localized: "GIF 720p · clicks · no sound")
-        case .demo: String(localized: "HEVC 2x · voice")
+        case .bugReport: String(localized: "GIF 720p · 30 fps · clicks · no sound")
+        case .demo: String(localized: "HEVC 2x · 60 fps · voice")
         }
     }
 
@@ -65,6 +66,9 @@ enum RecordingProfile: String, CaseIterable, Identifiable {
         if let clicks = values.clicks {
             settings.showsClicks = clicks
         }
+        if let fps = values.framesPerSecond {
+            settings.recordingFramesPerSecond = fps
+        }
         if let preset = values.preset {
             settings.videoPreset = preset
         }
@@ -80,6 +84,7 @@ enum RecordingProfile: String, CaseIterable, Identifiable {
                 && values.systemAudio.map { $0 == settings.recordsSystemAudio } ?? true
                 && values.nativeResolution.map { $0 == settings.recordsAtNativeResolution } ?? true
                 && values.clicks.map { $0 == settings.showsClicks } ?? true
+                && values.framesPerSecond.map { $0 == settings.recordingFramesPerSecond } ?? true
                 && values.preset.map { $0 == settings.videoPreset } ?? true
         }
     }

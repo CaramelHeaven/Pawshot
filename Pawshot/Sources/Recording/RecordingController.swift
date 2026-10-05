@@ -145,6 +145,7 @@ final class RecordingController {
                 windowID: target.windowID,
                 includingWindows: ink.map { [$0.windowID] } ?? [],
                 nativeResolution: settings.recordsAtNativeResolution,
+                framesPerSecond: settings.recordingFramesPerSecond,
                 capturesSystemAudio: settings.recordsSystemAudio,
                 capturesMicrophone: microphone,
                 microphoneDeviceID: device
@@ -182,15 +183,17 @@ final class RecordingController {
         recordedSize = CGSize(width: size.width, height: size.height)
         let systemAudio = settings.recordsSystemAudio
         let native = settings.recordsAtNativeResolution
+        let fps = settings.recordingFramesPerSecond
         let penAvailable = ink != nil
         Self.logger.notice(
-            "recording \(size.width, privacy: .public)×\(size.height, privacy: .public), mic \(microphone, privacy: .public), system audio \(systemAudio, privacy: .public), native \(native, privacy: .public), pen available \(penAvailable, privacy: .public)"
+            "recording \(size.width, privacy: .public)×\(size.height, privacy: .public) at \(fps, privacy: .public) fps, mic \(microphone, privacy: .public), system audio \(systemAudio, privacy: .public), native \(native, privacy: .public), pen available \(penAvailable, privacy: .public)"
         )
 
         let events = EventRecorder(area: Self.appKitRect(of: target)) { [weak engine] in
             engine?.durationIfRunning
         }
         events.setMasks(target.maskZones)
+        events.setFramesPerSecond(fps)
         events.start(recordingKeys: settings.showsKeystrokes)
         self.events = events
         registerRecordingHotKeys()
@@ -703,6 +706,7 @@ final class RecordingController {
         windowID: CGWindowID? = nil,
         includingWindows includedIDs: [CGWindowID] = [],
         nativeResolution: Bool = true,
+        framesPerSecond: Int = 60,
         capturesSystemAudio: Bool,
         capturesMicrophone: Bool,
         microphoneDeviceID: String? = nil
@@ -728,6 +732,7 @@ final class RecordingController {
                     sourceRect: nil,
                     pixelWidth: size.width,
                     pixelHeight: size.height,
+                    framesPerSecond: framesPerSecond,
                     capturesSystemAudio: capturesSystemAudio,
                     capturesMicrophone: capturesMicrophone,
                     microphoneDeviceID: microphoneDeviceID
@@ -768,6 +773,7 @@ final class RecordingController {
                 sourceRect: sourceRect,
                 pixelWidth: size.width,
                 pixelHeight: size.height,
+                framesPerSecond: framesPerSecond,
                 capturesSystemAudio: capturesSystemAudio,
                 capturesMicrophone: capturesMicrophone,
                 microphoneDeviceID: microphoneDeviceID

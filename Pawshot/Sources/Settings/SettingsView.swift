@@ -367,7 +367,7 @@ private struct RecordingSettings: View {
             } label: {
                 title(
                     "Profile",
-                    subtitle: "Sets the sound, clicks, resolution and format below in one go",
+                    subtitle: "Sets the sound, clicks, resolution, frame rate and format below in one go",
                     icon: "slider.horizontal.3",
                     hint: KeyHint(key: "P", place: "overlay")
                 )
@@ -469,6 +469,13 @@ private struct RecordingSettings: View {
                 } label: {
                     title("Resolution", icon: "square.resize", hint: KeyHint(key: "X", place: "overlay"))
                 }
+                Picker(selection: $settings.recordingFramesPerSecond) {
+                    ForEach(Settings.recordingFrameRates, id: \.self) { fps in
+                        Text("\(fps) fps").tag(fps)
+                    }
+                } label: {
+                    title("Frame rate", icon: "speedometer", hint: KeyHint(place: "overlay"))
+                }
                 Picker(selection: $settings.videoPreset) {
                     ForEach(VideoPreset.allCases, id: \.self) { preset in
                         Text(preset.title).tag(preset)
@@ -493,7 +500,8 @@ private struct RecordingSettings: View {
             }
             .help(Text("""
             A 1x video is about four times smaller, with softer text. X switches it on the \
-            recording overlay; P switches the format in the video editor.
+            recording overlay; P switches the format in the video editor. A lower frame rate makes \
+            a lighter file and a jerkier picture; it is also in Options on the recording overlay.
             """))
         } header: {
             Text("Quality")

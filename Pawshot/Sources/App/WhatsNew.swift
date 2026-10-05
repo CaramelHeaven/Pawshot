@@ -15,6 +15,17 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.11", text: String(localized: """
+            The bar under a recording region can be moved: drag it by its edge, and it stays \
+            where you left it. Near the top of the screen, Options open downwards.
+
+            Pick how many frames a second a recording takes — 15, 24, 30 or 60 — in Settings → \
+            Recording or in Options before a take. Fewer frames make a lighter file. Bug report \
+            now records at 30.
+
+            Saving and copying a video is quicker: clicks are no longer drawn into it unless you \
+            turn them on, and a GIF with effects is made faster.
+            """)),
             Entry(version: "0.6.10", text: String(localized: """
             Picking a region to record no longer freezes the screen: a video under it keeps \
             playing while you choose.

@@ -119,6 +119,14 @@ final class VideoPresetTests: XCTestCase {
         XCTAssertEqual(VideoPreset.gifPixelSize(for: CGSize(width: 400, height: 300)), CGSize(width: 400, height: 300))
     }
 
+    /// A GIF's effects movie is 720p only where a 1280×720 box still leaves the GIF its 720.
+    func testTheGIFsEffectsPassIs720pOnlyWhereNothingIsLost() {
+        XCTAssertTrue(VideoPreset.gifEffectsPassIs720p(for: CGSize(width: 3840, height: 2160)), "16:9")
+        XCTAssertTrue(VideoPreset.gifEffectsPassIs720p(for: CGSize(width: 1440, height: 1080)), "4:3")
+        XCTAssertFalse(VideoPreset.gifEffectsPassIs720p(for: CGSize(width: 3440, height: 1440)), "21:9 would come out under 720")
+        XCTAssertFalse(VideoPreset.gifEffectsPassIs720p(for: CGSize(width: 1080, height: 1920)), "portrait was not tried")
+    }
+
     func testSizeAndTimeTexts() {
         XCTAssertTrue(VideoEditing.approximateSize(4_200_000).hasPrefix("≈ "))
         XCTAssertEqual(VideoEditing.approximateSize(0), "")
@@ -220,6 +228,32 @@ final class VideoExporterTests: XCTestCase {
         XCTAssertEqual(CGImageSourceGetCount(image), 18, "nine frames from each piece, none from the cut")
     }
 
+    /// A GIF with effects goes through a movie first, 720p where that loses nothing: a 4:3 and a
+    /// 16:9 video still come out with their short side at 720 — what the 1280×720 preset does
+    /// with a 4:3 video is what this checks.
+    func testAGIFWithEffectsKeepsItsShortSideAt720() async throws {
+        for (source, expected) in [
+            (CGSize(width: 1440, height: 1080), CGSize(width: 960, height: 720)),
+            (CGSize(width: 1920, height: 1080), CGSize(width: 1280, height: 720)),
+        ] {
+            let name = "\(Int(source.width))x\(Int(source.height))"
+            let movie = try await SyntheticVideo.write(
+                to: folder.appendingPathComponent("\(name).mov"), seconds: 1, audioTracks: 0, size: source
+            )
+            var timeline = EventTimeline()
+            timeline.clicks = [.init(time: 0.5, x: 0.5, y: 0.5)]
+            let gif = folder.appendingPathComponent("\(name).gif")
+            try await VideoExporter.export(
+                source: movie, keep: KeepRanges(duration: 1), preset: .gif, to: gif,
+                timeline: timeline, effects: EffectsOptions()
+            ) { _ in }
+
+            let image = try XCTUnwrap(CGImageSourceCreateWithURL(gif as CFURL, nil))
+            let frame = try XCTUnwrap(CGImageSourceCreateImageAtIndex(image, 0, nil))
+            XCTAssertEqual(CGSize(width: frame.width, height: frame.height), expected, name)
+        }
+    }
+
     /// The editor plays the export's own splice: as long as the pieces, nothing of the cut.
     @MainActor
     func testPreviewPlaysTheSplice() async throws {
@@ -283,7 +317,9 @@ enum SyntheticVideo {
 
     /// `stripes` draws black and white stripes eight pixels wide instead of a flat shade: something
     /// with detail, for tests that look at what a blur does.
-    static func write(to url: URL, seconds: Int = 2, audioTracks: Int, stripes: Bool = false) async throws -> URL {
+    static func write(
+        to url: URL, seconds: Int = 2, audioTracks: Int, stripes: Bool = false, size: CGSize = size
+    ) async throws -> URL {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         let video = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
@@ -320,7 +356,7 @@ enum SyntheticVideo {
             let time = CMTime(value: CMTimeValue(index), timescale: fps)
             try waitUntilReady(video)
             try adaptor.append(
-                pixelBuffer(shade: CGFloat(index) / CGFloat(frames), stripes: stripes),
+                pixelBuffer(shade: CGFloat(index) / CGFloat(frames), stripes: stripes, size: size),
                 withPresentationTime: time
             )
             for (track, input) in audio.enumerated() {
@@ -345,7 +381,7 @@ enum SyntheticVideo {
         }
     }
 
-    private static func pixelBuffer(shade: CGFloat, stripes: Bool) throws -> CVPixelBuffer {
+    private static func pixelBuffer(shade: CGFloat, stripes: Bool, size: CGSize) throws -> CVPixelBuffer {
         var buffer: CVPixelBuffer?
         CVPixelBufferCreate(nil, Int(size.width), Int(size.height), kCVPixelFormatType_32BGRA, nil, &buffer)
         guard let buffer else { throw VideoExportError.unsupported }

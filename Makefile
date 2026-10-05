@@ -44,6 +44,7 @@ UI_TESTS := \
 	RecordingBarTests/testButtonsCallTheActionsSetAfterTheFirstDraw \
 	RecordingEngineTests/testRecordsAPlayableMovieOfARegion \
 	RecordingEngineTests/testTheSourceOfARunningStreamCanMove \
+	RecordingEngineTests/testATakeAt15FPSSaysSoInItsFile \
 	InkPanelCaptureTests
 
 # English, whatever language the app was switched to: the test host is the app itself.

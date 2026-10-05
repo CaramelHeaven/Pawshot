@@ -56,6 +56,10 @@ struct EventTimeline: Codable, Equatable {
     var blurs: [Span] = []
     /// Zones blurred from the first frame to the last: a tab bar, a mailbox, a token.
     var masks: [Mask] = []
+    /// The frame rate the take was recorded at, which the effects are rendered at. The file
+    /// can't say it: ScreenCaptureKit's shortest frame in a 15 fps take was 0.03 s, measured.
+    /// `nil` in a timeline from before 0.6.11.
+    var framesPerSecond: Int?
 
     private static var logger: Logger {
         .pawshot("recording")
@@ -136,6 +140,7 @@ extension EventTimeline {
         spotlights = try container.decodeIfPresent([Span].self, forKey: .spotlights) ?? []
         blurs = try container.decodeIfPresent([Span].self, forKey: .blurs) ?? []
         masks = try container.decodeIfPresent([Mask].self, forKey: .masks) ?? []
+        framesPerSecond = try container.decodeIfPresent(Int.self, forKey: .framesPerSecond)
     }
 }
 

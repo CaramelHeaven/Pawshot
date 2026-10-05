@@ -21,9 +21,11 @@ final class RecordingProfileTests: XCTestCase {
         settings.recordsMicrophone = true
         settings.recordsSystemAudio = true
         settings.showsClicks = false
+        settings.recordingFramesPerSecond = 60
         settings.videoPreset = .original
 
         RecordingProfile.bugReport.apply(to: settings)
+        XCTAssertEqual(settings.recordingFramesPerSecond, 30)
 
         XCTAssertFalse(settings.recordsMicrophone)
         XCTAssertFalse(settings.recordsSystemAudio)
@@ -34,9 +36,11 @@ final class RecordingProfileTests: XCTestCase {
     func testDemoIsFullResolutionWithVoice() {
         settings.recordsMicrophone = false
         settings.recordsAtNativeResolution = false
+        settings.recordingFramesPerSecond = 15
         settings.videoPreset = .gif
 
         RecordingProfile.demo.apply(to: settings)
+        XCTAssertEqual(settings.recordingFramesPerSecond, 60)
 
         XCTAssertTrue(settings.recordsMicrophone)
         XCTAssertTrue(settings.recordsAtNativeResolution)

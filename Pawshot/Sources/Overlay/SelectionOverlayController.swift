@@ -458,6 +458,15 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         bar.takenShortcuts = []
         bar.freeBytes = nil
         bar.echoPhase = .idle
+        let anchor = settings.recordingToolbarAnchor.map { String(format: "stored anchor %.3f, %.3f", $0.x, $0.y) } ?? "default"
+        Self.logger.notice("toolbar placed at \(anchor, privacy: .public)")
+        bar.dragBar = { [weak self] translation in self?.toolbarView?.dragToolbar(by: translation) }
+        bar.endBarDrag = { [weak self] in self?.toolbarView?.endToolbarDrag() }
+        bar.chooseFramesPerSecond = { [weak self] fps in
+            Self.logger.notice("options: \(fps, privacy: .public) fps picked")
+            settings.recordingFramesPerSecond = fps
+            self?.syncRecordingBar()
+        }
         bar.setMode = { [weak self] mode in
             Self.logger.notice("toolbar: mode \(String(describing: mode), privacy: .public) pressed")
             self?.switchAll(to: mode)
@@ -731,6 +740,7 @@ final class SelectionOverlayController: NSObject, SelectionViewDelegate {
         bar.showsKeystrokes = settings.showsKeystrokes
         bar.keystrokesAllowed = InputMonitoringPermission.isGranted
         bar.nativeResolution = settings.recordsAtNativeResolution
+        bar.framesPerSecond = settings.recordingFramesPerSecond
         bar.profile = RecordingProfile.current(in: settings)
         bar.zoneCount = viewWithRegion?.maskZones.count ?? 0
         bar.isMarkingZones = viewWithRegion?.isMarkingZones ?? false

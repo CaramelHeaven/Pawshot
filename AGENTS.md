@@ -145,8 +145,12 @@ The editor previews them live — the same layer tree as the export, run by an
 `AVSynchronizedLayer` — and has a switch for each one the take actually has. What it starts with is
 set in **Settings → Recording**, which gathers everything about a recording with a line of plain
 words under each group: the sound (and the microphone's access), what is drawn into the video
-(clicks, pressed shortcuts — these need Input Monitoring), and the resolution and
-format. The gradient backdrop that used to be here was removed at the owner's request.
+(clicks, pressed shortcuts — these need Input Monitoring), and the resolution, the frame rate
+(15, 24, 30 or 60, 60 by default; the effects are rendered at the take's own, written into its
+timeline — the file's shortest frame in a 15 fps take reads 0.03 s, measured) and
+format. Clicks start off (the owner's B1 of 2026-10-05): any effect turns a quick copy of the file into a
+re-encode. A GIF with effects renders its first movie at 720p when the video is landscape and
+no wider than 16:9 (`VideoPreset.gifEffectsPassIs720p`), 1080p otherwise. The gradient backdrop that used to be here was removed at the owner's request.
 
 **The recording overlay is the screenshot overlay with `purpose = .recording`.** The brackets are
 red, and mouse up does not end it: the region stays, to be moved by its middle and resized by its
@@ -183,12 +187,22 @@ on every press and on entering window mode (`SelectionOverlayController.refreshW
   again, it is the size it had before. Off the target it is simply laid on top. It stays a
   region (no window id goes to the recorder, the pen works, the frame can be widened), unlike
   Space, which records the window itself. Resizing, drawing or typing a size forgets the old one.
-- **The toolbar** sits at the bottom of the screen the cursor is on and never moves: region /
-  window / whole screen, Options, Record. "Screen" records what ⇧⌘4 does. Options is a panel of
+- **The toolbar** sits on the screen the cursor is on — at the bottom in the middle until it is
+  dragged (the owner's A1 of 2026-10-05): region / window / whole screen, Options, Record.
+  "Screen" records what ⇧⌘4 does. Options is a panel of
   the same SwiftUI view, not a menu — a profile, the microphone (none, or one of the Mac's
   inputs, with the live level, and a "Check the microphone" that listens for three seconds and
-  plays it back), the system sound, clicks, pressed shortcuts, the scale. The glass bar that hung
-  under the region and hid on every drag is gone.
+  plays it back), the system sound, clicks, pressed shortcuts, the scale, the frame rate. The
+  glass bar that hung under the region and hid on every drag is gone.
+- **The toolbar is dragged by any empty part of its row** — the rim, the gaps, the divider; a
+  press on a button stays the button's (a SwiftUI `DragGesture` on the row's background). Where
+  it is let go is kept as one place for every screen, the middle of the row in fractions of the
+  screen (`Settings.recordingToolbarAnchor`), and every overlay after puts it there. In the top
+  half of the screen Options and the warnings open below the row, in the bottom half above it;
+  the whole toolbar stays 8 pt inside the screen (`SelectionGeometry.toolbarPlacement`). That the
+  gesture fires in the overlay's non-activating panel was not seen by the agent — the log says
+  `toolbar drag began` / `toolbar moved to anchor …`. Back to the bottom:
+  `defaults delete com.caramelheaven.pawshot recording.toolbarAnchor`.
 - **A line above the toolbar says what will go wrong** (0.6.3) — only when something will: the
   microphone is on and hears nothing, one of the take's shortcuts is still held by macOS (with the
   System Settings item to untick), the disk has under 5 GB free (a round number: the take's rate
@@ -260,7 +274,7 @@ on every press and on entering window mode (`SelectionOverlayController.refreshW
   switching the mode mid-drag — the release that follows leaves the region as it was
   (`SelectionView.cancelGesture`, `pressMode`). It used to wipe the region, or pick the window
   under the cursor. A held key repeats; `H`, `P`, `M`, `S`, `X` and `A` ignore the repeats.
-- **Profiles** (0.6.3): *Bug report* (GIF 720p, clicks, no sound) and *Demo* (HEVC 2x, voice) write the ordinary settings and keep nothing of their own; `P` on the overlay walks them,
+- **Profiles** (0.6.3): *Bug report* (GIF 720p, 30 fps, clicks, no sound) and *Demo* (HEVC 2x, 60 fps, voice) write the ordinary settings and keep nothing of their own; `P` on the overlay walks them,
   they are also in Options and Settings → Recording, and "Custom" is what the settings add up to
   when they match none. A third one, a GIF for a chat with a size limit, waits for the video
   editor's release (M9).

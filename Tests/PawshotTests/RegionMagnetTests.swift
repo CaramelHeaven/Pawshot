@@ -202,6 +202,54 @@ final class RegionMagnetTests: XCTestCase {
         XCTAssertEqual(origin, CGPoint(x: 320, y: 800 - 44 - 48))
     }
 
+    func testAToolbarNeverDraggedStaysWhereItAlwaysWas() {
+        let placed = SelectionGeometry.toolbarPlacement(
+            toolbarSize: CGSize(width: 360, height: 44), rowHeight: 44, anchor: nil, bounds: bounds
+        )
+        XCTAssertEqual(placed.origin, CGPoint(x: 320, y: 800 - 44 - 48))
+        XCTAssertFalse(placed.opensDown)
+    }
+
+    func testADraggedToolbarOpensTowardsTheRoom() {
+        let size = CGSize(width: 360, height: 300)
+        // Near the top: the row stays where it was put, the panels hang below it.
+        let top = SelectionGeometry.toolbarPlacement(
+            toolbarSize: size, rowHeight: 44, anchor: CGPoint(x: 0.5, y: 0.1), bounds: bounds
+        )
+        XCTAssertTrue(top.opensDown)
+        XCTAssertEqual(top.origin, CGPoint(x: 320, y: 80 - 22))
+        // Near the bottom: they rise above it.
+        let bottom = SelectionGeometry.toolbarPlacement(
+            toolbarSize: size, rowHeight: 44, anchor: CGPoint(x: 0.5, y: 0.9), bounds: bounds
+        )
+        XCTAssertFalse(bottom.opensDown)
+        XCTAssertEqual(bottom.origin, CGPoint(x: 320, y: 720 + 22 - 300))
+    }
+
+    func testADraggedToolbarStaysOnTheScreen() {
+        let placed = SelectionGeometry.toolbarPlacement(
+            toolbarSize: CGSize(width: 360, height: 300), rowHeight: 44, anchor: CGPoint(x: 1, y: 0), bounds: bounds
+        )
+        XCTAssertEqual(placed.origin, CGPoint(x: 1000 - 8 - 360, y: 8))
+    }
+
+    func testTheToolbarsAnchorGoesThereAndBack() {
+        let size = CGSize(width: 360, height: 44)
+        let anchor = SelectionGeometry.toolbarAnchor(forRowCenter: CGPoint(x: 250, y: 600), bounds: bounds)
+        XCTAssertEqual(anchor, CGPoint(x: 0.25, y: 0.75))
+        let placed = SelectionGeometry.toolbarPlacement(toolbarSize: size, rowHeight: 44, anchor: anchor, bounds: bounds)
+        let frame = CGRect(origin: placed.origin, size: size)
+        XCTAssertEqual(
+            SelectionGeometry.toolbarRowCenter(frame: frame, rowHeight: 44, opensDown: placed.opensDown),
+            CGPoint(x: 250, y: 600)
+        )
+        // Dragged off the screen, it is kept on it.
+        XCTAssertEqual(
+            SelectionGeometry.toolbarAnchor(forRowCenter: CGPoint(x: -50, y: 900), bounds: bounds),
+            CGPoint(x: 0, y: 1)
+        )
+    }
+
     func testTheSizeLabelStaysBesideTheDraggedEdge() {
         let label = CGSize(width: 60, height: 18)
         let right = SelectionGeometry.edgeLabelOrigin(for: .right, of: region, labelSize: label, bounds: bounds)

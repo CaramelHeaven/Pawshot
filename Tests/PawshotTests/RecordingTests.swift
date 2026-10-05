@@ -231,6 +231,57 @@ final class RecordingEngineTests: XCTestCase {
         XCTAssertEqual(size.height % 2, 0)
     }
 
+    /// A take at 15 fps comes out at 15 — and its file's shortest frame does **not** say so:
+    /// measured 0.03 s against a nominal 14.86, which is why the take's rate goes into its
+    /// timeline for the export. Only a live stream can tell what ScreenCaptureKit's
+    /// variable-rate file reports. A still screen sends a frame or two, so the test keeps a
+    /// window of its own changing under the region.
+    @MainActor
+    func testATakeAt15FPSSaysSoInItsFile() async throws {
+        try XCTSkipUnless(CGPreflightScreenCaptureAccess(), "No screen recording access — the recording test is skipped")
+
+        let screen = try XCTUnwrap(NSScreen.main)
+        let displayID = try XCTUnwrap(SelectionOverlayController.displayID(of: screen))
+        let displayBounds = CGDisplayBounds(displayID)
+        let region = CGRect(x: displayBounds.minX + 10, y: displayBounds.minY + 40, width: 400, height: 300)
+
+        // Something that changes every 10 ms, under the region (AppKit: bottom-left origin).
+        let flicker = NSWindow(
+            contentRect: CGRect(x: screen.frame.minX + 10, y: screen.frame.maxY - 40 - 300, width: 400, height: 300),
+            styleMask: .borderless, backing: .buffered, defer: false
+        )
+        flicker.isReleasedWhenClosed = false
+        flicker.level = .floating
+        flicker.backgroundColor = .red
+        flicker.orderFrontRegardless()
+        defer { flicker.close() }
+        // The filter leaves Pawshot out — the test host is Pawshot — so the window is let in by
+        // name, once ScreenCaptureKit sees it on screen (a moment after it is ordered in).
+        try await Task.sleep(for: .milliseconds(400))
+
+        let (engine, _) = try await RecordingController.makeEngine(
+            displayID: displayID,
+            rect: region,
+            includingWindows: [CGWindowID(flicker.windowNumber)],
+            framesPerSecond: 15,
+            capturesSystemAudio: false,
+            capturesMicrophone: false
+        )
+        try await engine.start()
+        for tick in 0 ..< 150 {
+            flicker.backgroundColor = tick.isMultiple(of: 2) ? .red : .blue
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let movie = try await engine.stop()
+        defer { try? FileManager.default.removeItem(at: movie) }
+
+        let tracks = try await AVURLAsset(url: movie).loadTracks(withMediaType: .video)
+        let video = try XCTUnwrap(tracks.first)
+        let shortest = try await video.load(.minFrameDuration)
+        let rate = try await video.load(.nominalFrameRate)
+        XCTAssertEqual(rate, 15, accuracy: 1.5, "nominal \(rate) fps, shortest frame \(shortest.seconds) s")
+    }
+
     /// The region moved on a pause: ScreenCaptureKit has to take a new `sourceRect` on a running
     /// stream, and the file has to go on at the size it started. That ScreenCaptureKit does is the
     /// one thing moving the region rests on, and only a live stream can tell.

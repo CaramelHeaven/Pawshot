@@ -157,6 +157,28 @@ final class EffectsPlannerTests: XCTestCase {
 /// the upside-down screenshot: a tree that builds without an error can still draw nothing, or draw
 /// it at the wrong moment once pieces are cut out.
 final class EffectsRenderTests: XCTestCase {
+    /// The effects are rendered at the take's own frame rate, from its timeline: a 15 fps take
+    /// is not blown up to the 30 of its file's shortest frame.
+    func testEffectsAreRenderedAtTheTakesFrameRate() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("pawshot-fx-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let source = try await SyntheticVideo.write(to: folder.appendingPathComponent("in.mov"), audioTracks: 0)
+        var timeline = EventTimeline()
+        timeline.clicks = [.init(time: 1.0, x: 0.5, y: 0.5)]
+        timeline.framesPerSecond = 15
+        let out = folder.appendingPathComponent("out.mp4")
+        try await VideoExporter.export(
+            source: source, keep: KeepRanges(duration: 2), preset: .original, to: out,
+            timeline: timeline, effects: EffectsOptions()
+        ) { _ in }
+
+        let tracks = try await AVURLAsset(url: out).loadTracks(withMediaType: .video)
+        let rate = try await XCTUnwrap(tracks.first).load(.nominalFrameRate)
+        XCTAssertEqual(rate, 15, accuracy: 0.5, "the synthetic file runs at \(SyntheticVideo.fps)")
+    }
+
     func testExportDrawsTheClickRingWhereItsPieceLands() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("pawshot-fx-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

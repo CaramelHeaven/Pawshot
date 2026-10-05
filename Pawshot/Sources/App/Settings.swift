@@ -36,6 +36,8 @@ final class Settings {
         case recordsSystemAudio = "recording.systemAudio"
         case recordsAtNativeResolution = "recording.nativeResolution"
         case lastRecordingAreas = "recording.lastAreas"
+        case recordingFramesPerSecond = "recording.fps"
+        case recordingToolbarAnchor = "recording.toolbarAnchor"
         case videoPreset = "video.preset"
         case showsKeystrokes = "recording.keystrokes"
         case showsClicks = "video.clicks"
@@ -271,6 +273,48 @@ final class Settings {
         revision += 1
     }
 
+    /// The frame rates a take can be recorded at. 60 is the default, as it always was.
+    static let recordingFrameRates = [15, 24, 30, 60]
+
+    /// How many frames a second a take records. Lower makes a lighter file — the bitrate and the
+    /// key frames are counted from it. A stored value not in `recordingFrameRates` reads as 60.
+    var recordingFramesPerSecond: Int {
+        get {
+            _ = revision
+            guard let stored = defaults.object(forKey: Key.recordingFramesPerSecond.rawValue) as? Int else { return 60 }
+            guard Self.recordingFrameRates.contains(stored) else {
+                Self.logger.error("recording fps \(stored, privacy: .public) is not offered, 60 is used")
+                return 60
+            }
+            return stored
+        }
+        set {
+            Self.logger.notice("recording fps → \(newValue, privacy: .public)")
+            defaults.set(newValue, forKey: Key.recordingFramesPerSecond.rawValue)
+            revision += 1
+        }
+    }
+
+    /// Where the recording overlay's toolbar was left: the middle of its row of buttons, as
+    /// fractions of the screen (0…1, origin top left). One for every screen. `nil` — the toolbar
+    /// sits at the bottom in the middle.
+    var recordingToolbarAnchor: CGPoint? {
+        get {
+            _ = revision
+            return defaults.string(forKey: Key.recordingToolbarAnchor.rawValue).map(NSPointFromString)
+        }
+        set {
+            let described = newValue.map { String(format: "%.3f, %.3f", $0.x, $0.y) } ?? "default"
+            Self.logger.notice("recording toolbar anchor → \(described, privacy: .public)")
+            if let newValue {
+                defaults.set(NSStringFromPoint(newValue), forKey: Key.recordingToolbarAnchor.rawValue)
+            } else {
+                defaults.removeObject(forKey: Key.recordingToolbarAnchor.rawValue)
+            }
+            revision += 1
+        }
+    }
+
     /// Shortcuts pressed during a recording are shown in the video. Off by default: it needs Input
     /// Monitoring, the one permission that reads the keyboard, and nobody should grant that by
     /// accident.
@@ -280,9 +324,10 @@ final class Settings {
     }
 
     /// Orange rings where the mouse clicked, in the exported video. What the video editor starts
-    /// with; its own switch still turns them off for one recording.
+    /// with; its own switch still turns them on or off for one recording. Off by default: any
+    /// effect turns a quick copy of the file into a full re-encode.
     var showsClicks: Bool {
-        get { flag(.showsClicks, default: true) }
+        get { flag(.showsClicks, default: false) }
         set { setFlag(newValue, for: .showsClicks) }
     }
 

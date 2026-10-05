@@ -100,6 +100,12 @@ enum OverlayHUD {
     final class RecordingBarModel {
         var mode: SelectionView.Mode = .region
         var optionsShown = false
+        /// The toolbar was dragged to the top half of the screen: Options and the warnings hang
+        /// below the row of buttons instead of rising above it.
+        var opensDown = false
+        /// The row of buttons' height, measured by SwiftUI: where the row sits inside the host
+        /// is what a drag moves and what the stored place counts from.
+        @ObservationIgnored var rowHeight: CGFloat = 44
         /// Where the mouse is over the toolbar, in the toolbar's own space; see `ChromeButtonStyle`.
         var hoverPoint: CGPoint?
 
@@ -129,6 +135,7 @@ enum OverlayHUD {
         /// overlay can't ask — the system's window would open underneath it.
         var keystrokesAllowed = false
         var nativeResolution = true
+        var framesPerSecond = 60
         /// A display with one pixel per point has nothing to switch.
         var canSwitchScale = true
 
@@ -162,7 +169,12 @@ enum OverlayHUD {
         @ObservationIgnored var toggleClicks: () -> Void = {}
         @ObservationIgnored var toggleKeystrokes: () -> Void = {}
         @ObservationIgnored var toggleScale: () -> Void = {}
+        @ObservationIgnored var chooseFramesPerSecond: (Int) -> Void = { _ in }
         @ObservationIgnored var start: () -> Void = {}
+        /// The toolbar dragged by an empty part of its row: how far from where the drag began,
+        /// and its end.
+        @ObservationIgnored var dragBar: (CGSize) -> Void = { _ in }
+        @ObservationIgnored var endBarDrag: () -> Void = {}
     }
 }
 
@@ -282,13 +294,23 @@ struct RecordingToolbarView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            if !model.problems.isEmpty {
-                problems
+            if model.opensDown {
+                row
+                if model.optionsShown {
+                    options
+                }
+                if !model.problems.isEmpty {
+                    problems
+                }
+            } else {
+                if !model.problems.isEmpty {
+                    problems
+                }
+                if model.optionsShown {
+                    options
+                }
+                row
             }
-            if model.optionsShown {
-                options
-            }
-            row
         }
         .font(.callout.weight(.medium))
         .foregroundStyle(.white)
@@ -337,8 +359,21 @@ struct RecordingToolbarView: View {
             .disabled(model.mode == .window)
         }
         .padding(6)
+        // The row is dragged by what is not a button — its rim, the gaps, the divider: a press
+        // on a button stays the button's. `.global`: the host moves under the mouse while it is
+        // dragged, and a translation in its own space would chase itself.
+        .background {
+            Color.clear
+                .contentShape(.rect)
+                .gesture(
+                    DragGesture(minimumDistance: 2, coordinateSpace: .global)
+                        .onChanged { model.dragBar($0.translation) }
+                        .onEnded { _ in model.endBarDrag() }
+                )
+        }
         .background(.black.opacity(0.35), in: .rect(cornerRadius: 16))
         .glassEffect(.clear, in: .rect(cornerRadius: 16))
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.rowHeight = $0 }
     }
 
     /// What will go wrong with the take, one line each, above the toolbar — nothing when nothing
@@ -424,6 +459,22 @@ struct RecordingToolbarView: View {
                 header("Resolution")
                 check(Text("Retina, 2x"), isOn: model.nativeResolution, key: "X") { model.toggleScale() }
             }
+
+            header("Frame rate")
+            HStack(spacing: 2) {
+                ForEach(Settings.recordingFrameRates, id: \.self) { fps in
+                    Button(action: { model.chooseFramesPerSecond(fps) }) {
+                        Text(verbatim: "\(fps)")
+                            .monospacedDigit()
+                            .frame(minWidth: 36)
+                    }
+                    .buttonStyle(ChromeButtonStyle(kind: model.framesPerSecond == fps ? .selected : .plain))
+                }
+                Text("fps")
+                    .foregroundStyle(.white.opacity(0.55))
+                    .padding(.leading, 6)
+            }
+            .padding(.horizontal, 4)
         }
         .buttonStyle(ChromeButtonStyle())
         .padding(8)

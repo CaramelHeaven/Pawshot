@@ -939,6 +939,45 @@ enum SelectionGeometry {
         CGPoint(x: bounds.midX - toolbarSize.width / 2, y: bounds.maxY - toolbarSize.height - inset)
     }
 
+    /// Where the recording toolbar goes once it has been dragged: `anchor` is the middle of its
+    /// row of buttons, as fractions of the screen (origin top left). In the top half of the screen
+    /// the panels open below the row, in the bottom half above it. The whole toolbar stays inside
+    /// the screen, `margin` from its edges. No anchor — the place it always had, opening upwards.
+    static func toolbarPlacement(
+        toolbarSize: CGSize,
+        rowHeight: CGFloat,
+        anchor: CGPoint?,
+        bounds: CGRect,
+        margin: CGFloat = 8
+    ) -> (origin: CGPoint, opensDown: Bool) {
+        guard let anchor else {
+            return (toolbarOrigin(toolbarSize: toolbarSize, bounds: bounds), false)
+        }
+        let center = CGPoint(x: bounds.minX + anchor.x * bounds.width, y: bounds.minY + anchor.y * bounds.height)
+        let opensDown = center.y < bounds.midY
+        let x = center.x - toolbarSize.width / 2
+        let y = opensDown ? center.y - rowHeight / 2 : center.y + rowHeight / 2 - toolbarSize.height
+        let clampedX = max(bounds.minX + margin, min(x, bounds.maxX - margin - toolbarSize.width))
+        let clampedY = max(bounds.minY + margin, min(y, bounds.maxY - margin - toolbarSize.height))
+        return (CGPoint(x: clampedX, y: clampedY), opensDown)
+    }
+
+    /// The anchor `toolbarPlacement` takes for a row whose middle is at `rowCenter`, kept on the
+    /// screen.
+    static func toolbarAnchor(forRowCenter rowCenter: CGPoint, bounds: CGRect) -> CGPoint {
+        guard bounds.width > 0, bounds.height > 0 else { return CGPoint(x: 0.5, y: 0.5) }
+        return CGPoint(
+            x: max(0, min(1, (rowCenter.x - bounds.minX) / bounds.width)),
+            y: max(0, min(1, (rowCenter.y - bounds.minY) / bounds.height))
+        )
+    }
+
+    /// The middle of the toolbar's row of buttons, for a toolbar at `frame`: the row is its top
+    /// when the panels open below it, its bottom otherwise.
+    static func toolbarRowCenter(frame: CGRect, rowHeight: CGFloat, opensDown: Bool) -> CGPoint {
+        CGPoint(x: frame.midX, y: opensDown ? frame.minY + rowHeight / 2 : frame.maxY - rowHeight / 2)
+    }
+
     /// Where the size label goes while an edge or a corner is dragged: just outside that edge,
     /// by its middle — or by the corner — and pushed back inside the screen.
     static func edgeLabelOrigin(

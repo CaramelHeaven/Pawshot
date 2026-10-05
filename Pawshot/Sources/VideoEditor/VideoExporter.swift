@@ -53,13 +53,16 @@ enum VideoExporter {
                 .appendingPathComponent("pawshot-effects-\(UUID().uuidString).mov")
             defer { removeIfPresent(rendered, "the GIF's effects movie") }
             let session = try await effectsSession(
-                for: asset, keep: keep, preset: .fullHD, timeline: timeline, effects: effects
+                for: asset, keep: keep, preset: .gif, timeline: timeline, effects: effects
             )
             try await run(session, to: rendered, as: .mov) { progress($0 * 0.5) }
 
             let renderedAsset = AVURLAsset(url: rendered)
             let length = try await renderedAsset.load(.duration).seconds
-            logger.notice("GIF pass 1 done: effects movie \(String(format: "%.1f", length), privacy: .public) s")
+            let passPreset = session.presetName
+            logger.notice(
+                "GIF pass 1 done: effects movie \(String(format: "%.1f", length), privacy: .public) s, \(passPreset, privacy: .public)"
+            )
             try await exportGIF(asset: renderedAsset, keep: KeepRanges(duration: length), to: destination) {
                 progress(0.5 + $0 * 0.5)
             }
@@ -224,8 +227,10 @@ enum VideoExporter {
 
         var configuration = AVVideoComposition.Configuration()
         // The recording's frame rate is variable — a still screen sends nothing — so the effects
-        // are rendered at a steady 60, or a spotlight would stutter over a static page.
-        configuration.frameDuration = CMTime(value: 1, timescale: 60)
+        // are rendered at a steady rate, or a spotlight would stutter over a static page: the
+        // take's own (its shortest frame, Settings → Recording → Frame rate), 60 at most. A take
+        // at 15 is not rendered at 60.
+        configuration.frameDuration = try await effectsFrameDuration(of: asset, timeline: timeline)
         configuration.renderSize = spliced.videoSize
         configuration.instructions = [instruction]
         configuration.animationTool = AVVideoCompositionCoreAnimationTool(
@@ -235,14 +240,50 @@ enum VideoExporter {
         let videoComposition = AVVideoComposition(configuration: configuration)
 
         // Effects mean re-encoding, so the original becomes the best HEVC rather than passthrough.
-        let name = preset == .fullHD ? AVAssetExportPreset1920x1080 : AVAssetExportPresetHEVCHighestQuality
+        // A GIF's first pass is 1080p, or 720p where that loses nothing (`gifEffectsPassIs720p`).
+        let name = switch preset {
+        case .original: AVAssetExportPresetHEVCHighestQuality
+        case .fullHD: AVAssetExportPreset1920x1080
+        case .gif: VideoPreset.gifEffectsPassIs720p(for: spliced.videoSize)
+            ? AVAssetExportPreset1280x720
+            : AVAssetExportPreset1920x1080
+        }
         guard let session = AVAssetExportSession(asset: spliced.composition, presetName: name) else {
             throw VideoExportError.unsupported
         }
         session.videoComposition = videoComposition
         session.audioMix = mixed(spliced.audio)
-        session.shouldOptimizeForNetworkUse = true
         return session
+    }
+
+    /// The steady frame the effects are rendered at: the take's own rate, from its timeline,
+    /// 60 at most. A timeline from before 0.6.11 has none, and then it is the file's shortest
+    /// frame, never under 1/60 — which in a 15 fps take reads 0.03 s, not 1/15 (measured:
+    /// `RecordingEngineTests.testATakeAt15FPSSaysSoInItsFile`), so it only bounds the rate.
+    private static func effectsFrameDuration(of asset: AVURLAsset, timeline: EventTimeline) async throws -> CMTime {
+        let sixtieth = CMTime(value: 1, timescale: 60)
+        if let fps = timeline.framesPerSecond {
+            guard (1 ... 60).contains(fps) else {
+                logger.error("effects frame: the timeline says \(fps, privacy: .public) fps, 60 is used")
+                return sixtieth
+            }
+            logger.notice("effects frame: rendered at \(fps, privacy: .public) fps, the take's own")
+            return CMTime(value: 1, timescale: CMTimeScale(fps))
+        }
+        guard let track = try await asset.loadTracks(withMediaType: .video).first else {
+            logger.error("effects frame: no video track, 1/60 is used")
+            return sixtieth
+        }
+        let shortest = try await track.load(.minFrameDuration)
+        guard shortest.isValid, shortest.seconds > 0 else {
+            logger.error("effects frame: the track's shortest frame is unusable (\(String(describing: shortest), privacy: .public)), 1/60 is used")
+            return sixtieth
+        }
+        let chosen = CMTimeMaximum(shortest, sixtieth)
+        logger.notice(
+            "effects frame: shortest \(String(format: "%.4f", shortest.seconds), privacy: .public) s → rendered at \(String(format: "%.1f", 1 / chosen.seconds), privacy: .public) fps"
+        )
+        return chosen
     }
 
     /// The size the export will come out at, for the "≈ 4.2 MB" under the strip. `0` when it can't
@@ -303,7 +344,6 @@ enum VideoExporter {
                 throw VideoExportError.unsupported
             }
             session.audioMix = mixed(spliced.audio)
-            session.shouldOptimizeForNetworkUse = true
             return session
         }
 
@@ -319,7 +359,6 @@ enum VideoExporter {
             session.timeRange = range
         }
         session.audioMix = mixed(audioTracks)
-        session.shouldOptimizeForNetworkUse = true
         return session
     }
 

@@ -98,6 +98,16 @@
         }
       }
     },
+    "%lld fps" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld кадров/с"
+          }
+        }
+      }
+    },
     "%lld of 4 allowed" : {
       "localizations" : {
         "ru" : {
@@ -301,12 +311,12 @@
     "A" : {
       "shouldTranslate" : false
     },
-    "A 1x video is about four times smaller, with softer text. X switches it on the recording overlay; P switches the format in the video editor." : {
+    "A 1x video is about four times smaller, with softer text. X switches it on the recording overlay; P switches the format in the video editor. A lower frame rate makes a lighter file and a jerkier picture; it is also in Options on the recording overlay." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Видео 1x примерно в четыре раза меньше, текст в нём мягче. На оверлее записи переключается клавишей X, формат в видеоредакторе — клавишей P."
+            "value" : "Видео 1x примерно в четыре раза меньше, текст в нём мягче. На оверлее записи переключается клавишей X, формат в видеоредакторе — клавишей P. Чем ниже частота кадров, тем легче файл и дёрганее картинка; она есть и в «Параметрах» на оверлее записи."
           }
         }
       }
@@ -1590,6 +1600,16 @@
         }
       }
     },
+    "Frame rate" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Частота кадров"
+          }
+        }
+      }
+    },
     "Free" : {
       "localizations" : {
         "ru" : {
@@ -1613,12 +1633,12 @@
     "GIF" : {
       "shouldTranslate" : false
     },
-    "GIF 720p · clicks · no sound" : {
+    "GIF 720p · 30 fps · clicks · no sound" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "GIF 720p · клики · без звука"
+            "value" : "GIF 720p · 30 кадров/с · клики · без звука"
           }
         }
       }
@@ -1676,12 +1696,12 @@
     "H" : {
       "shouldTranslate" : false
     },
-    "HEVC 2x · voice" : {
+    "HEVC 2x · 60 fps · voice" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "HEVC 2x · голос"
+            "value" : "HEVC 2x · 60 кадров/с · голос"
           }
         }
       }
@@ -3324,12 +3344,12 @@
         }
       }
     },
-    "Sets the sound, clicks, resolution and format below in one go" : {
+    "Sets the sound, clicks, resolution, frame rate and format below in one go" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Одним выбором задаёт звук, клики, разрешение и формат ниже"
+            "value" : "Одним выбором задаёт звук, клики, разрешение, частоту кадров и формат ниже"
           }
         }
       }
@@ -3684,6 +3704,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Звук Mac — это видео, звонки и уведомления. Когда микрофон включён, «Параметры» на панели записи показывают его уровень ещё до старта; если он молчит полторы секунды, там написано «нет сигнала», и строка над панелью говорит о том же. Оба источника сводятся в одну дорожку."
+          }
+        }
+      }
+    },
+    "The bar under a recording region can be moved: drag it by its edge, and it stays where you left it. Near the top of the screen, Options open downwards.\n\nPick how many frames a second a recording takes — 15, 24, 30 or 60 — in Settings → Recording or in Options before a take. Fewer frames make a lighter file. Bug report now records at 30.\n\nSaving and copying a video is quicker: clicks are no longer drawn into it unless you turn them on, and a GIF with effects is made faster." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Панель под областью записи теперь можно двигать: тяните её за край, и она останется там, где вы её оставили. У верхнего края экрана «Параметры» раскрываются вниз.\n\nВыберите, сколько кадров в секунду снимать — 15, 24, 30 или 60, — в Настройки → Запись или в «Параметрах» перед дублем. Меньше кадров — легче файл. «Баг-репорт» теперь снимает 30.\n\nСохранять и копировать видео стало быстрее: клики больше не рисуются в нём, пока вы их не включите, а GIF с эффектами делается быстрее."
           }
         }
       }
@@ -4273,6 +4303,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "формат"
+          }
+        }
+      }
+    },
+    "fps" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "кадров/с"
           }
         }
       }
