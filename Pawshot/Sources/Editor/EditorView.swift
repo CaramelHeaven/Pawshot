@@ -57,6 +57,19 @@ struct EditorView: View {
                         .transition(.opacity)
                 }
             }
+            .overlay(alignment: .topTrailing) {
+                if let percent = model.zoomPercent {
+                    Text("\(percent)%")
+                        .font(.callout.weight(.semibold))
+                        .monospacedDigit()
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .glassEffect(.regular, in: .capsule)
+                        .padding(8)
+                        .allowsHitTesting(false)
+                        .accessibilityLabel("Zoom \(percent) percent")
+                }
+            }
             .animation(.easeOut(duration: Tokens.Motion.exit), value: model.resizeChip == nil)
             .padding(Self.shotPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

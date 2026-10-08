@@ -29,6 +29,8 @@ final class EditorChromeModel {
 
     /// Shown next to the edge being dragged while the window resizes the shot; `nil` otherwise.
     var resizeChip: ResizeChip?
+    /// The view scale while a trackpad magnify gesture is active; hidden as soon as it ends.
+    var zoomPercent: Int?
 
     /// Bumped each time a resize runs into the edge of the captured display. The chip flashes red
     /// and the trackpad clicks — the pixels simply end there.

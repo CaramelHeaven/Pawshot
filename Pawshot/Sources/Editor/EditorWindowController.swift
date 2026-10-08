@@ -18,6 +18,12 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     private let openingScreen: NSScreen
     private let editorUndoManager = UndoManager()
     private let chrome = EditorChromeModel()
+    private var magnificationTimer: Timer?
+    /// A late toolbar can make the viewport smaller during a pinch. Refit once the view returns
+    /// to 100%, unless the person deliberately resized the window while it was enlarged.
+    private var lastViewportSize: CGSize?
+    private var needsRefitAfterMagnification = false
+    private var resizedWindowWhileMagnified = false
     /// Copy Text shows a spinner: ⌘D has been reading for over 300 ms.
     var isReadingText: Bool {
         chrome.isReadingText
@@ -182,6 +188,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     private func buildContentView() {
         scrollView.contentView = CenteringClipView()
         scrollView.documentView = canvas
+        scrollView.minMagnification = 1
+        scrollView.maxMagnification = 4
+        scrollView.allowsMagnification = true
+        scrollView.usesPredominantAxisScrolling = false
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
         scrollView.autohidesScrollers = true
@@ -203,6 +213,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         hosting.view.frame = CGRect(origin: .zero, size: size)
         window.contentViewController = hosting
         window.setContentSize(size)
+        lastViewportSize = scrollView.contentSize
 
         NotificationCenter.default.addObserver(
             self,
@@ -210,6 +221,46 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             name: NSView.frameDidChangeNotification,
             object: scrollView
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(magnificationDidStart),
+            name: NSScrollView.willStartLiveMagnifyNotification,
+            object: scrollView
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(magnificationDidEnd),
+            name: NSScrollView.didEndLiveMagnifyNotification,
+            object: scrollView
+        )
+    }
+
+    @objc private func magnificationDidStart() {
+        magnificationTimer?.invalidate()
+        updateMagnificationBadge()
+        let timer = Timer(timeInterval: 1.0 / 30, target: self, selector: #selector(updateMagnificationBadge), userInfo: nil, repeats: true)
+        RunLoop.main.add(timer, forMode: .common)
+        magnificationTimer = timer
+    }
+
+    @objc private func magnificationDidEnd() {
+        magnificationTimer?.invalidate()
+        magnificationTimer = nil
+        chrome.zoomPercent = nil
+        guard abs(scrollView.magnification - 1) < 0.001 else { return }
+
+        if needsRefitAfterMagnification, !resizedWindowWhileMagnified {
+            fitWindowToShot(onlyIfItFits: true)
+        }
+        needsRefitAfterMagnification = false
+        resizedWindowWhileMagnified = false
+    }
+
+    @objc private func updateMagnificationBadge() {
+        let percent = Int((scrollView.magnification * 100).rounded())
+        if chrome.zoomPercent != percent {
+            chrome.zoomPercent = percent
+        }
     }
 
     /// The SwiftUI toolbar takes its height out of the content whenever it lands — on a slow Mac
@@ -217,7 +268,22 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// the window's edge silently meant "show more" instead of "capture more" (a tester's M1,
     /// 2026-09-29). So the window refits whenever the shot stops fitting outside a resize.
     @objc private func scrollViewFrameDidChange() {
-        guard let window, window.isVisible, !window.inLiveResize, !canFollowResize else { return }
+        let viewport = scrollView.contentSize
+        let previousViewport = lastViewportSize
+        lastViewportSize = viewport
+        guard let window, window.isVisible, !window.inLiveResize else { return }
+
+        if scrollView.magnification != 1 {
+            if let previousViewport, !resizedWindowWhileMagnified {
+                let shrank = viewport.width < previousViewport.width - 0.5
+                    || viewport.height < previousViewport.height - 0.5
+                if shrank {
+                    needsRefitAfterMagnification = true
+                }
+            }
+            return
+        }
+        guard !needsRefitAfterMagnification, !resizedWindowWhileMagnified, !canFollowResize else { return }
 
         let content = Self.points(scrollView.contentSize)
         let shot = Self.points(editorDocument.imageSize)
@@ -769,6 +835,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     }
 
     func windowWillClose(_: Notification) {
+        magnificationTimer?.invalidate()
+        magnificationTimer = nil
+        chrome.zoomPercent = nil
         let work = hasWork
         Self.editorLogger.notice("editor closed, had work: \(work, privacy: .public)")
         canvas.finishTextEditing()
@@ -814,6 +883,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
 
     func windowWillStartLiveResize(_: Notification) {
         resizeEdges = nil
+        if scrollView.magnification != 1 {
+            resizedWindowWhileMagnified = true
+            needsRefitAfterMagnification = false
+        }
 
         guard let window else {
             Self.editorLogger.error("resize ended with no window")
@@ -838,9 +911,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     }
 
     /// The shot follows the window only while it is fully visible. Once there is a scroller —
-    /// after ⌘+, or on a region larger than the screen — dragging the window means "show more of
-    /// what I already have", and quietly cropping pixels there would be a nasty surprise.
+    /// after pinch zoom, or on a region larger than the screen — dragging the window means "show
+    /// more of what I already have", and quietly cropping pixels there would be a nasty surprise.
     private var canFollowResize: Bool {
+        guard scrollView.magnification == 1 else { return false }
         let content = scrollView.contentSize
         let shot = editorDocument.imageSize
 
@@ -983,6 +1057,13 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     /// The crop changed: the canvas re-cuts the shot, then the window sizes itself to it. The
     /// window is skipped while a live resize is running — there the window is what moves first.
     private func cropDidChange() {
+        needsRefitAfterMagnification = false
+        resizedWindowWhileMagnified = false
+        // A new crop or a turn changes the document's geometry. Leave a live edge drag alone;
+        // its successive crop updates already happen at 100%, and resetting there would jolt it.
+        if resizeEdges == nil, scrollView.magnification != 1 {
+            scrollView.magnification = 1
+        }
         canvas.documentCropDidChange()
         updateTitle()
         syncChrome()

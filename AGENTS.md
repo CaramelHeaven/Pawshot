@@ -419,8 +419,13 @@ hotkey time and is kept alive for as long as the window is open, so the extra pi
 very same moment. The captured display is the hard limit; the window simply stops at its edge.
 Annotations don't move, an annotation left outside the crop stays alive and only gets clipped, one
 drag is one `⌘Z`, and the whole thing switches itself off once the shot no longer fits in the
-window — there dragging the window means "show more", not "capture more". The shot is always
-displayed at its own size; there is no zoom in the editor. That switch reads the window as it is
+window — there dragging the window means "show more", not "capture more". A two-finger pinch in
+the screenshot editor smoothly magnifies the view from 100% to 400% around the fingers; two-finger
+scrolling pans it on both axes. The small percentage appears only during the gesture. Magnification
+changes neither the capture nor the exported file, and annotations stay in the captured frame's
+coordinates. A crop or whole-shot turn returns the view to 100%; a new editor starts there too.
+The recording zoom removed in 0.6.9 is a separate feature and has not returned. Whether a window
+edge changes the crop or the viewport is decided from the view as it is
 at the start of the drag, so the window refits whenever the shot stops fitting outside a resize,
 not only once after it opens: on a tester's M1 (8 GB, 60 Hz) the toolbar landed after that one
 refit, ate the bottom of the shot, and every drag grew grey around it. Each drag logs

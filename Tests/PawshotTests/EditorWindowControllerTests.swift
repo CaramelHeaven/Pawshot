@@ -83,6 +83,14 @@ final class EditorWindowControllerTests: XCTestCase {
         return view.subviews.lazy.compactMap { self.canvas(in: $0) }.first
     }
 
+    private func scrollView(in view: NSView?) -> NSScrollView? {
+        guard let view else { return nil }
+        if let scroll = view as? NSScrollView {
+            return scroll
+        }
+        return view.subviews.lazy.compactMap { self.scrollView(in: $0) }.first
+    }
+
     /// The window's own edge is the system's to show the resize cursor on — the way to grow or crop
     /// the shot. The canvas, first responder, gets mouse moves from all over the window, and it used
     /// to put its tool's cursor there too: the resize cursor survived in about a pixel (the owner,
@@ -326,6 +334,92 @@ final class EditorWindowControllerTests: XCTestCase {
         XCTAssertEqual(window.contentLayoutRect.height, 300 + margin, accuracy: 0.5)
     }
 
+    /// A toolbar that arrives during a pinch takes height from the viewport. The shot is fitted
+    /// after returning to 100%, rather than leaving its bottom hidden at the end of the gesture.
+    func testLateToolbarShrinkDuringMagnificationRefitsAtOneHundredPercent() async throws {
+        let document = try makeDocument(pointSize: CGSize(width: 700, height: 300), scale: 1)
+        let controller = try EditorWindowController(document: document, on: XCTUnwrap(NSScreen.main))
+        controller.recognizeText = { _ in "" }
+        let window = try XCTUnwrap(controller.window)
+        window.alphaValue = 0
+        controller.show()
+        defer { controller.close() }
+        try await Task.sleep(for: .milliseconds(300))
+        let scroll = try XCTUnwrap(scrollView(in: window.contentView))
+        let initial = window.contentLayoutRect.size
+
+        scroll.magnification = 2
+        NotificationCenter.default.post(name: NSScrollView.willStartLiveMagnifyNotification, object: scroll)
+        window.setContentSize(CGSize(width: initial.width, height: initial.height - 24))
+        scroll.layoutSubtreeIfNeeded()
+        NotificationCenter.default.post(name: NSView.frameDidChangeNotification, object: scroll)
+        XCTAssertEqual(window.contentLayoutRect.height, initial.height - 24, accuracy: 0.5)
+
+        scroll.magnification = 1
+        NotificationCenter.default.post(name: NSScrollView.didEndLiveMagnifyNotification, object: scroll)
+        XCTAssertEqual(window.contentLayoutRect.height, initial.height, accuracy: 0.5)
+        XCTAssertEqual(document.cropRect.size, CGSize(width: 700, height: 300))
+    }
+
+    /// A deliberate window-edge drag while zoomed changes the viewport. Returning to 100% must
+    /// keep that chosen window size, even if the shot then needs scrolling.
+    func testWindowResizeWhileMagnifiedIsNotRefittedAfterTheGesture() async throws {
+        let document = try makeDocument(pointSize: CGSize(width: 700, height: 300), scale: 1)
+        let controller = try EditorWindowController(document: document, on: XCTUnwrap(NSScreen.main))
+        controller.recognizeText = { _ in "" }
+        let window = try XCTUnwrap(controller.window)
+        window.alphaValue = 0
+        controller.show()
+        defer { controller.close() }
+        try await Task.sleep(for: .milliseconds(300))
+        let scroll = try XCTUnwrap(scrollView(in: window.contentView))
+        let initial = window.contentLayoutRect.size
+
+        scroll.magnification = 2
+        NotificationCenter.default.post(name: NSScrollView.willStartLiveMagnifyNotification, object: scroll)
+        controller.windowWillStartLiveResize(Notification(name: NSWindow.willStartLiveResizeNotification, object: window))
+        window.setContentSize(CGSize(width: initial.width, height: initial.height - 24))
+        controller.windowDidEndLiveResize(Notification(name: NSWindow.didEndLiveResizeNotification, object: window))
+        scroll.layoutSubtreeIfNeeded()
+        NotificationCenter.default.post(name: NSView.frameDidChangeNotification, object: scroll)
+
+        scroll.magnification = 1
+        NotificationCenter.default.post(name: NSScrollView.didEndLiveMagnifyNotification, object: scroll)
+        XCTAssertEqual(window.contentLayoutRect.height, initial.height - 24, accuracy: 0.5)
+        XCTAssertEqual(document.cropRect.size, CGSize(width: 700, height: 300))
+    }
+
+    /// A later crop returns the editor to its normal window-fitting rule, even when the person
+    /// previously resized the viewport while magnified.
+    func testCropRestoresWindowFittingAfterAResizeWhileMagnified() async throws {
+        let document = try makeDocument(pointSize: CGSize(width: 700, height: 300), scale: 1)
+        let controller = try EditorWindowController(document: document, on: XCTUnwrap(NSScreen.main))
+        controller.recognizeText = { _ in "" }
+        let window = try XCTUnwrap(controller.window)
+        window.alphaValue = 0
+        controller.show()
+        defer { controller.close() }
+        try await Task.sleep(for: .milliseconds(300))
+        let scroll = try XCTUnwrap(scrollView(in: window.contentView))
+
+        scroll.magnification = 2
+        NotificationCenter.default.post(name: NSScrollView.willStartLiveMagnifyNotification, object: scroll)
+        let initial = window.contentLayoutRect.size
+        controller.windowWillStartLiveResize(Notification(name: NSWindow.willStartLiveResizeNotification, object: window))
+        window.setContentSize(CGSize(width: initial.width, height: initial.height - 16))
+        controller.windowDidEndLiveResize(Notification(name: NSWindow.didEndLiveResizeNotification, object: window))
+        NotificationCenter.default.post(name: NSScrollView.didEndLiveMagnifyNotification, object: scroll)
+
+        document.setCrop(CGRect(x: 10, y: 10, width: 690, height: 290))
+        XCTAssertEqual(scroll.magnification, 1)
+        let fitted = window.contentLayoutRect.size
+        window.setContentSize(CGSize(width: fitted.width, height: fitted.height - 24))
+        scroll.layoutSubtreeIfNeeded()
+        NotificationCenter.default.post(name: NSView.frameDidChangeNotification, object: scroll)
+
+        XCTAssertEqual(window.contentLayoutRect.height, fitted.height, accuracy: 0.5)
+    }
+
     /// ⌘Z sends `undo:` down the responder chain. Since the content became an `NSHostingController`,
     /// `NSWindow` answers it with an undo manager SwiftUI supplies — not the one the document
     /// records into — and ⌘Z silently did nothing. The canvas, first in the chain, has to answer.
@@ -393,17 +487,66 @@ final class EditorWindowControllerTests: XCTestCase {
         defer { controller.close() }
         try await Task.sleep(for: .milliseconds(300))
 
-        func scrollView(in view: NSView) -> NSScrollView? {
-            if let scroll = view as? NSScrollView {
-                return scroll
-            }
-            return view.subviews.lazy.compactMap(scrollView(in:)).first
-        }
-        let scroll = try XCTUnwrap(window.contentView.flatMap(scrollView(in:)))
+        let scroll = try XCTUnwrap(scrollView(in: window.contentView))
         let visible = scroll.contentView.documentVisibleRect
 
         XCTAssertEqual(visible.midX, size.width / 2, accuracy: 1)
         XCTAssertEqual(visible.midY, size.height / 2, accuracy: 1)
+    }
+
+    /// Pinch zoom changes only the view. A line placed over a detail must still belong to the
+    /// same captured-frame coordinates and export at the same pixel size after zooming back out.
+    func testMagnifyingTheShotKeepsItsPixelsCropAndAnnotationCoordinates() throws {
+        let document = try makeDocument(pointSize: CGSize(width: 300, height: 200), scale: 2)
+        let (controller, window) = try shownController(document)
+        defer { controller.close() }
+        let scroll = try XCTUnwrap(scrollView(in: window.contentView))
+        let line = ArrowAnnotation(start: CGPoint(x: 40, y: 50), style: .default)
+        line.update(to: CGPoint(x: 170, y: 100))
+        document.add(line)
+        let originalCrop = document.cropRect
+        let originalPixels = CGSize(width: document.image.width, height: document.image.height)
+        let originalShape = line.shape
+
+        XCTAssertTrue(scroll.allowsMagnification)
+        XCTAssertEqual(scroll.minMagnification, 1)
+        XCTAssertEqual(scroll.maxMagnification, 4)
+        XCTAssertFalse(scroll.usesPredominantAxisScrolling)
+
+        scroll.magnification = 3
+        XCTAssertEqual(scroll.magnification, 3)
+        XCTAssertEqual(document.cropRect, originalCrop)
+        XCTAssertEqual(CGSize(width: document.image.width, height: document.image.height), originalPixels)
+        XCTAssertEqual(line.shape, originalShape)
+
+        scroll.magnification = 1
+        XCTAssertEqual(line.shape, originalShape, "the arrow remains on the same part of the shot")
+        XCTAssertEqual(document.cropRect, originalCrop)
+    }
+
+    /// A changed crop or a quarter turn replaces the shot's geometry; each returns the editor to
+    /// the whole-shot view, while selecting or drawing an object leaves the chosen zoom in place.
+    func testCropAndShotRotationReturnZoomToOneHundredPercent() throws {
+        let document = try makeDocument(pointSize: CGSize(width: 300, height: 200), scale: 1)
+        let (controller, window) = try shownController(document)
+        defer { controller.close() }
+        let scroll = try XCTUnwrap(scrollView(in: window.contentView))
+
+        scroll.magnification = 2
+        let shape = RectangleAnnotation(start: CGPoint(x: 30, y: 30), style: .default)
+        shape.update(to: CGPoint(x: 90, y: 80))
+        document.add(shape)
+        document.selection = shape
+        XCTAssertEqual(scroll.magnification, 2, "editing an object preserves the view")
+
+        document.setCrop(CGRect(x: 10, y: 10, width: 260, height: 160))
+        XCTAssertEqual(scroll.magnification, 1)
+
+        document.selection = nil
+        scroll.magnification = 2.5
+        controller.rotateRight(nil)
+        XCTAssertEqual(scroll.magnification, 1)
+        XCTAssertEqual(document.frameSize, CGSize(width: 200, height: 300))
     }
 
     /// A full-screen shot must not open in a window larger than the screen.
