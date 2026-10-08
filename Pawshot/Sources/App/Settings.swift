@@ -50,6 +50,12 @@ final class Settings {
         case collectsLogs = "app.collectsLogs"
         case customColor = "editor.customColor"
         case recentColors = "editor.recentColors"
+        case defaultShapeColor = "editor.defaultShapeColor"
+        case defaultPencilColor = "editor.defaultPencilColor"
+        case defaultTextColor = "editor.defaultTextColor"
+        case customShapeColor = "editor.customShapeColor"
+        case customPencilColor = "editor.customPencilColor"
+        case customTextColor = "editor.customTextColor"
         case labelFont = "editor.labelFont"
         case toolsPlacement = "editor.toolsPlacement"
         case overlayToolsScale = "editor.overlayToolsScale"
@@ -65,6 +71,9 @@ final class Settings {
 
     /// Told when the tools move between under the shot and over it, so open editors refit.
     @ObservationIgnored var onToolsPlacementChange: (() -> Void)?
+
+    /// Told when a card changes, so open editors can use its colour for their next annotation.
+    @ObservationIgnored var onDefaultAnnotationColorChange: ((AnnotationColorGroup) -> Void)?
 
     /// Told while the settings window is recording a new combination.
     ///
@@ -393,6 +402,57 @@ final class Settings {
         }
     }
 
+    var defaultAnnotationColors: AnnotationDefaultColors {
+        AnnotationDefaultColors(
+            shapes: defaultAnnotationColor(for: .shapes),
+            pencil: defaultAnnotationColor(for: .pencil),
+            text: defaultAnnotationColor(for: .text)
+        )
+    }
+
+    func defaultAnnotationColor(for group: AnnotationColorGroup) -> NSColor {
+        _ = revision
+        return defaults.string(forKey: defaultColorKey(for: group).rawValue)
+            .flatMap(ColorHex.color) ?? AnnotationStyle.Palette.colors[0]
+    }
+
+    func customAnnotationColor(for group: AnnotationColorGroup) -> NSColor {
+        _ = revision
+        return defaults.string(forKey: customColorKey(for: group).rawValue)
+            .flatMap(ColorHex.color) ?? .systemPurple
+    }
+
+    func setDefaultAnnotationColor(_ color: NSColor, for group: AnnotationColorGroup) {
+        let hex = ColorHex.string(color)
+        Self.logger.notice("default \(group.rawValue, privacy: .public) colour → \(hex, privacy: .public)")
+        defaults.set(hex, forKey: defaultColorKey(for: group).rawValue)
+        revision += 1
+        onDefaultAnnotationColorChange?(group)
+    }
+
+    /// The custom swatch in each card keeps its own colour even after a preset is chosen.
+    func pickCustomAnnotationColor(_ color: NSColor, for group: AnnotationColorGroup) {
+        defaults.set(ColorHex.string(color), forKey: customColorKey(for: group).rawValue)
+        rememberRecentColor(color)
+        setDefaultAnnotationColor(color, for: group)
+    }
+
+    private func defaultColorKey(for group: AnnotationColorGroup) -> Key {
+        switch group {
+        case .shapes: .defaultShapeColor
+        case .pencil: .defaultPencilColor
+        case .text: .defaultTextColor
+        }
+    }
+
+    private func customColorKey(for group: AnnotationColorGroup) -> Key {
+        switch group {
+        case .shapes: .customShapeColor
+        case .pencil: .customPencilColor
+        case .text: .customTextColor
+        }
+    }
+
     /// The family labels are set in; `nil` is the system font. Applies at once: `AppDelegate`
     /// hands it to `LabelFont` and to every open editor through `onLabelFontChange`. The words
     /// "system" and "formular" are what earlier builds stored, and both mean the system font now.
@@ -495,11 +555,15 @@ final class Settings {
 
     /// Picks a colour of one's own: it becomes key 5 and goes to the front of the recent ones.
     func pickCustomColor(_ color: NSColor) {
+        rememberRecentColor(color)
+        defaults.set(ColorHex.string(color), forKey: Key.customColor.rawValue)
+        revision += 1
+    }
+
+    private func rememberRecentColor(_ color: NSColor) {
         let hex = ColorHex.string(color)
         let recent = [hex] + (defaults.stringArray(forKey: Key.recentColors.rawValue) ?? []).filter { $0 != hex }
         defaults.set(Array(recent.prefix(8)), forKey: Key.recentColors.rawValue)
-        defaults.set(hex, forKey: Key.customColor.rawValue)
-        revision += 1
     }
 
     /// How many shots reached the editor. Drives the key hints on the first captures and the line

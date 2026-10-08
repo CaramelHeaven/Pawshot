@@ -149,6 +149,35 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(Settings(defaults: defaults).toolsPlacement, .overlay)
     }
 
+    func testThreeDefaultColoursPersistIndependentlyAndNotifyOpenEditors() {
+        let settings = Settings(defaults: defaults)
+        var changed: [AnnotationColorGroup] = []
+        settings.onDefaultAnnotationColorChange = { changed.append($0) }
+
+        XCTAssertEqual(settings.defaultAnnotationColor(for: .shapes), .systemRed)
+        XCTAssertEqual(settings.defaultAnnotationColor(for: .pencil), .systemRed)
+        XCTAssertEqual(settings.defaultAnnotationColor(for: .text), .systemRed)
+
+        settings.setDefaultAnnotationColor(.systemGreen, for: .shapes)
+        settings.pickCustomAnnotationColor(.systemBlue, for: .pencil)
+        settings.setDefaultAnnotationColor(.black, for: .text)
+        XCTAssertEqual(changed, [.shapes, .pencil, .text])
+
+        let reread = Settings(defaults: defaults)
+        XCTAssertEqual(ColorHex.string(reread.defaultAnnotationColor(for: .shapes)), ColorHex.string(.systemGreen))
+        XCTAssertEqual(ColorHex.string(reread.defaultAnnotationColor(for: .pencil)), ColorHex.string(.systemBlue))
+        XCTAssertEqual(ColorHex.string(reread.defaultAnnotationColor(for: .text)), ColorHex.string(.black))
+        XCTAssertEqual(ColorHex.string(reread.customAnnotationColor(for: .pencil)), ColorHex.string(.systemBlue))
+
+        settings.setDefaultAnnotationColor(.systemRed, for: .pencil)
+        XCTAssertEqual(ColorHex.string(reread.customAnnotationColor(for: .pencil)), ColorHex.string(.systemBlue))
+    }
+
+    func testUnreadableDefaultColourFallsBackToRed() {
+        defaults.set("not a colour", forKey: Settings.Key.defaultTextColor.rawValue)
+        XCTAssertEqual(Settings(defaults: defaults).defaultAnnotationColor(for: .text), .systemRed)
+    }
+
     /// Chrome's "Warn Before Quitting" is on out of the box, and turning it off sticks.
     func testWarnBeforeQuittingStartsOnAndIsRemembered() {
         XCTAssertTrue(Settings(defaults: defaults).warnsBeforeQuitting)

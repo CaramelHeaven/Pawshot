@@ -1129,7 +1129,7 @@ final class AnnotationCanvasView: NSView, NSMenuItemValidation {
         if let digit = Int(characters) {
             let palette = AnnotationStyle.Palette.self
             if palette.colors.indices.contains(digit - 1) {
-                document.updateStyle { $0.color = palette.colors[digit - 1] }
+                document.pickColor(palette.colors[digit - 1])
                 delegate?.canvasDidChangeStyle(self)
                 return true
             }

@@ -334,6 +334,13 @@ out or in to scale the panel between 75% (smaller cells can't be hit) and 150% (
 much of the shot), never wider than the window (`SelectionGeometry.toolsScale`); a double click
 puts it back at 100%, and the size is remembered.
 
+**Settings → Screenshots → Editor has three cards for the colours new annotations start with**:
+figures and lines together, the pencil, and text. Each offers red, green, white, black and its
+own custom colour, all red on a fresh install. A colour picked in the editor stays with that
+group until the window closes, even after switching tools; a change in Settings takes effect
+in open editors at once. A selected object's colour belongs to that object alone. Already
+drawn objects keep their colours.
+
 **SwiftUI drawn over the canvas is invisible to AppKit.** The canvas sets the cursor itself from
 its tracking area, which fires by geometry — under the floating panel too — so the grips' resize
 cursor never showed. `hitTest` can't tell the panel is there: over a representable view SwiftUI
@@ -575,7 +582,6 @@ Makefile                     every project command, including install into /Appl
 Tools/GenerateAppIcon.swift  draws the app icon's layers in code (`make icon`)
 Tools/make-dmg.sh            packs a built app into the DMG (`make dist`); its background is
                              drawn by Tools/GenerateDMGBackground.swift
-docs/                        demo.gif, the README's demo (2× speed)
 mise.toml                    pins for this folder: tuist 4.203.4, swiftformat 0.62.1
 Config/Signing.xcconfig      signing, ad hoc by default; your identity goes into the git-ignored
                              Signing.local.xcconfig (copy the .example)

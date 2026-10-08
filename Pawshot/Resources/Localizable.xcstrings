@@ -831,12 +831,32 @@
         }
       }
     },
+    "Choose a starting colour for shapes and lines, the pencil, and text in Settings → Screenshots → Editor. Each has its own custom colour. New marks in open editors take the new colour straight away; marks already on the shot keep theirs." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите начальный цвет для фигур и линий, карандаша и текста в Настройках → Снимки → Редактор. У каждого инструмента может быть свой цвет. Новые пометки в открытых редакторах сразу получат новый цвет, а уже нарисованные сохранят прежний."
+          }
+        }
+      }
+    },
     "Choose…" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Выбрать…"
+          }
+        }
+      }
+    },
+    "Choose your colour" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать свой цвет"
           }
         }
       }
@@ -1247,6 +1267,16 @@
         }
       }
     },
+    "Default colours" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Цвета по умолчанию"
+          }
+        }
+      }
+    },
     "Cut the last 10 seconds — a bad take" : {
       "localizations" : {
         "ru" : {
@@ -1586,6 +1616,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Формат:"
+          }
+        }
+      }
+    },
+    "For new annotations. Existing objects keep their colours." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для новых пометок. Уже нарисованные объекты сохранят свой цвет."
           }
         }
       }
@@ -3400,6 +3440,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Фигура"
+          }
+        }
+      }
+    },
+    "Shapes and lines" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фигуры и линии"
           }
         }
       }

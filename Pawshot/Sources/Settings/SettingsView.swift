@@ -211,6 +211,7 @@ private struct ScreenshotSettings: View {
                     Label("Tools and colours", systemImage: "paintpalette")
                 }
                 .pickerStyle(.segmented)
+                DefaultColorCards(settings: settings)
             } header: {
                 Text("Editor")
             } footer: {
@@ -238,6 +239,145 @@ private struct ScreenshotSettings: View {
             }
             Settings.shared.saveFolder = url
         }
+    }
+}
+
+/// The owner's B layout: each drawing group has an example and its own five colour choices.
+private struct DefaultColorCards: View {
+    let settings: Settings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Default colours")
+                .font(.subheadline.weight(.semibold))
+            HStack(alignment: .top, spacing: 8) {
+                ForEach(AnnotationColorGroup.allCases) { group in
+                    DefaultColorCard(settings: settings, group: group)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            Text("For new annotations. Existing objects keep their colours.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct DefaultColorCard: View {
+    let settings: Settings
+    let group: AnnotationColorGroup
+    @State private var isPickingCustom = false
+
+    private var color: NSColor {
+        settings.defaultAnnotationColor(for: group)
+    }
+
+    private var title: LocalizedStringKey {
+        switch group {
+        case .shapes: "Shapes and lines"
+        case .pencil: "Pencil"
+        case .text: "Text"
+        }
+    }
+
+    private var isCustomSelected: Bool {
+        let hex = ColorHex.string(color)
+        return !AnnotationStyle.Palette.colors.contains { ColorHex.string($0) == hex }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            example
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+                .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 7))
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            HStack(spacing: 4) {
+                ForEach(Array(AnnotationStyle.Palette.colors.enumerated()), id: \.offset) { index, preset in
+                    swatch(preset, label: "Colour \(index + 1)") {
+                        settings.setDefaultAnnotationColor(preset, for: group)
+                    }
+                }
+                Button {
+                    isPickingCustom = true
+                } label: {
+                    Circle()
+                        .fill(Color(nsColor: settings.customAnnotationColor(for: group)))
+                        .padding(3)
+                        .background {
+                            Circle().fill(AngularGradient(
+                                colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red],
+                                center: .center
+                            ))
+                        }
+                        .frame(width: 19, height: 19)
+                        .overlay {
+                            if isCustomSelected {
+                                Circle().strokeBorder(Tokens.paw, lineWidth: 2).padding(-3)
+                            }
+                        }
+                        .frame(width: 23, height: 24)
+                }
+                .buttonStyle(.plain)
+                .help("Choose your colour")
+                .accessibilityLabel("Choose your colour")
+                .accessibilityAddTraits(isCustomSelected ? .isSelected : [])
+                .popover(isPresented: $isPickingCustom, arrowEdge: .bottom) {
+                    ColorPickerPopover(
+                        initial: settings.customAnnotationColor(for: group),
+                        recents: settings.recentColors,
+                        onPick: { settings.pickCustomAnnotationColor($0, for: group) }
+                    )
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.primary.opacity(0.1), lineWidth: 0.5))
+    }
+
+    @ViewBuilder
+    private var example: some View {
+        switch group {
+        case .shapes:
+            RoundedRectangle(cornerRadius: 3)
+                .stroke(Color(nsColor: color), lineWidth: 3)
+                .frame(width: 49, height: 28)
+        case .pencil:
+            Image(systemName: "scribble.variable")
+                .font(.system(size: 32, weight: .medium))
+                .foregroundStyle(Color(nsColor: color))
+        case .text:
+            Text("Aa")
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(Color(nsColor: color))
+        }
+    }
+
+    private func swatch(_ preset: NSColor, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+        let isSelected = ColorHex.string(color) == ColorHex.string(preset)
+        return Button(action: action) {
+            Circle()
+                .fill(Color(nsColor: preset))
+                .overlay(Circle().strokeBorder(.primary.opacity(0.35), lineWidth: 0.75))
+                .frame(width: 17, height: 17)
+                .overlay {
+                    if isSelected {
+                        Circle().strokeBorder(Tokens.paw, lineWidth: 2).padding(-3)
+                    }
+                }
+                .frame(width: 23, height: 24)
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

@@ -42,6 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.onToolsPlacementChange = {
             EditorWindowController.toolsPlacementDidChange()
         }
+        settings.onDefaultAnnotationColorChange = { [settings] group in
+            EditorWindowController.defaultAnnotationColorDidChange(settings.defaultAnnotationColor(for: group), for: group)
+        }
         settings.onHotKeyRecordingChange = { [weak self] isRecording in
             // Carbon hands a registered hotkey to us before any view sees the key press, so while
             // the user is typing a new combination the old ones must not exist.
@@ -537,7 +540,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ) {
         guard
             !crop.isEmpty,
-            let document = EditorDocument(frame: frame, cropRect: crop)
+            let document = EditorDocument(frame: frame, cropRect: crop, defaultColors: settings.defaultAnnotationColors)
         else {
             Self.logger.error("crop failed: the region is outside the captured frame")
             presentCaptureFailure(ScreenCaptureError.cropFailed)

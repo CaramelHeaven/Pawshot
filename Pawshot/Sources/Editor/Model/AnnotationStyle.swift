@@ -1,5 +1,40 @@
 import AppKit
 
+/// The three colours a new annotation can start with. Selection, blur and counter keep their
+/// existing behaviour; a line and a shape deliberately share one colour.
+enum AnnotationColorGroup: String, CaseIterable, Identifiable {
+    case shapes
+    case pencil
+    case text
+
+    var id: String {
+        rawValue
+    }
+}
+
+struct AnnotationDefaultColors {
+    var shapes: NSColor = AnnotationStyle.Palette.colors[0]
+    var pencil: NSColor = AnnotationStyle.Palette.colors[0]
+    var text: NSColor = AnnotationStyle.Palette.colors[0]
+
+    subscript(group: AnnotationColorGroup) -> NSColor {
+        get {
+            switch group {
+            case .shapes: shapes
+            case .pencil: pencil
+            case .text: text
+            }
+        }
+        set {
+            switch group {
+            case .shapes: shapes = newValue
+            case .pencil: pencil = newValue
+            case .text: text = newValue
+            }
+        }
+    }
+}
+
 /// How an annotation looks: colour, width, how opaque the inside is.
 struct AnnotationStyle: Equatable {
     var color: NSColor

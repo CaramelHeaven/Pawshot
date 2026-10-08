@@ -6,7 +6,8 @@ import XCTest
 final class EditorDocumentTests: XCTestCase {
     private func makeDocument(
         crop: CGRect = CGRect(x: 0, y: 0, width: 400, height: 300),
-        frameSize: CGSize = CGSize(width: 400, height: 300)
+        frameSize: CGSize = CGSize(width: 400, height: 300),
+        defaultColors: AnnotationDefaultColors = .init()
     ) -> EditorDocument {
         let context = CGContext(
             data: nil,
@@ -22,7 +23,7 @@ final class EditorDocumentTests: XCTestCase {
             displayFrame: CGRect(origin: .zero, size: frameSize),
             scale: 1
         )
-        return EditorDocument(frame: frame, cropRect: crop)!
+        return EditorDocument(frame: frame, cropRect: crop, defaultColors: defaultColors)!
     }
 
     /// In the app the runloop closes undo groups. There is no runloop in a test, so every action
@@ -38,6 +39,75 @@ final class EditorDocumentTests: XCTestCase {
         undoManager.beginUndoGrouping()
         body()
         undoManager.endUndoGrouping()
+    }
+
+    func testDrawingGroupsKeepTheirColoursAcrossToolSwitches() {
+        let document = makeDocument(defaultColors: AnnotationDefaultColors(
+            shapes: .systemGreen,
+            pencil: .systemBlue,
+            text: .black
+        ))
+
+        document.activateColor(for: .arrow)
+        XCTAssertEqual(document.style.color, .systemGreen)
+        document.pickColor(.systemPurple)
+        document.activateColor(for: .pencil)
+        XCTAssertEqual(document.style.color, .systemBlue)
+        document.pickColor(.white)
+        document.activateColor(for: .text)
+        XCTAssertEqual(document.style.color, .black)
+        document.activateColor(for: .rectangle)
+        XCTAssertEqual(document.style.color, .systemPurple, "a line and a shape share one colour")
+        document.activateColor(for: .pencil)
+        XCTAssertEqual(document.style.color, .white, "a manual colour survives switching tools")
+    }
+
+    func testChangingSettingsOverridesAManualColourWithoutRecolouringTheShot() {
+        let document = makeDocument()
+        document.activateColor(for: .rectangle)
+        document.pickColor(.systemBlue)
+        let shape = RectangleAnnotation(start: .zero, style: document.style)
+        shape.update(to: CGPoint(x: 40, y: 40))
+        document.add(shape)
+
+        document.defaultColorDidChange(.systemGreen, for: .shapes)
+
+        XCTAssertEqual(shape.style.color, .systemBlue)
+        XCTAssertEqual(document.style.color, .systemGreen)
+        document.activateColor(for: .arrow)
+        XCTAssertEqual(document.style.color, .systemGreen)
+    }
+
+    func testASelectedObjectsColourDoesNotChangeTheNextObject() {
+        let document = makeDocument()
+        let undoManager = makeUndoManager(for: document)
+        document.activateColor(for: .rectangle)
+        let shape = RectangleAnnotation(start: .zero, style: document.style)
+        shape.update(to: CGPoint(x: 40, y: 40))
+        step(undoManager) { document.add(shape) }
+        document.activateColor(for: .select)
+        document.selection = shape
+
+        step(undoManager) { document.pickColor(.systemBlue) }
+
+        XCTAssertEqual(shape.style.color, .systemBlue)
+        XCTAssertEqual(document.style.color, .systemRed)
+        document.selection = nil
+        document.activateColor(for: .rectangle)
+        XCTAssertEqual(document.style.color, .systemRed)
+        undoManager.undo()
+        XCTAssertEqual(shape.style.color, .systemRed)
+    }
+
+    func testColourPickedBeforeAToolBelongsToTheNextTool() {
+        let document = makeDocument()
+        document.pickColor(.systemGreen)
+        document.activateColor(for: .text)
+        XCTAssertEqual(document.style.color, .systemGreen)
+        document.activateColor(for: .pencil)
+        XCTAssertEqual(document.style.color, .systemRed)
+        document.activateColor(for: .text)
+        XCTAssertEqual(document.style.color, .systemGreen)
     }
 
     func testAddAndRemoveAnnotation() {

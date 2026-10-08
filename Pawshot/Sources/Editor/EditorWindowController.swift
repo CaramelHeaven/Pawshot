@@ -301,7 +301,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             guard let self else { return }
             let palette = AnnotationStyle.Palette.self
             let color = palette.colors.indices.contains(index) ? palette.colors[index] : Settings.shared.customColor
-            editorDocument.updateStyle { $0.color = color }
+            editorDocument.pickColor(color)
             syncChrome()
             returnFocusToCanvas()
         }
@@ -309,7 +309,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
             let hex = ColorHex.string(color)
             Self.editorLogger.notice("custom colour \(hex, privacy: .public)")
             Settings.shared.pickCustomColor(color)
-            self?.editorDocument.updateStyle { $0.color = color }
+            self?.editorDocument.pickColor(color)
             self?.syncChrome()
         }
         chrome.pickLineWidth = { [weak self] width in
@@ -767,6 +767,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
     // MARK: - AnnotationCanvasDelegate
 
     func canvasDidChangeTool(_ canvas: AnnotationCanvasView) {
+        editorDocument.activateColor(for: canvas.tool)
         chrome.tool = canvas.tool
     }
 
@@ -807,6 +808,13 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate, Annota
         for controller in openControllers {
             controller.canvas.finishTextEditing()
             controller.editorDocument.labelFontDidChange()
+            controller.syncChrome()
+        }
+    }
+
+    static func defaultAnnotationColorDidChange(_ color: NSColor, for group: AnnotationColorGroup) {
+        for controller in openControllers {
+            controller.editorDocument.defaultColorDidChange(color, for: group)
             controller.syncChrome()
         }
     }

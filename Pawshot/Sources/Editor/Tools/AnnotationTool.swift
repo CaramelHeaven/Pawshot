@@ -59,6 +59,15 @@ enum AnnotationTool: String, CaseIterable {
         }
     }
 
+    var colorGroup: AnnotationColorGroup? {
+        switch self {
+        case .arrow, .rectangle: .shapes
+        case .pencil: .pencil
+        case .text: .text
+        case .select, .blur, .counter: nil
+        }
+    }
+
     var cursor: NSCursor {
         switch self {
         case .select: .arrow

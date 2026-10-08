@@ -15,6 +15,11 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.13", text: String(localized: """
+            Choose a starting colour for shapes and lines, the pencil, and text in Settings → \
+            Screenshots → Editor. Each has its own custom colour. New marks in open editors take \
+            the new colour straight away; marks already on the shot keep theirs.
+            """)),
             Entry(version: "0.6.12", text: String(localized: """
             Pinch with two fingers in the screenshot editor to zoom from 100% to 400%. Move around \
             the enlarged shot with two fingers. The scale appears only while you pinch. Marks stay \

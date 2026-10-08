@@ -2,8 +2,6 @@
 
 A native macOS screenshot and screen recording tool. One hotkey, draw on it, ⌘C — done.
 
-![Pawshot: capture, annotate, record, cut, export — at 2× speed](docs/demo.gif)
-
 ## Why
 
 Apple has had years to ship a decent screenshot tool and still hasn't: nothing where one hotkey

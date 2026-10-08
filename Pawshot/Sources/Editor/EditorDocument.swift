@@ -49,6 +49,10 @@ final class EditorDocument {
     }
 
     var style: AnnotationStyle = .default
+    private var drawingColors: AnnotationDefaultColors
+    private var activeColorGroup: AnnotationColorGroup?
+    /// A palette choice made in V with nothing selected belongs to the next drawing tool.
+    private var pendingColor: NSColor?
 
     /// Lets the canvas know it's time to redraw.
     var onChange: (() -> Void)?
@@ -60,7 +64,7 @@ final class EditorDocument {
 
     private var lastCounterNumber = 0
 
-    init?(frame: CapturedFrame, cropRect: CGRect) {
+    init?(frame: CapturedFrame, cropRect: CGRect, defaultColors: AnnotationDefaultColors = .init()) {
         guard let image = Self.cutout(of: frame, cropRect: cropRect) else {
             let width = frame.image.width
             let height = frame.image.height
@@ -72,6 +76,52 @@ final class EditorDocument {
         self.cropRect = cropRect
         self.image = image
         blurSource = BlurSource(image: image, frame: cropRect)
+        drawingColors = defaultColors
+    }
+
+    /// A and R share a colour; D and T each keep theirs. Returning to V leaves the last colour
+    /// on the toolbar, while re-entering a drawing tool loads its own colour again.
+    func activateColor(for tool: AnnotationTool) {
+        activeColorGroup = tool.colorGroup
+        guard let group = activeColorGroup else { return }
+        if let pendingColor {
+            drawingColors[group] = pendingColor
+            self.pendingColor = nil
+        }
+        style.color = drawingColors[group]
+        onChange?()
+    }
+
+    /// A settings change wins over this window's manual colour for that group, without touching
+    /// any annotation already on the shot.
+    func defaultColorDidChange(_ color: NSColor, for group: AnnotationColorGroup) {
+        drawingColors[group] = color
+        pendingColor = nil
+        if activeColorGroup == group {
+            style.color = color
+            onChange?()
+        }
+    }
+
+    /// The palette and keys 1…5 take this same route. An object selected under V changes alone;
+    /// otherwise the colour belongs to the active tool for this editor window.
+    func pickColor(_ color: NSColor) {
+        settlePreview()
+        if let selection {
+            var changed = selection.style
+            guard changed.color != color else { return }
+            changed.color = color
+            apply(style: changed, to: selection)
+            return
+        }
+
+        style.color = color
+        if let group = activeColorGroup {
+            drawingColors[group] = color
+        } else {
+            pendingColor = color
+        }
+        onChange?()
     }
 
     // MARK: - Crop
