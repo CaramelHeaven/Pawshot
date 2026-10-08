@@ -2489,6 +2489,16 @@
         }
       }
     },
+    "Pinch with two fingers in the screenshot editor to zoom from 100% to 400%. Move around the enlarged shot with two fingers. The scale appears only while you pinch. Marks stay in place when you zoom back out, and the file keeps its original size." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разведите два пальца в редакторе снимков, чтобы приблизить изображение от 100% до 400%. Двигайте увеличенный снимок двумя пальцами. Процент масштаба виден только во время жеста. После отдаления пометки остаются на своих местах, а размер файла не меняется."
+          }
+        }
+      }
+    },
     "Play / Pause (Space)" : {
       "localizations" : {
         "ru" : {

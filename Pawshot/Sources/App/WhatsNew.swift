@@ -15,6 +15,11 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.12", text: String(localized: """
+            Pinch with two fingers in the screenshot editor to zoom from 100% to 400%. Move around \
+            the enlarged shot with two fingers. The scale appears only while you pinch. Marks stay \
+            in place when you zoom back out, and the file keeps its original size.
+            """)),
             Entry(version: "0.6.11", text: String(localized: """
             The bar under a recording region can be moved: drag it by its edge, and it stays \
             where you left it. Near the top of the screen, Options open downwards.
