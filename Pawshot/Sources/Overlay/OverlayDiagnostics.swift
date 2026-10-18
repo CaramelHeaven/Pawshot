@@ -372,6 +372,12 @@ enum StallSamples {
     static func record() {
         // Off, the log is silent anyway; no folder has its own line in `folder`.
         guard Logger.isCollecting, let folder else { return }
+        // The test host is the app, with the owner's Caches: a test's stall would ship in his
+        // Save Logs as the app's own (a 0.6.9 `InstantOverlayTests` stack did, 2026-10-03).
+        guard !AppDelegate.isTestHost else {
+            logger.notice("main thread stack: not sampled in the test host")
+            return
+        }
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         } catch {

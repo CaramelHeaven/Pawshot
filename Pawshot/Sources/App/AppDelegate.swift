@@ -201,7 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The unit tests run inside this app, so whatever reaches outside it — other running copies,
     /// the update feed, the welcome window — has to know.
-    static let isTestHost = {
+    nonisolated static let isTestHost = {
         let environment = ProcessInfo.processInfo.environment
         return ["XCTestConfigurationFilePath", "XCTestBundlePath", "XCTestSessionIdentifier"]
             .contains { environment[$0] != nil }

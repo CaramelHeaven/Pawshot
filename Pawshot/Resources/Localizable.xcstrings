@@ -3238,6 +3238,16 @@
         }
       }
     },
+    "Saved logs no longer carry old reports of the app freezing — only those from the last three days, the same as the log." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В сохранённых логах больше нет старых отчётов о зависаниях — только за последние три дня, как и сам лог."
+          }
+        }
+      }
+    },
     "Save…" : {
       "localizations" : {
         "ru" : {

@@ -142,6 +142,26 @@ final class LogExportTests: XCTestCase {
         XCTAssertFalse(part.contains("Total number"))
     }
 
+    /// A stall older than the log came in every saved file and read as a fresh one.
+    func testAStallSampleOlderThanTheLogIsLeftOut() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "stalls-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let now = Date()
+        for (name, age) in [("stall-old.txt", LogExport.periodSeconds + 60), ("stall-new.txt", 60.0)] {
+            let url = folder.appending(path: name)
+            try "Call graph:\n".write(to: url, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-age)], ofItemAtPath: url.path)
+        }
+
+        let both = LogExport.stallSamples(folder: folder, now: now)
+        XCTAssertTrue(both.contains("stall-new.txt"))
+        XCTAssertFalse(both.contains("stall-old.txt"))
+
+        try FileManager.default.removeItem(at: folder.appending(path: "stall-new.txt"))
+        XCTAssertEqual(LogExport.stallSamples(folder: folder, now: now), "No stall samples in the last 3d (1 older kept).")
+    }
+
     /// Whether a stalled main thread was asleep or starved is the whole question a stall asks.
     func testAThreadStateSaysRunningOrWaitingAndItsPriority() {
         XCTAssertEqual(SystemState.describeThread(runState: TH_STATE_WAITING, current: 31, base: 47), "waiting, priority 31 (base 47)")

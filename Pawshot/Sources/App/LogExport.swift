@@ -21,6 +21,8 @@ enum LogExport {
 
     /// How far back the log goes.
     static let period = "3d"
+    /// The same, for the files attached beside the log: an older stall sample is not this log's.
+    static let periodSeconds: TimeInterval = 3 * 24 * 60 * 60
 
     static var logArguments: [String] {
         ["show", "--predicate", "subsystem == \"\(subsystem)\"", "--last", period, "--info", "--style", "compact"]
@@ -180,9 +182,23 @@ enum LogExport {
 
     /// The main thread's stacks from the last stalls the overlay's watchdog caught — see
     /// `StallSamples`.
-    static func stallSamples(limit: Int = 2) -> String {
-        let files = StallSamples.folder.map { newestFirst(in: $0, prefix: StallSamples.prefix) } ?? []
-        guard !files.isEmpty else { return "No stall samples." }
+    /// Only those within the log's period: the newest two whatever their age came in every file,
+    /// and a weeks-old stack read as a fresh stall.
+    static func stallSamples(limit: Int = 2, folder: URL? = StallSamples.folder, now: Date = Date()) -> String {
+        let all = folder.map { newestFirst(in: $0, prefix: StallSamples.prefix) } ?? []
+        guard !all.isEmpty else { return "No stall samples." }
+        let files = all.filter { url in
+            let modified: Date
+            do {
+                modified = try url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate ?? .distantPast
+            } catch {
+                logger.error("logs: \(url.lastPathComponent, privacy: .public) has no date: \(String(describing: error), privacy: .public)")
+                return false
+            }
+            return now.timeIntervalSince(modified) <= periodSeconds
+        }
+        logger.notice("logs: stall samples \(files.count, privacy: .public) recent, \(all.count - files.count, privacy: .public) older")
+        guard !files.isEmpty else { return "No stall samples in the last \(period) (\(all.count) older kept)." }
         return files.prefix(limit).map { url in
             let report = readReport(url)
             return "=== \(url.lastPathComponent) ===\n" + (report == unreadable ? report : StallSamples.mainThreadPart(of: report))

@@ -15,6 +15,10 @@ enum WhatsNew {
     /// Newest first. The history starts at 0.4.7, the first version with this window.
     static var history: [Entry] {
         [
+            Entry(version: "0.6.14", text: String(localized: """
+            Saved logs no longer carry old reports of the app freezing — only those from the last \
+            three days, the same as the log.
+            """)),
             Entry(version: "0.6.13", text: String(localized: """
             Choose a starting colour for shapes and lines, the pencil, and text in Settings → \
             Screenshots → Editor. Each has its own custom colour. New marks in open editors take \
